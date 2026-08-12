@@ -1,44 +1,64 @@
 import { google } from 'googleapis';
 
-export type Language = 'JP' | 'EN' | 'ES' | 'PT' | 'ID' | 'AR';
+export type Language = 'ja' | 'en' | 'es' | 'pt' | 'id' | 'ar';
+export type Platform = 'YouTube' | 'TikTok' | 'Instagram';
+export type TargetType = 'All_Signs' | 'Zodiac_Sign';
+export type ScriptStatus = 'Pending' | 'Script_Done' | 'Error';
+export type RenderStatus = 'Pending' | 'Rendered' | 'Error';
+export type PostStatus = 'Pending' | 'Posted' | 'Error';
 
-export type ContentStatus = 'DRAFT' | 'RENDERED' | 'SCHEDULED' | 'PUBLISHED';
-export type ContentType = 'FORECAST' | 'THEME';
+export interface Channel {
+  channel_id: string;
+  platform: Platform;
+  lang_code: Language;
+  account_handle: string;
+  youtube_refresh_token?: string;
+  tiktok_access_token?: string;
+  ig_access_token?: string;
+  creatomate_template_20s: string;
+  creatomate_template_65s: string;
+}
 
-export interface SheetRow {
-  content_id: string; // A
-  content_type: ContentType; // B
-  scheduled_date: string; // C
-  target_group: string; // D
-  
-  // Pattern A (20s) Scripts (E - J)
-  script_pattern_a_jp: string;
-  script_pattern_a_en: string;
-  script_pattern_a_es: string;
-  script_pattern_a_pt: string;
-  script_pattern_a_id: string;
-  script_pattern_a_ar: string;
-  
-  // Pattern B (61s) Scripts (K - P)
-  script_pattern_b_jp: string;
-  script_pattern_b_en: string;
-  script_pattern_b_es: string;
-  script_pattern_b_pt: string;
-  script_pattern_b_id: string;
-  script_pattern_b_ar: string;
-  
-  // Audio URLs (Q - V)
-  audio_url_jp: string;
-  audio_url_en: string;
-  audio_url_es: string;
-  audio_url_pt: string;
-  audio_url_id: string;
-  audio_url_ar: string;
-  
-  video_url_pattern_a: string; // W
-  video_url_pattern_b: string; // X
-  status: ContentStatus; // Y
-  updated_at: string; // Z
+export interface ContentQueue {
+  task_id: string;
+  week_id: string;
+  day_of_week: string;
+  lang_code: Language;
+  target_type: TargetType;
+  zodiac_sign?: string;
+  script_status: ScriptStatus;
+  render_status_20s: RenderStatus;
+  render_status_65s: RenderStatus;
+  post_status: PostStatus;
+  scheduled_post_time: string;
+}
+
+export interface ScriptOutput {
+  task_id: string;
+  week_id: string;
+  lang_code: Language;
+  zodiac_sign?: string;
+  transit_reference: string;
+  script_20s_json: string;
+  script_65s_json: string;
+  hashtags: string;
+  created_at: string;
+}
+
+export interface RenderOutput {
+  task_id: string;
+  creatomate_render_id_20s?: string;
+  video_url_20s?: string;
+  creatomate_render_id_65s?: string;
+  video_url_65s?: string;
+  duration_20s?: number;
+  duration_65s?: number;
+  rendered_at?: string;
+}
+
+export interface WeeklyTransit {
+  week_id: string;
+  transit_data: string;
 }
 
 export class GoogleSheetsService {
@@ -53,12 +73,48 @@ export class GoogleSheetsService {
     this.spreadsheetId = process.env.GOOGLE_SHEETS_ID || '';
   }
 
-  async getPendingContents(): Promise<SheetRow[]> {
-    // Stub: fetch rows where status != 'PUBLISHED'
+  async getWeeklyTransits(weekId: string): Promise<WeeklyTransit | null> {
+    // Stub: fetch from Weekly_Transits table
+    return null;
+  }
+  
+  async getPendingScripts(): Promise<ContentQueue[]> {
+    // Stub: fetch from Content_Queue where script_status = 'Pending'
     return [];
   }
 
-  async updateContentStatus(contentId: string, status: ContentStatus): Promise<void> {
-    // Stub: update status column
+  async updateScriptStatus(taskId: string, status: ScriptStatus): Promise<void> {
+    // Stub: update script_status in Content_Queue
+  }
+  
+  async saveScriptOutput(output: ScriptOutput): Promise<void> {
+    // Stub: insert into Script_Outputs
+  }
+
+  async getPendingRenders(): Promise<ContentQueue[]> {
+    // Stub: fetch from Content_Queue where script_status = 'Script_Done' and (render_status_20s = 'Pending' or render_status_65s = 'Pending')
+    return [];
+  }
+
+  async updateRenderStatus(taskId: string, pattern: '20s' | '65s', status: RenderStatus): Promise<void> {
+    // Stub: update render_status_20s or render_status_65s in Content_Queue
+  }
+  
+  async saveRenderOutput(output: RenderOutput): Promise<void> {
+    // Stub: insert/update Render_Outputs
+  }
+
+  async getPendingPosts(): Promise<ContentQueue[]> {
+    // Stub: fetch from Content_Queue where render_status_* = 'Rendered' and post_status = 'Pending'
+    return [];
+  }
+
+  async updatePostStatus(taskId: string, status: PostStatus): Promise<void> {
+    // Stub: update post_status in Content_Queue
+  }
+  
+  async getChannelConfig(lang_code: Language, platform: Platform): Promise<Channel | null> {
+    // Stub: fetch channel config from Channels table
+    return null;
   }
 }
