@@ -1,11 +1,14 @@
-import { Language } from './sheets';
+import { Channel } from './sheets';
+
+export interface TikTokUploadParams {
+  channel: Channel;
+  description: string;
+  videoUrl: string;
+}
 
 export class TikTokService {
-  async publishVideo(videoUrl: string, language: Language, metadata: any): Promise<void> {
-    console.log(`Publishing Pattern B to TikTok Language Account: ${language}`);
-  }
-
-  async uploadVideo(params: { description: string, videoUrl: string }): Promise<void> {
-    console.log(`Uploading to TikTok: ${params.description}`);
+  async uploadVideo(params: TikTokUploadParams): Promise<void> {
+    // Stub: upload via TikTok Content Posting API
+    console.log(`Uploading to TikTok (${params.channel.account_handle}): ${params.description}`);
   }
 }

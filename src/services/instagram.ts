@@ -1,11 +1,14 @@
-import { Language } from './sheets';
+import { Channel } from './sheets';
+
+export interface InstagramUploadParams {
+  channel: Channel;
+  caption: string;
+  videoUrl: string;
+}
 
 export class InstagramService {
-  async publishReel(videoUrl: string, language: Language, metadata: any): Promise<void> {
-    console.log(`Publishing Pattern A to Instagram Reels Language Account: ${language}`);
-  }
-
-  async uploadVideo(params: { caption: string, videoUrl: string }): Promise<void> {
-    console.log(`Uploading to Instagram: ${params.caption}`);
+  async uploadVideo(params: InstagramUploadParams): Promise<void> {
+    // Stub: publish a Reel via the Instagram Graph API
+    console.log(`Uploading to Instagram (${params.channel.account_handle}): ${params.caption}`);
   }
 }

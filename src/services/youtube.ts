@@ -1,11 +1,15 @@
-import { Language } from './sheets';
+import { Channel } from './sheets';
+
+export interface YouTubeUploadParams {
+  channel: Channel;
+  title: string;
+  description: string;
+  videoUrl: string;
+}
 
 export class YouTubeService {
-  async publishShorts(videoUrl: string, audioUrls: Record<Language, string>, metadata: any): Promise<void> {
-    console.log(`Publishing Pattern A to YouTube Shorts with multi-audio: ${Object.keys(audioUrls).join(', ')}`);
-  }
-
-  async uploadVideo(params: { title: string, description: string, videoUrl: string }): Promise<void> {
-    console.log(`Uploading to YouTube: ${params.title}`);
+  async uploadVideo(params: YouTubeUploadParams): Promise<void> {
+    // Stub: upload to YouTube Shorts via YouTube Data API v3
+    console.log(`Uploading to YouTube (${params.channel.account_handle}): ${params.title}`);
   }
 }
