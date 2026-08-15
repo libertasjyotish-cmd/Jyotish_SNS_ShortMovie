@@ -28,12 +28,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const sheetsService = new GoogleSheetsService();
-  const youtubeService = new YouTubeService();
-  const tiktokService = new TikTokService(sheetsService);
-  const instagramService = new InstagramService();
-
   try {
+    const sheetsService = new GoogleSheetsService();
+    const youtubeService = new YouTubeService();
+    const tiktokService = new TikTokService(sheetsService);
+    const instagramService = new InstagramService();
     const now = new Date();
     const pendingPosts = await sheetsService.getPendingPosts();
     const duePosts = pendingPosts.filter((post) => isDue(post.scheduled_post_time, now));

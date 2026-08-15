@@ -12,10 +12,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const sheetsService = new GoogleSheetsService();
-  const geminiService = new GeminiService();
-
   try {
+    const sheetsService = new GoogleSheetsService();
+    const geminiService = new GeminiService();
     const pendingTasks = await sheetsService.getPendingScripts();
     const transitCache = new Map<string, WeeklyTransit | null>();
     let succeeded = 0;
