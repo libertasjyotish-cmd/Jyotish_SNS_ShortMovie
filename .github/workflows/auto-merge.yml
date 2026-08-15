@@ -1,0 +1,45 @@
+name: Auto merge
+
+on:
+  status:
+  check_suite:
+    types: [completed]
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge pull requests whose checks have passed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          for pr in $(gh pr list --state open --base main --json number --jq '.[].number'); do
+            state=$(gh pr view "$pr" --json mergeStateStatus --jq .mergeStateStatus)
+            mergeable=$(gh pr view "$pr" --json mergeable --jq .mergeable)
+            draft=$(gh pr view "$pr" --json isDraft --jq .isDraft)
+            echo "PR #$pr: mergeable=$mergeable state=$state draft=$draft"
+            if [ "$draft" = "true" ] || [ "$mergeable" != "MERGEABLE" ]; then
+              continue
+            fi
+            if [ "$state" = "BLOCKED" ] || [ "$state" = "DIRTY" ] || [ "$state" = "BEHIND" ]; then
+              continue
+            fi
+            if ! gh pr checks "$pr" --required 2>/dev/null; then
+              if ! gh pr checks "$pr"; then
+                echo "PR #$pr: checks not green yet"
+                continue
+              fi
+            fi
+            gh pr merge "$pr" --squash --delete-branch
+          done

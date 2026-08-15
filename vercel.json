@@ -1,5 +1,11 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    { "path": "/api/cron/weekly-generate", "schedule": "0 15 * * 6" },
+    { "path": "/api/cron/render-batch", "schedule": "0 17 * * 6" },
+    { "path": "/api/cron/render-batch", "schedule": "0 1 * * 0" },
+    { "path": "/api/cron/daily-dispatch", "schedule": "0 9 * * *" }
+  ]
 }
