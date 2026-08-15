@@ -2,8 +2,22 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { optionalEnv, requireEnv } from '@/lib/env';
 import { Language, TargetType } from './sheets';
 
-const DEFAULT_MODEL = 'gemini-flash-latest';
-const MAX_ATTEMPTS = 2;
+const DEFAULT_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+const MAX_ATTEMPTS = 3;
+const BASE_BACKOFF_MS = 2_000;
+const ATTEMPT_TIMEOUT_MS = 25_000;
+
+/** 429 / 5xx from the Gemini endpoint are load related and worth retrying. */
+export function isTransientGeminiError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /\b(429|500|502|503|504)\b|RESOURCE_EXHAUSTED|UNAVAILABLE|DEADLINE_EXCEEDED|abort/i.test(
+    message
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export interface GenerationRequest {
   week_id: string;
@@ -137,7 +151,8 @@ function buildPrompt(request: GenerationRequest): string {
 
 export class GeminiService {
   private ai: GoogleGenAI;
-  private model: string;
+  /** Tried in order across attempts so an overloaded model falls back to the next one. */
+  private models: string[];
 
   /**
    * Strict Astrology Rules:
@@ -148,7 +163,11 @@ export class GeminiService {
    */
   constructor() {
     this.ai = new GoogleGenAI({ apiKey: requireEnv('GEMINI_API_KEY') });
-    this.model = optionalEnv('GEMINI_MODEL') ?? DEFAULT_MODEL;
+    const configured = (optionalEnv('GEMINI_MODEL') ?? '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean);
+    this.models = configured.length > 0 ? configured : DEFAULT_MODELS;
   }
 
   async generateScript(request: GenerationRequest): Promise<GeneratedContent> {
@@ -156,14 +175,19 @@ export class GeminiService {
     let lastError: Error | undefined;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      const model = this.models[(attempt - 1) % this.models.length];
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
       try {
         const response = await this.ai.models.generateContent({
-          model: this.model,
+          model,
           contents: prompt,
           config: {
             temperature: 0.7,
             responseMimeType: 'application/json',
             responseSchema: RESPONSE_SCHEMA,
+            abortSignal: controller.signal,
+            httpOptions: { timeout: ATTEMPT_TIMEOUT_MS },
           },
         });
 
@@ -183,7 +207,13 @@ export class GeminiService {
         };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown Gemini error');
-        console.error(`Gemini generation attempt ${attempt} failed:`, lastError.message);
+        console.error(`Gemini generation attempt ${attempt} (${model}) failed:`, lastError.message);
+        if (attempt < MAX_ATTEMPTS) {
+          // Exponential backoff with jitter so parallel workers do not retry in lockstep.
+          await sleep(BASE_BACKOFF_MS * 2 ** (attempt - 1) * (0.5 + Math.random()));
+        }
+      } finally {
+        clearTimeout(timer);
       }
     }
 
