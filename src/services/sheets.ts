@@ -19,6 +19,9 @@ export interface Channel {
   youtube_client_id?: string;
   youtube_client_secret?: string;
   tiktok_access_token?: string;
+  tiktok_refresh_token?: string;
+  /** ISO timestamp at which `tiktok_access_token` expires. */
+  tiktok_token_expires_at?: string;
   ig_access_token?: string;
   ig_user_id?: string;
   creatomate_template_20s: string;
@@ -352,6 +355,16 @@ export class GoogleSheetsService {
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, { post_status: status });
   }
 
+  /** Persists rotated OAuth tokens back onto the channel's row. */
+  async updateChannelTokens(channelId: string, patch: Record<string, string>): Promise<void> {
+    const { rows } = await this.loadTable(SHEET_NAMES.channels);
+    const row = rows.find((candidate) => candidate.values.channel_id === channelId);
+    if (!row) {
+      throw new Error(`channel_id "${channelId}" not found in ${SHEET_NAMES.channels}`);
+    }
+    await this.patchRow(SHEET_NAMES.channels, row.rowNumber, patch);
+  }
+
   async getChannelConfig(lang_code: Language, platform: Platform): Promise<Channel | null> {
     const { rows } = await this.loadTable(SHEET_NAMES.channels);
     const row = rows.find(
@@ -368,6 +381,8 @@ export class GoogleSheetsService {
       youtube_client_id: row.values.youtube_client_id || undefined,
       youtube_client_secret: row.values.youtube_client_secret || undefined,
       tiktok_access_token: row.values.tiktok_access_token || undefined,
+      tiktok_refresh_token: row.values.tiktok_refresh_token || undefined,
+      tiktok_token_expires_at: row.values.tiktok_token_expires_at || undefined,
       ig_access_token: row.values.ig_access_token || undefined,
       ig_user_id: row.values.ig_user_id || undefined,
       creatomate_template_20s: row.values.creatomate_template_20s,

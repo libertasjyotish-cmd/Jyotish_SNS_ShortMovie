@@ -23,14 +23,14 @@ function buildTitle(task: ContentQueue, script: GeneratedScript): string {
 }
 
 export async function GET(request: Request) {
-  // Scenario 3: Multi-platform post scheduler (hourly)
+  // Scenario 3: Multi-platform post scheduler
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const sheetsService = new GoogleSheetsService();
   const youtubeService = new YouTubeService();
-  const tiktokService = new TikTokService();
+  const tiktokService = new TikTokService(sheetsService);
   const instagramService = new InstagramService();
 
   try {
