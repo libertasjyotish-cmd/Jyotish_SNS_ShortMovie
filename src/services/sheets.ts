@@ -1,5 +1,6 @@
 import { google, sheets_v4 } from 'googleapis';
 import { requireEnv } from '@/lib/env';
+import { getGoogleCredentials } from '@/lib/google-credentials';
 
 export type Language = 'ja' | 'en' | 'es' | 'pt' | 'id' | 'ar';
 export type Platform = 'YouTube' | 'TikTok' | 'Instagram';
@@ -115,10 +116,7 @@ export class GoogleSheetsService {
 
   constructor() {
     const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: requireEnv('GOOGLE_SERVICE_ACCOUNT_EMAIL'),
-        private_key: requireEnv('GOOGLE_PRIVATE_KEY').replace(/\\n/g, '\n'),
-      },
+      credentials: getGoogleCredentials(),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
     this.sheets = google.sheets({ version: 'v4', auth });
