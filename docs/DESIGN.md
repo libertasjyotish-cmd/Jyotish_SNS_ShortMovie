@@ -156,8 +156,9 @@ TypeScript 型 `GenerationRequest` / `GeneratedScript` / `GeneratedContent` と�
 
 | 変数名 | 用途 | 参照箇所 |
 | --- | --- | --- |
-| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Sheets 認証 | `services/sheets.ts` |
-| `GOOGLE_PRIVATE_KEY` | Sheets 認証（`\n` はエスケープ） | `services/sheets.ts` |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Sheets 認証（キー JSON をそのまま貼る。推奨） | `lib/google-credentials.ts` |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Sheets 認証（JSON 未設定時のフォールバック） | `lib/google-credentials.ts` |
+| `GOOGLE_PRIVATE_KEY` | Sheets 認証（`\n` はエスケープ可） | `lib/google-credentials.ts` |
 | `GOOGLE_SHEETS_ID` | MasterDB のスプレッドシート ID | `services/sheets.ts` |
 | `GEMINI_API_KEY` | 原稿生成 | `services/gemini.ts` |
 | `CREATEMATE_API_KEY` | 動画レンダリング | `services/createmate.ts` |

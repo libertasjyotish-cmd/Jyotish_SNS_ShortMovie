@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
+import { getGoogleCredentials } from '@/lib/google-credentials';
 
 export const dynamic = 'force-dynamic';
 
 const REQUIRED_VARS = [
   'PUBLIC_BASE_URL',
-  'GOOGLE_SERVICE_ACCOUNT_EMAIL',
-  'GOOGLE_PRIVATE_KEY',
   'GOOGLE_SHEETS_ID',
   'GEMINI_API_KEY',
   'CREATOMATE_API_KEY',
@@ -24,14 +23,24 @@ const POSTING_VARS = [
 export async function GET() {
   const missingRequired = REQUIRED_VARS.filter((name) => !process.env[name]);
   const missingPosting = POSTING_VARS.filter((name) => !process.env[name]);
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY ?? '';
+
+  let googleCredentials = 'ok';
+  let privateKeyLooksValid = false;
+  try {
+    const { private_key } = getGoogleCredentials();
+    privateKeyLooksValid =
+      private_key.startsWith('-----BEGIN PRIVATE KEY-----') &&
+      private_key.trimEnd().endsWith('-----END PRIVATE KEY-----') &&
+      private_key.includes('\n');
+  } catch (error) {
+    googleCredentials = error instanceof Error ? error.message : 'Unknown error';
+  }
 
   return NextResponse.json({
-    ok: missingRequired.length === 0,
+    ok: missingRequired.length === 0 && googleCredentials === 'ok' && privateKeyLooksValid,
     missing_required: missingRequired,
     missing_posting: missingPosting,
-    google_private_key_looks_valid:
-      privateKey.includes('BEGIN PRIVATE KEY') &&
-      (privateKey.includes('\n') || privateKey.includes('\\n')),
+    google_credentials: googleCredentials,
+    google_private_key_looks_valid: privateKeyLooksValid,
   });
 }
