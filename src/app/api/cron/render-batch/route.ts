@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
+import { startRender } from '@/lib/render';
 import { CreatomateService } from '@/services/creatomate';
-import { GeneratedScript } from '@/services/gemini';
-import { ContentQueue, GoogleSheetsService, Pattern } from '@/services/sheets';
+import { GoogleSheetsService } from '@/services/sheets';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
-
-/** 20s videos go to YouTube Shorts / Instagram Reels, 65s videos to TikTok. */
-const TEMPLATE_SOURCE_PLATFORM = { '20s': 'YouTube', '65s': 'TikTok' } as const;
 
 export async function GET(request: Request) {
   // Scenario 2 Trigger: Creatomate batch rendering
@@ -18,39 +15,6 @@ export async function GET(request: Request) {
 
   const sheetsService = new GoogleSheetsService();
   const creatomateService = new CreatomateService();
-
-  const renderPattern = async (task: ContentQueue, pattern: Pattern, script: GeneratedScript) => {
-    const channel = await sheetsService.getChannelConfig(
-      task.lang_code,
-      TEMPLATE_SOURCE_PLATFORM[pattern],
-    );
-    if (!channel) {
-      throw new Error(
-        `No ${TEMPLATE_SOURCE_PLATFORM[pattern]} channel configured for "${task.lang_code}"`,
-      );
-    }
-
-    const templateId =
-      pattern === '20s' ? channel.creatomate_template_20s : channel.creatomate_template_65s;
-    if (!templateId) {
-      throw new Error(`No ${pattern} template configured for channel "${channel.channel_id}"`);
-    }
-
-    const response = await creatomateService.triggerRender({
-      taskId: task.task_id,
-      templateId,
-      pattern,
-      language: task.lang_code,
-      scriptData: script,
-    });
-
-    await sheetsService.saveRenderOutput({
-      task_id: task.task_id,
-      ...(pattern === '20s'
-        ? { creatomate_render_id_20s: response.renderId }
-        : { creatomate_render_id_65s: response.renderId }),
-    });
-  };
 
   try {
     const pendingRenders = await sheetsService.getPendingRenders();
@@ -65,11 +29,21 @@ export async function GET(request: Request) {
         }
 
         if (task.render_status_20s === 'Pending') {
-          await renderPattern(task, '20s', JSON.parse(scriptOutput.script_20s_json));
+          await startRender(sheetsService, creatomateService, {
+            taskId: task.task_id,
+            language: task.lang_code,
+            pattern: '20s',
+            script: JSON.parse(scriptOutput.script_20s_json),
+          });
           triggered += 1;
         }
         if (task.render_status_65s === 'Pending') {
-          await renderPattern(task, '65s', JSON.parse(scriptOutput.script_65s_json));
+          await startRender(sheetsService, creatomateService, {
+            taskId: task.task_id,
+            language: task.lang_code,
+            pattern: '65s',
+            script: JSON.parse(scriptOutput.script_65s_json),
+          });
           triggered += 1;
         }
       } catch (taskError) {
