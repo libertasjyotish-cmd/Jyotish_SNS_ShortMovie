@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'crypto';
-import { requireEnv } from './env';
+import { optionalEnv } from './env';
 
 function secretsMatch(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
@@ -12,7 +12,11 @@ function secretsMatch(a: string, b: string): boolean {
  * Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` on every invocation.
  */
 export function isCronAuthorized(request: Request): boolean {
-  const expected = requireEnv('CRON_SECRET');
+  const expected = optionalEnv('CRON_SECRET');
+  if (!expected) {
+    console.error('CRON_SECRET is not configured');
+    return false;
+  }
   const header = request.headers.get('authorization') || '';
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
   return token !== '' && secretsMatch(token, expected);
@@ -23,7 +27,11 @@ export function isCronAuthorized(request: Request): boolean {
  * shared secret (`?secret=...`) that is verified here.
  */
 export function isWebhookAuthorized(request: Request): boolean {
-  const expected = requireEnv('CREATOMATE_WEBHOOK_SECRET');
+  const expected = optionalEnv('CREATOMATE_WEBHOOK_SECRET');
+  if (!expected) {
+    console.error('CREATOMATE_WEBHOOK_SECRET is not configured');
+    return false;
+  }
   const provided =
     new URL(request.url).searchParams.get('secret') ||
     request.headers.get('x-webhook-secret') ||

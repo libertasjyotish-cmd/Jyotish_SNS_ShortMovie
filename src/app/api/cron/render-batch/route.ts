@@ -13,10 +13,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const sheetsService = new GoogleSheetsService();
-  const creatomateService = new CreatomateService();
-
   try {
+    const sheetsService = new GoogleSheetsService();
+    const creatomateService = new CreatomateService();
     const pendingRenders = await sheetsService.getPendingRenders();
     let triggered = 0;
     let failed = 0;
