@@ -1,8 +1,8 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { requireEnv } from '@/lib/env';
+import { optionalEnv, requireEnv } from '@/lib/env';
 import { Language, TargetType } from './sheets';
 
-const MODEL = 'gemini-2.5-flash';
+const DEFAULT_MODEL = 'gemini-flash-latest';
 const MAX_ATTEMPTS = 2;
 
 export interface GenerationRequest {
@@ -137,6 +137,7 @@ function buildPrompt(request: GenerationRequest): string {
 
 export class GeminiService {
   private ai: GoogleGenAI;
+  private model: string;
 
   /**
    * Strict Astrology Rules:
@@ -147,6 +148,7 @@ export class GeminiService {
    */
   constructor() {
     this.ai = new GoogleGenAI({ apiKey: requireEnv('GEMINI_API_KEY') });
+    this.model = optionalEnv('GEMINI_MODEL') ?? DEFAULT_MODEL;
   }
 
   async generateScript(request: GenerationRequest): Promise<GeneratedContent> {
@@ -156,7 +158,7 @@ export class GeminiService {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       try {
         const response = await this.ai.models.generateContent({
-          model: MODEL,
+          model: this.model,
           contents: prompt,
           config: {
             temperature: 0.7,
