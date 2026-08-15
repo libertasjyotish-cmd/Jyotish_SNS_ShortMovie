@@ -162,6 +162,8 @@ TypeScript 型 `GenerationRequest` / `GeneratedScript` / `GeneratedContent` と�
 | `GOOGLE_SHEETS_ID` | MasterDB のスプレッドシート ID | `services/sheets.ts` |
 | `GEMINI_API_KEY` | 原稿生成 | `services/gemini.ts` |
 | `GEMINI_MODEL` | 使用モデル（任意、既定 `gemini-flash-latest`） | `services/gemini.ts` |
+| `WEEKLY_GENERATE_CONCURRENCY` | 原稿生成の並列数（任意、既定 4） | `api/cron/weekly-generate` |
+| `WEEKLY_GENERATE_BUDGET_MS` | 1回の実行で新規タスクを開始する上限時間（任意、既定 35000） | `api/cron/weekly-generate` |
 | `CREATEMATE_API_KEY` | 動画レンダリング | `services/createmate.ts` |
 | `CRON_SECRET` | Cron エンドポイント保護 | **未実装** |
 | `SLACK_WEBHOOK_URL` | エラー通知 | **未実装** |
