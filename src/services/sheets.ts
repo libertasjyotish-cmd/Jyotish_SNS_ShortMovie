@@ -15,6 +15,9 @@ export interface Channel {
   lang_code: Language;
   account_handle: string;
   youtube_refresh_token?: string;
+  /** Per-language OAuth client, so each language gets its own YouTube API quota. */
+  youtube_client_id?: string;
+  youtube_client_secret?: string;
   tiktok_access_token?: string;
   ig_access_token?: string;
   ig_user_id?: string;
@@ -362,6 +365,8 @@ export class GoogleSheetsService {
       lang_code: row.values.lang_code as Language,
       account_handle: row.values.account_handle,
       youtube_refresh_token: row.values.youtube_refresh_token || undefined,
+      youtube_client_id: row.values.youtube_client_id || undefined,
+      youtube_client_secret: row.values.youtube_client_secret || undefined,
       tiktok_access_token: row.values.tiktok_access_token || undefined,
       ig_access_token: row.values.ig_access_token || undefined,
       ig_user_id: row.values.ig_user_id || undefined,

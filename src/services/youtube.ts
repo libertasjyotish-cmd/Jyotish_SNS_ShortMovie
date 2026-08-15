@@ -22,9 +22,10 @@ export class YouTubeService {
       throw new Error(`No youtube_refresh_token for channel "${params.channel.channel_id}"`);
     }
 
+    // Each language may use its own Google Cloud project to get a separate upload quota.
     const auth = new google.auth.OAuth2(
-      requireEnv('YOUTUBE_CLIENT_ID'),
-      requireEnv('YOUTUBE_CLIENT_SECRET'),
+      params.channel.youtube_client_id ?? requireEnv('YOUTUBE_CLIENT_ID'),
+      params.channel.youtube_client_secret ?? requireEnv('YOUTUBE_CLIENT_SECRET'),
     );
     auth.setCredentials({ refresh_token: refreshToken });
 
