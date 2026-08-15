@@ -161,6 +161,7 @@ TypeScript 型 `GenerationRequest` / `GeneratedScript` / `GeneratedContent` と�
 | `GOOGLE_PRIVATE_KEY` | Sheets 認証（`\n` はエスケープ可） | `lib/google-credentials.ts` |
 | `GOOGLE_SHEETS_ID` | MasterDB のスプレッドシート ID | `services/sheets.ts` |
 | `GEMINI_API_KEY` | 原稿生成 | `services/gemini.ts` |
+| `GEMINI_MODEL` | 使用モデル（任意、既定 `gemini-flash-latest`） | `services/gemini.ts` |
 | `CREATEMATE_API_KEY` | 動画レンダリング | `services/createmate.ts` |
 | `CRON_SECRET` | Cron エンドポイント保護 | **未実装** |
 | `SLACK_WEBHOOK_URL` | エラー通知 | **未実装** |
