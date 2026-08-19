@@ -10,6 +10,7 @@ export const TEMPLATE_ELEMENTS = {
   body: 'Body-Text',
   cta: 'CTA-Text',
   voiceover: 'Voiceover',
+  background: 'Background-Video',
 } as const;
 
 export interface RenderMetadata {
@@ -27,6 +28,9 @@ export interface RenderRequest {
   pattern: Pattern;
   language: Language;
   scriptData: GeneratedScript;
+  /** Narration MP3 rendered by Google Cloud TTS and hosted on Vercel Blob. */
+  voiceoverUrl: string;
+  backgroundUrl?: string;
   attempt?: number;
   speed?: number;
 }
@@ -94,12 +98,10 @@ export class CreatomateService {
           [TEMPLATE_ELEMENTS.hook]: scriptData.hook_text,
           [TEMPLATE_ELEMENTS.body]: scriptData.body_script,
           [TEMPLATE_ELEMENTS.cta]: scriptData.cta_text,
-          [TEMPLATE_ELEMENTS.voiceover]: [
-            scriptData.hook_text,
-            scriptData.body_script,
-            scriptData.cta_text,
-          ].join(' '),
-          [`${TEMPLATE_ELEMENTS.voiceover}.speed`]: speed,
+          [`${TEMPLATE_ELEMENTS.voiceover}.source`]: request.voiceoverUrl,
+          ...(request.backgroundUrl
+            ? { [`${TEMPLATE_ELEMENTS.background}.source`]: request.backgroundUrl }
+            : {}),
         },
         webhook_url: this.webhookUrl,
         metadata: JSON.stringify(metadata),
