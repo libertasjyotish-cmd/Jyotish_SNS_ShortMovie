@@ -1,3 +1,4 @@
+import { mp3DurationSeconds } from '@/lib/mp3';
 import { CreatomateService } from '@/services/creatomate';
 import { GeneratedScript } from '@/services/gemini';
 import { GoogleSheetsService, Language, Pattern, Platform } from '@/services/sheets';
@@ -10,7 +11,12 @@ export const DURATION_BOUNDS: Record<Pattern, { min: number; max: number }> = {
   '65s': { min: 61, max: 68 },
 };
 
-const TARGET_DURATION: Record<Pattern, number> = { '20s': 20, '65s': 65 };
+/** Narration length aimed for; the rest of the pattern budget is visual tail. */
+const TARGET_NARRATION: Record<Pattern, number> = { '20s': 19, '65s': 63 };
+
+/** Free TTS passes used to land the narration on its target length. */
+export const MAX_TTS_ATTEMPTS = 3;
+const NARRATION_TOLERANCE = 0.4;
 
 /** 20s videos go to YouTube Shorts / Instagram Reels, 65s videos to TikTok. */
 export const TEMPLATE_SOURCE_PLATFORM: Record<Pattern, Platform> = {
@@ -18,18 +24,46 @@ export const TEMPLATE_SOURCE_PLATFORM: Record<Pattern, Platform> = {
   '65s': 'TikTok',
 };
 
-export const MAX_RENDER_ATTEMPTS = 3;
-
 export function isDurationAcceptable(pattern: Pattern, duration: number | undefined): boolean {
   if (duration === undefined) return true;
   const { min, max } = DURATION_BOUNDS[pattern];
   return duration >= min && duration <= max;
 }
 
-/** Speed factor that brings a render of `duration` seconds onto the target length. */
+/** Speaking rate that brings narration of `duration` seconds onto the target length. */
 export function correctedSpeed(pattern: Pattern, duration: number, currentSpeed: number): number {
-  const factor = (currentSpeed * duration) / TARGET_DURATION[pattern];
+  const factor = (currentSpeed * duration) / TARGET_NARRATION[pattern];
   return Math.min(Math.max(Number(factor.toFixed(3)), 0.5), 2);
+}
+
+/**
+ * Synthesizes the narration and re-synthesizes at a corrected speaking rate until it
+ * fits the pattern. Doing this before rendering keeps Creatomate to one billed render.
+ */
+export async function synthesizeNarration(
+  text: string,
+  language: Language,
+  pattern: Pattern,
+): Promise<{ audio: Buffer; speed: number; duration: number }> {
+  const tts = new TextToSpeechService();
+  let speed = 1;
+
+  for (let attempt = 1; ; attempt += 1) {
+    const audio = await tts.synthesize(text, language, speed);
+    const duration = mp3DurationSeconds(audio);
+    const offBy = Math.abs(duration - TARGET_NARRATION[pattern]);
+    const nextSpeed = correctedSpeed(pattern, duration, speed);
+
+    if (
+      duration === 0 ||
+      offBy <= NARRATION_TOLERANCE ||
+      attempt >= MAX_TTS_ATTEMPTS ||
+      nextSpeed === speed
+    ) {
+      return { audio, speed, duration };
+    }
+    speed = nextSpeed;
+  }
 }
 
 export async function resolveTemplateId(
@@ -74,22 +108,17 @@ export async function startRender(
     pattern: Pattern;
     script: GeneratedScript;
     dayOfWeek?: string;
-    attempt?: number;
-    speed?: number;
   },
 ): Promise<void> {
-  const speed = params.speed ?? 1;
   const templateId = await resolveTemplateId(sheets, params.language, params.pattern);
 
-  // The narration is re-synthesized per attempt because the speed correction
-  // is applied by the TTS engine rather than by Creatomate.
-  const audio = await new TextToSpeechService().synthesize(
+  const { audio, speed } = await synthesizeNarration(
     narrationText(params.script),
     params.language,
-    speed,
+    params.pattern,
   );
   const voiceoverUrl = await uploadVoiceover(
-    `voiceover/${params.taskId}-${params.pattern}-${params.attempt ?? 1}.mp3`,
+    `voiceover/${params.taskId}-${params.pattern}.mp3`,
     audio,
   );
 
@@ -107,7 +136,6 @@ export async function startRender(
     scriptData: params.script,
     voiceoverUrl,
     backgroundUrl: pickBackground(params.taskId, assets.map((asset) => asset.video_url)),
-    attempt: params.attempt,
     speed,
   });
 
