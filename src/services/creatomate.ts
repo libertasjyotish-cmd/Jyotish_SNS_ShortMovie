@@ -29,6 +29,8 @@ export interface RenderRequest {
   /** Narration MP3 rendered by Google Cloud TTS and hosted on Vercel Blob. */
   voiceoverUrl: string;
   backgroundUrl?: string;
+  /** Total video length in seconds; the template's own duration is dynamic. */
+  durationSeconds?: number;
   speed?: number;
 }
 
@@ -97,6 +99,7 @@ export class CreatomateService {
           ...(request.backgroundUrl
             ? { [`${TEMPLATE_ELEMENTS.background}.source`]: request.backgroundUrl }
             : {}),
+          ...(request.durationSeconds ? { duration: request.durationSeconds } : {}),
         },
         webhook_url: this.webhookUrl,
         metadata: JSON.stringify(metadata),
