@@ -5,7 +5,7 @@ import { Language } from './sheets';
 
 /** Google Cloud TTS locale and voice per language. Override with `TTS_VOICE_<LANG>`. */
 const VOICES: Record<Language, { languageCode: string; name: string }> = {
-  ja: { languageCode: 'ja-JP', name: 'ja-JP-Neural2-B' },
+  ja: { languageCode: 'ja-JP', name: 'ja-JP-Chirp3-HD-Enceladus' },
   en: { languageCode: 'en-US', name: 'en-US-Neural2-F' },
   es: { languageCode: 'es-ES', name: 'es-ES-Neural2-A' },
   pt: { languageCode: 'pt-BR', name: 'pt-BR-Neural2-A' },
