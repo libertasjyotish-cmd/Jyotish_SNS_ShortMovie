@@ -16,9 +16,7 @@ export const TEMPLATE_ELEMENTS = {
 export interface RenderMetadata {
   taskId: string;
   pattern: Pattern;
-  /** 1-based render attempt, incremented when the duration has to be corrected. */
-  attempt: number;
-  /** Playback speed applied to the TTS element. */
+  /** Speaking rate the narration was synthesized at, kept for diagnostics. */
   speed: number;
 }
 
@@ -31,7 +29,6 @@ export interface RenderRequest {
   /** Narration MP3 rendered by Google Cloud TTS and hosted on Vercel Blob. */
   voiceoverUrl: string;
   backgroundUrl?: string;
-  attempt?: number;
   speed?: number;
 }
 
@@ -54,7 +51,6 @@ export function parseRenderMetadata(raw: string | undefined): RenderMetadata | n
     return {
       taskId: parsed.taskId,
       pattern: parsed.pattern,
-      attempt: typeof parsed.attempt === 'number' ? parsed.attempt : 1,
       speed: typeof parsed.speed === 'number' ? parsed.speed : 1,
     };
   } catch {
@@ -81,7 +77,6 @@ export class CreatomateService {
     const metadata: RenderMetadata = {
       taskId: request.taskId,
       pattern: request.pattern,
-      attempt: request.attempt ?? 1,
       speed,
     };
 
