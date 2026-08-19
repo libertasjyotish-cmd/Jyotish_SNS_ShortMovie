@@ -31,6 +31,8 @@ export interface RenderRequest {
   backgroundUrl?: string;
   /** Total video length in seconds; the template's own duration is dynamic. */
   durationSeconds?: number;
+  /** Seconds of video shown before the narration starts. */
+  voiceoverStart?: number;
   speed?: number;
 }
 
@@ -97,6 +99,9 @@ export class CreatomateService {
           [TEMPLATE_ELEMENTS.cta]: scriptData.cta_text,
           [`${TEMPLATE_ELEMENTS.voiceover}.source`]: request.voiceoverUrl,
           [`${TEMPLATE_ELEMENTS.voiceover}.loop`]: false,
+          ...(request.voiceoverStart
+            ? { [`${TEMPLATE_ELEMENTS.voiceover}.time`]: request.voiceoverStart }
+            : {}),
           ...(request.backgroundUrl
             ? { [`${TEMPLATE_ELEMENTS.background}.source`]: request.backgroundUrl }
             : {}),

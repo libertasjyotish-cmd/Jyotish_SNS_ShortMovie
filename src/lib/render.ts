@@ -1,4 +1,5 @@
 import { mp3DurationSeconds } from '@/lib/mp3';
+import { applyReadingHints } from '@/lib/reading';
 import { CreatomateService } from '@/services/creatomate';
 import { GeneratedScript } from '@/services/gemini';
 import { GoogleSheetsService, Language, Pattern, Platform } from '@/services/sheets';
@@ -12,13 +13,15 @@ export const DURATION_BOUNDS: Record<Pattern, { min: number; max: number }> = {
 };
 
 /** Narration length aimed for; the rest of the pattern budget is visual tail. */
-const TARGET_NARRATION: Record<Pattern, number> = { '20s': 19, '65s': 63 };
+const TARGET_NARRATION: Record<Pattern, number> = { '20s': 17.5, '65s': 61 };
 
 /** Free TTS passes used to land the narration on its target length. */
 export const MAX_TTS_ATTEMPTS = 3;
 const NARRATION_TOLERANCE = 0.4;
 /** Silent tail kept after the narration ends. */
 const OUTRO_SECONDS = 0.8;
+/** Lead-in before the narration starts, so the opening word is never clipped. */
+export const INTRO_SECONDS = 2;
 
 /** 20s videos go to YouTube Shorts / Instagram Reels, 65s videos to TikTok. */
 export const TEMPLATE_SOURCE_PLATFORM: Record<Pattern, Platform> = {
@@ -51,7 +54,7 @@ export async function synthesizeNarration(
   let speed = 1;
 
   for (let attempt = 1; ; attempt += 1) {
-    const audio = await tts.synthesize(text, language, speed);
+    const audio = await tts.synthesize(applyReadingHints(text, language), language, speed);
     const duration = mp3DurationSeconds(audio);
     const offBy = Math.abs(duration - TARGET_NARRATION[pattern]);
     const nextSpeed = correctedSpeed(pattern, duration, speed);
@@ -138,7 +141,9 @@ export async function startRender(
     scriptData: params.script,
     voiceoverUrl,
     backgroundUrl: pickBackground(params.taskId, assets.map((asset) => asset.video_url)),
-    durationSeconds: duration > 0 ? Number((duration + OUTRO_SECONDS).toFixed(2)) : undefined,
+    durationSeconds:
+      duration > 0 ? Number((INTRO_SECONDS + duration + OUTRO_SECONDS).toFixed(2)) : undefined,
+    voiceoverStart: INTRO_SECONDS,
     speed,
   });
 
