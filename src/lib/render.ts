@@ -1,6 +1,8 @@
 import { CreatomateService } from '@/services/creatomate';
 import { GeneratedScript } from '@/services/gemini';
 import { GoogleSheetsService, Language, Pattern, Platform } from '@/services/sheets';
+import { uploadVoiceover } from '@/services/storage';
+import { TextToSpeechService } from '@/services/tts';
 
 /** Duration the finished video must fall within; TikTok monetization needs >60s. */
 export const DURATION_BOUNDS: Record<Pattern, { min: number; max: number }> = {
@@ -48,6 +50,20 @@ export async function resolveTemplateId(
   return templateId;
 }
 
+export function narrationText(script: GeneratedScript): string {
+  return [script.hook_text, script.body_script, script.cta_text].join('\n');
+}
+
+/** Spreads tasks over the available background videos without needing shared state. */
+export function pickBackground(taskId: string, urls: string[]): string | undefined {
+  if (urls.length === 0) return undefined;
+  let hash = 0;
+  for (const char of taskId) {
+    hash = (hash * 31 + char.charCodeAt(0)) % 1_000_003;
+  }
+  return urls[hash % urls.length];
+}
+
 /** Starts a render and records its render id, so cron and webhook retries share one path. */
 export async function startRender(
   sheets: GoogleSheetsService,
@@ -57,19 +73,42 @@ export async function startRender(
     language: Language;
     pattern: Pattern;
     script: GeneratedScript;
+    dayOfWeek?: string;
     attempt?: number;
     speed?: number;
   },
 ): Promise<void> {
+  const speed = params.speed ?? 1;
   const templateId = await resolveTemplateId(sheets, params.language, params.pattern);
+
+  // The narration is re-synthesized per attempt because the speed correction
+  // is applied by the TTS engine rather than by Creatomate.
+  const audio = await new TextToSpeechService().synthesize(
+    narrationText(params.script),
+    params.language,
+    speed,
+  );
+  const voiceoverUrl = await uploadVoiceover(
+    `voiceover/${params.taskId}-${params.pattern}-${params.attempt ?? 1}.mp3`,
+    audio,
+  );
+
+  const assets = await sheets.getBackgroundAssets({
+    lang_code: params.language,
+    day_of_week: params.dayOfWeek,
+    pattern: params.pattern,
+  });
+
   const response = await creatomate.triggerRender({
     taskId: params.taskId,
     templateId,
     pattern: params.pattern,
     language: params.language,
     scriptData: params.script,
+    voiceoverUrl,
+    backgroundUrl: pickBackground(params.taskId, assets.map((asset) => asset.video_url)),
     attempt: params.attempt,
-    speed: params.speed,
+    speed,
   });
 
   await sheets.saveRenderOutput({

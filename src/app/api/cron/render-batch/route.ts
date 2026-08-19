@@ -32,6 +32,7 @@ export async function GET(request: Request) {
             taskId: task.task_id,
             language: task.lang_code,
             pattern: '20s',
+            dayOfWeek: task.day_of_week,
             script: JSON.parse(scriptOutput.script_20s_json),
           });
           triggered += 1;
@@ -41,6 +42,7 @@ export async function GET(request: Request) {
             taskId: task.task_id,
             language: task.lang_code,
             pattern: '65s',
+            dayOfWeek: task.day_of_week,
             script: JSON.parse(scriptOutput.script_65s_json),
           });
           triggered += 1;

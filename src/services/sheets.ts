@@ -66,6 +66,16 @@ export interface RenderOutput {
   rendered_at?: string;
 }
 
+export interface BackgroundAsset {
+  asset_id: string;
+  video_url: string;
+  /** Optional filters; an empty cell means "matches anything". */
+  lang_code?: Language;
+  day_of_week?: string;
+  pattern?: Pattern;
+  enabled: boolean;
+}
+
 export interface WeeklyTransit {
   week_id: string;
   transit_data: string;
@@ -77,6 +87,7 @@ export const SHEET_NAMES = {
   scriptOutputs: 'Script_Outputs',
   renderOutputs: 'Render_Outputs',
   weeklyTransits: 'Weekly_Transits',
+  backgroundAssets: 'Background_Assets',
 } as const;
 
 type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
@@ -235,6 +246,32 @@ export class GoogleSheetsService {
       post_status: (values.post_status || 'Pending') as PostStatus,
       scheduled_post_time: values.scheduled_post_time,
     };
+  }
+
+  /** Background videos usable for a task; filters left blank in the sheet match anything. */
+  async getBackgroundAssets(filter: {
+    lang_code: Language;
+    day_of_week?: string;
+    pattern: Pattern;
+  }): Promise<BackgroundAsset[]> {
+    const { rows } = await this.loadTable(SHEET_NAMES.backgroundAssets);
+    return rows
+      .filter((row) => row.values.video_url)
+      .map((row) => ({
+        asset_id: row.values.asset_id,
+        video_url: row.values.video_url,
+        lang_code: (row.values.lang_code || undefined) as Language | undefined,
+        day_of_week: row.values.day_of_week || undefined,
+        pattern: (row.values.pattern || undefined) as Pattern | undefined,
+        enabled: (row.values.enabled || 'TRUE').toUpperCase() !== 'FALSE',
+      }))
+      .filter(
+        (asset) =>
+          asset.enabled &&
+          (!asset.lang_code || asset.lang_code === filter.lang_code) &&
+          (!asset.pattern || asset.pattern === filter.pattern) &&
+          (!asset.day_of_week || !filter.day_of_week || asset.day_of_week === filter.day_of_week)
+      );
   }
 
   async getWeeklyTransits(weekId: string): Promise<WeeklyTransit | null> {
