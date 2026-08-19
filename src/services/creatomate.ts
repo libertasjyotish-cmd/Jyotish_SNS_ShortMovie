@@ -96,6 +96,7 @@ export class CreatomateService {
           [TEMPLATE_ELEMENTS.body]: scriptData.body_script,
           [TEMPLATE_ELEMENTS.cta]: scriptData.cta_text,
           [`${TEMPLATE_ELEMENTS.voiceover}.source`]: request.voiceoverUrl,
+          [`${TEMPLATE_ELEMENTS.voiceover}.loop`]: false,
           ...(request.backgroundUrl
             ? { [`${TEMPLATE_ELEMENTS.background}.source`]: request.backgroundUrl }
             : {}),
