@@ -17,6 +17,8 @@ const TARGET_NARRATION: Record<Pattern, number> = { '20s': 19, '65s': 63 };
 /** Free TTS passes used to land the narration on its target length. */
 export const MAX_TTS_ATTEMPTS = 3;
 const NARRATION_TOLERANCE = 0.4;
+/** Silent tail kept after the narration ends. */
+const OUTRO_SECONDS = 0.8;
 
 /** 20s videos go to YouTube Shorts / Instagram Reels, 65s videos to TikTok. */
 export const TEMPLATE_SOURCE_PLATFORM: Record<Pattern, Platform> = {
@@ -112,7 +114,7 @@ export async function startRender(
 ): Promise<void> {
   const templateId = await resolveTemplateId(sheets, params.language, params.pattern);
 
-  const { audio, speed } = await synthesizeNarration(
+  const { audio, speed, duration } = await synthesizeNarration(
     narrationText(params.script),
     params.language,
     params.pattern,
@@ -136,6 +138,7 @@ export async function startRender(
     scriptData: params.script,
     voiceoverUrl,
     backgroundUrl: pickBackground(params.taskId, assets.map((asset) => asset.video_url)),
+    durationSeconds: duration > 0 ? Number((duration + OUTRO_SECONDS).toFixed(2)) : undefined,
     speed,
   });
 
