@@ -1,4 +1,5 @@
 import { optionalEnv, requireEnv } from '@/lib/env';
+import { splitSentencesIntoLines } from '@/lib/text';
 import { GeneratedScript } from './gemini';
 import { Language, Pattern } from './sheets';
 
@@ -95,7 +96,7 @@ export class CreatomateService {
         output_format: 'mp4',
         modifications: {
           [TEMPLATE_ELEMENTS.hook]: scriptData.hook_text,
-          [TEMPLATE_ELEMENTS.body]: scriptData.body_script,
+          [TEMPLATE_ELEMENTS.body]: splitSentencesIntoLines(scriptData.body_script),
           [TEMPLATE_ELEMENTS.cta]: scriptData.cta_text,
           [`${TEMPLATE_ELEMENTS.voiceover}.source`]: request.voiceoverUrl,
           [`${TEMPLATE_ELEMENTS.voiceover}.loop`]: false,
