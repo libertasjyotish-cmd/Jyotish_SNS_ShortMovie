@@ -126,4 +126,30 @@ export class CreatomateService {
 
     return { renderId: render.id, status: render.status ?? 'planned' };
   }
+
+  /** Reads a render's current state, for callers that cannot wait for the webhook. */
+  async getRender(renderId: string): Promise<{
+    status: RenderResponse['status'];
+    url?: string;
+    duration?: number;
+    errorMessage?: string;
+  }> {
+    const response = await fetch(`${this.endpoint}/${renderId}`, {
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`Creatomate render lookup failed (${response.status}): ${detail}`);
+    }
+    const render = (await response.json()) as CreatomateRender & {
+      url?: string;
+      duration?: number;
+    };
+    return {
+      status: render.status ?? 'planned',
+      url: render.url,
+      duration: render.duration,
+      errorMessage: render.error_message,
+    };
+  }
 }
