@@ -15,3 +15,19 @@ export async function uploadVoiceover(pathname: string, audio: Buffer): Promise<
   });
   return blob.url;
 }
+
+/** Uploads a background image or video so Creatomate can fetch it by URL. */
+export async function uploadAsset(
+  pathname: string,
+  data: Buffer,
+  contentType: string,
+): Promise<string> {
+  const blob = await put(pathname, data, {
+    access: 'public',
+    contentType,
+    token: requireEnv('BLOB_READ_WRITE_TOKEN'),
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  });
+  return blob.url;
+}
