@@ -123,7 +123,7 @@ export function buildIntroSource(
       font_weight: "800",
       font_size_maximum: "8 vmin",
       line_height: "118%",
-      letter_spacing: "0.02 em",
+      letter_spacing: "2%",
       shadow_color: "rgba(0,0,0,0.75)",
       shadow_blur: "2 vmin",
       shadow_y: "0.4 vmin",
