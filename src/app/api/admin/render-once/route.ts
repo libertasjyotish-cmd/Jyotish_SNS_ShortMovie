@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/auth";
+import { buildIntroSource } from "@/lib/layout";
 import { INTRO_SECONDS, synthesizeNarration } from "@/lib/render";
 import { CreatomateService } from "@/services/creatomate";
 import { Language, Pattern } from "@/services/sheets";
@@ -24,6 +25,10 @@ interface RenderOnceBody {
   name?: string;
   /** Shows the body one sentence at a time in the Body-1..Body-4 elements. */
   timedBodySegments?: boolean;
+  /** Builds the layout in code instead of using a Creatomate template. */
+  codeLayout?: boolean;
+  /** Small print under the CTA button. */
+  note?: string;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -40,9 +45,20 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = (await req.json()) as RenderOnceBody;
-    if (!payload.templateId || !payload.hook || !payload.body || !payload.cta) {
+    if (!payload.hook || !payload.body || !payload.cta) {
       return NextResponse.json(
-        { error: "templateId, hook, body and cta are required" },
+        { error: "hook, body and cta are required" },
+        { status: 400 },
+      );
+    }
+    const backgroundUrl = payload.backgroundUrl;
+    if (payload.codeLayout ? !backgroundUrl : !payload.templateId) {
+      return NextResponse.json(
+        {
+          error: payload.codeLayout
+            ? "backgroundUrl is required for codeLayout renders"
+            : "templateId is required",
+        },
         { status: 400 },
       );
     }
@@ -78,19 +94,34 @@ export async function POST(req: NextRequest) {
     );
     const voiceoverUrl = await uploadVoiceover(`oneoff/${name}.mp3`, audio);
 
+    const durationSeconds =
+      duration > 0
+        ? Number((INTRO_SECONDS + duration + OUTRO_SECONDS).toFixed(2))
+        : undefined;
+
     const creatomate = new CreatomateService();
     const { renderId } = await creatomate.triggerRender({
       taskId: name,
-      templateId: payload.templateId,
+      templateId: payload.templateId ?? "",
+      source:
+        payload.codeLayout && backgroundUrl && durationSeconds
+          ? buildIntroSource({
+              script,
+              note: payload.note,
+              language,
+              backgroundUrl,
+              voiceoverUrl,
+              narrationSeconds: duration,
+              narrationStart: INTRO_SECONDS,
+              durationSeconds,
+            })
+          : undefined,
       pattern,
       language,
       scriptData: script,
       voiceoverUrl,
-      backgroundUrl: payload.backgroundUrl,
-      durationSeconds:
-        duration > 0
-          ? Number((INTRO_SECONDS + duration + OUTRO_SECONDS).toFixed(2))
-          : undefined,
+      backgroundUrl,
+      durationSeconds,
       voiceoverStart: INTRO_SECONDS,
       speed,
       narrationSeconds: duration,

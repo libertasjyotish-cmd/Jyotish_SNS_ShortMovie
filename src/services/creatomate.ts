@@ -47,6 +47,8 @@ export interface RenderRequest {
   narrationSeconds?: number;
   /** Shows the body one sentence at a time in the Body-1..Body-4 elements. */
   timedBodySegments?: boolean;
+  /** Layout defined in code; replaces the editor template when present. */
+  source?: Record<string, unknown>;
 }
 
 /**
@@ -148,6 +150,45 @@ export class CreatomateService {
       speed,
     };
 
+    const payloadBody = request.source
+      ? { source: request.source }
+      : {
+          template_id: request.templateId,
+          output_format: "mp4",
+          modifications: {
+            [TEMPLATE_ELEMENTS.hook]: scriptData.hook_text,
+            ...(request.timedBodySegments && request.narrationSeconds
+              ? bodySegmentModifications(
+                  scriptData,
+                  request.narrationSeconds,
+                  request.voiceoverStart ?? 0,
+                )
+              : {
+                  [TEMPLATE_ELEMENTS.body]: splitSentencesIntoLines(
+                    scriptData.body_script,
+                  ),
+                }),
+            [TEMPLATE_ELEMENTS.cta]: scriptData.cta_text,
+            [`${TEMPLATE_ELEMENTS.voiceover}.source`]: request.voiceoverUrl,
+            [`${TEMPLATE_ELEMENTS.voiceover}.loop`]: false,
+            ...(request.voiceoverStart
+              ? {
+                  [`${TEMPLATE_ELEMENTS.voiceover}.time`]:
+                    request.voiceoverStart,
+                }
+              : {}),
+            ...(request.backgroundUrl
+              ? {
+                  [`${TEMPLATE_ELEMENTS.background}.source`]:
+                    request.backgroundUrl,
+                }
+              : {}),
+            ...(request.durationSeconds
+              ? { duration: request.durationSeconds }
+              : {}),
+          },
+        };
+
     const response = await fetch(this.endpoint, {
       method: "POST",
       headers: {
@@ -155,39 +196,7 @@ export class CreatomateService {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        template_id: request.templateId,
-        output_format: "mp4",
-        modifications: {
-          [TEMPLATE_ELEMENTS.hook]: scriptData.hook_text,
-          ...(request.timedBodySegments && request.narrationSeconds
-            ? bodySegmentModifications(
-                scriptData,
-                request.narrationSeconds,
-                request.voiceoverStart ?? 0,
-              )
-            : {
-                [TEMPLATE_ELEMENTS.body]: splitSentencesIntoLines(
-                  scriptData.body_script,
-                ),
-              }),
-          [TEMPLATE_ELEMENTS.cta]: scriptData.cta_text,
-          [`${TEMPLATE_ELEMENTS.voiceover}.source`]: request.voiceoverUrl,
-          [`${TEMPLATE_ELEMENTS.voiceover}.loop`]: false,
-          ...(request.voiceoverStart
-            ? {
-                [`${TEMPLATE_ELEMENTS.voiceover}.time`]: request.voiceoverStart,
-              }
-            : {}),
-          ...(request.backgroundUrl
-            ? {
-                [`${TEMPLATE_ELEMENTS.background}.source`]:
-                  request.backgroundUrl,
-              }
-            : {}),
-          ...(request.durationSeconds
-            ? { duration: request.durationSeconds }
-            : {}),
-        },
+        ...payloadBody,
         webhook_url: this.webhookUrl,
         metadata: JSON.stringify(metadata),
       }),
