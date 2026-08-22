@@ -286,7 +286,7 @@ function bodyElements(
       background_color: PANEL,
       background_x_padding: "14%",
       background_y_padding: "22%",
-      background_border_radius: "4 vmin",
+      background_border_radius: "10%",
       font_family: font,
       font_weight: "600",
       font_size_maximum: "6.2 vmin",
