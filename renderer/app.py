@@ -13,8 +13,12 @@ REQUIRED = ("task_id", "language", "background_url", "hook", "body", "cta")
 
 
 def _authorized() -> bool:
-    secret = os.environ["CRON_SECRET"]
-    return request.headers.get("Authorization") == f"Bearer {secret}"
+    """Cloud Run IAM owns the Authorization header, so the shared secret rides on its own."""
+    secret = os.environ.get("CRON_SECRET")
+    if not secret:
+        return False
+    provided = request.headers.get("X-Cron-Secret") or request.headers.get("Authorization", "")
+    return provided.removeprefix("Bearer ") == secret
 
 
 @app.get("/health")

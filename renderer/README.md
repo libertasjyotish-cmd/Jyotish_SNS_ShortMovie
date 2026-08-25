@@ -15,7 +15,8 @@ Creatomate の代わりに動画を生成するサービス。レイアウト・
 
 ```
 POST /render
-Authorization: Bearer $CRON_SECRET
+Authorization: Bearer <Cloud Run IAM の ID トークン>
+X-Cron-Secret: $CRON_SECRET
 
 {
   "task_id": "intro-ja-20s",
