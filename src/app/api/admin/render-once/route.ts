@@ -3,6 +3,7 @@ import { isCronAuthorized } from "@/lib/auth";
 import { buildIntroSource } from "@/lib/layout";
 import { INTRO_SECONDS, synthesizeNarration } from "@/lib/render";
 import { CreatomateService } from "@/services/creatomate";
+import { RendererService, isRendererConfigured } from "@/services/renderer";
 import { Language, Pattern } from "@/services/sheets";
 import { uploadVoiceover } from "@/services/storage";
 
@@ -29,6 +30,8 @@ interface RenderOnceBody {
   codeLayout?: boolean;
   /** Small print under the CTA button. */
   note?: string;
+  /** Renders through Creatomate even when the Cloud Run renderer is configured. */
+  useCreatomate?: boolean;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -52,7 +55,11 @@ export async function POST(req: NextRequest) {
       );
     }
     const backgroundUrl = payload.backgroundUrl;
-    if (payload.codeLayout ? !backgroundUrl : !payload.templateId) {
+    const useRenderer = isRendererConfigured() && !payload.useCreatomate;
+    if (
+      !useRenderer &&
+      (payload.codeLayout ? !backgroundUrl : !payload.templateId)
+    ) {
       return NextResponse.json(
         {
           error: payload.codeLayout
@@ -86,6 +93,24 @@ export async function POST(req: NextRequest) {
       /[^a-zA-Z0-9._-]/g,
       "-",
     );
+
+    if (useRenderer) {
+      if (!backgroundUrl) {
+        return NextResponse.json(
+          { error: "backgroundUrl is required" },
+          { status: 400 },
+        );
+      }
+      const rendered = await new RendererService().render({
+        taskId: name,
+        language,
+        pattern,
+        script,
+        backgroundUrl,
+        note: payload.note,
+      });
+      return NextResponse.json({ status: "succeeded", ...rendered });
+    }
 
     const { audio, speed, duration } = await synthesizeNarration(
       [script.hook_text, script.body_script, script.cta_text].join("\n"),
