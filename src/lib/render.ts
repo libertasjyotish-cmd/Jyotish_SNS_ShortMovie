@@ -1,7 +1,9 @@
+import { CTA_NOTES } from '@/lib/cta';
 import { mp3DurationSeconds } from '@/lib/mp3';
 import { applyReadingHints } from '@/lib/reading';
 import { CreatomateService } from '@/services/creatomate';
 import { GeneratedScript } from '@/services/gemini';
+import { RendererService, isRendererConfigured } from '@/services/renderer';
 import { GoogleSheetsService, Language, Pattern, Platform } from '@/services/sheets';
 import { uploadVoiceover } from '@/services/storage';
 import { TextToSpeechService } from '@/services/tts';
@@ -103,6 +105,52 @@ export function pickBackground(taskId: string, urls: string[]): string | undefin
   return urls[hash % urls.length];
 }
 
+/**
+ * Renders on Cloud Run, which synthesizes the narration itself and returns a finished
+ * MP4, so there is no webhook to wait for and the queue can be closed out immediately.
+ */
+async function renderOnCloudRun(
+  sheets: GoogleSheetsService,
+  params: {
+    taskId: string;
+    language: Language;
+    pattern: Pattern;
+    script: GeneratedScript;
+    dayOfWeek?: string;
+  },
+): Promise<void> {
+  const assets = await sheets.getBackgroundAssets({
+    lang_code: params.language,
+    day_of_week: params.dayOfWeek,
+    pattern: params.pattern,
+  });
+  const backgroundUrl = pickBackground(
+    params.taskId,
+    assets.map((asset) => asset.video_url),
+  );
+  if (!backgroundUrl) {
+    throw new Error(`No background asset available for "${params.language}"`);
+  }
+
+  const result = await new RendererService().render({
+    taskId: params.taskId,
+    language: params.language,
+    pattern: params.pattern,
+    script: params.script,
+    backgroundUrl,
+    note: CTA_NOTES[params.language],
+  });
+
+  await sheets.saveRenderOutput({
+    task_id: params.taskId,
+    rendered_at: new Date().toISOString(),
+    ...(params.pattern === '20s'
+      ? { video_url_20s: result.url, duration_20s: result.duration }
+      : { video_url_65s: result.url, duration_65s: result.duration }),
+  });
+  await sheets.updateRenderStatus(params.taskId, params.pattern, 'Rendered');
+}
+
 /** Starts a render and records its render id, so cron and webhook retries share one path. */
 export async function startRender(
   sheets: GoogleSheetsService,
@@ -115,6 +163,10 @@ export async function startRender(
     dayOfWeek?: string;
   },
 ): Promise<void> {
+  if (isRendererConfigured()) {
+    return renderOnCloudRun(sheets, params);
+  }
+
   const templateId = await resolveTemplateId(sheets, params.language, params.pattern);
 
   const { audio, speed, duration } = await synthesizeNarration(

@@ -21,7 +21,6 @@ def build(
     background: str,
     overlays: list[tuple[str, int, int, float, float]],
     audio: list[tuple[str, float]],
-    tempo: float,
     total: float,
     output: str,
 ) -> str:
@@ -63,7 +62,7 @@ def build(
 
     for index, (_, start) in enumerate(audio):
         delay = int(start * 1000)
-        chain.append(f"[{index + 1}:a]atempo={tempo},adelay={delay}|{delay}[a{index}]")
+        chain.append(f"[{index + 1}:a]adelay={delay}|{delay}[a{index}]")
     chain.append(
         "".join(f"[a{index}]" for index in range(len(audio)))
         + f"amix=inputs={len(audio)}:normalize=0:duration=longest,"

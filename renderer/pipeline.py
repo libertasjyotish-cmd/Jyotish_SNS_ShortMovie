@@ -63,8 +63,10 @@ def render(request: RenderRequest) -> RenderResult:
         narrator = Narrator()
         clips: list[tuple[str, str, float]] = []
         for name, text in spoken:
-            path = narrator.synthesize(text, request.language, os.path.join(work, f"{name}.mp3"))
-            clips.append((name, path, video.probe_duration(path) / request.tempo))
+            path = narrator.synthesize(
+                text, request.language, os.path.join(work, f"{name}.mp3"), request.tempo
+            )
+            clips.append((name, path, video.probe_duration(path)))
 
         starts: dict[str, float] = {}
         cursor = LEAD_SECONDS
@@ -106,7 +108,6 @@ def render(request: RenderRequest) -> RenderResult:
             background=background,
             overlays=layers,
             audio=[(path, starts[name]) for name, path, _ in clips],
-            tempo=request.tempo,
             total=total,
             output=os.path.join(work, "out.mp4"),
         )

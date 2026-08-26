@@ -20,7 +20,8 @@ class Narrator:
     def __init__(self) -> None:
         self._client = texttospeech.TextToSpeechClient()
 
-    def synthesize(self, text: str, language: str, path: str) -> str:
+    def synthesize(self, text: str, language: str, path: str, speaking_rate: float = 1.0) -> str:
+        """Speed is set on the voice itself; ffmpeg's `atempo` mangles the timestamps mixing needs."""
         language_code, name = VOICES[language]
         language_code = os.environ.get(f"TTS_LANGUAGE_CODE_{language.upper()}", language_code)
         name = os.environ.get(f"TTS_VOICE_{language.upper()}", name)
@@ -29,7 +30,7 @@ class Narrator:
             input=texttospeech.SynthesisInput(text=apply_reading_hints(text, language)),
             voice=texttospeech.VoiceSelectionParams(language_code=language_code, name=name),
             audio_config=texttospeech.AudioConfig(
-                audio_encoding=texttospeech.AudioEncoding.MP3
+                audio_encoding=texttospeech.AudioEncoding.MP3, speaking_rate=speaking_rate
             ),
         )
         with open(path, "wb") as file:
