@@ -74,10 +74,10 @@ def render(request: RenderRequest) -> RenderResult:
         total = round(cursor - GAP_SECONDS + TAIL_SECONDS, 2)
 
         background = _download(request.background_url, os.path.join(work, "background.mp4"))
-        layers: list[tuple[str, float, float]] = [
-            (overlays.scrim(os.path.join(work, "scrim.png")), 0.0, total),
+        layers: list[tuple[str, int, int, float, float]] = [
+            (*overlays.scrim(os.path.join(work, "scrim.png")), 0.0, total),
             (
-                overlays.hook(os.path.join(work, "hook.png"), request.hook, request.language),
+                *overlays.hook(os.path.join(work, "hook.png"), request.hook, request.language),
                 starts["hook"] - 0.5,
                 total,
             ),
@@ -87,14 +87,14 @@ def render(request: RenderRequest) -> RenderResult:
             duration = next(clip[2] for clip in clips if clip[0] == name)
             layers.append(
                 (
-                    overlays.body(os.path.join(work, f"{name}.png"), text, request.language),
+                    *overlays.body(os.path.join(work, f"{name}.png"), text, request.language),
                     starts[name] - FADE_SECONDS,
                     starts[name] + duration + FADE_SECONDS,
                 )
             )
         layers.append(
             (
-                overlays.cta(
+                *overlays.cta(
                     os.path.join(work, "cta.png"), request.cta, request.note, request.language
                 ),
                 starts["cta"] - 0.4,

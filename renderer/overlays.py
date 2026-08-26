@@ -53,6 +53,17 @@ def _blank() -> Image.Image:
     return Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
 
 
+def _save_cropped(img: Image.Image, path: str) -> tuple[str, int, int]:
+    """Trims the transparent margin: ffmpeg then decodes a small layer instead of 1080x1920."""
+    box = img.getbbox()
+    if box is None:
+        img.save(path)
+        return path, 0, 0
+    left, top, right, bottom = box
+    img.crop((left, top, right, bottom)).save(path)
+    return path, left, top
+
+
 def _draw_text(draw: ImageDraw.ImageDraw, xy, text: str, font, fill, language: str) -> None:
     draw.text(xy, text, font=font, fill=fill, direction="rtl" if language in RTL_LANGUAGES else None)
 
@@ -100,7 +111,7 @@ def _draw_block(
     return total
 
 
-def scrim(path: str) -> str:
+def scrim(path: str) -> tuple[str, int, int]:
     """Darkens the top and bottom so text keeps contrast over any footage."""
     img = _blank()
     draw = ImageDraw.Draw(img)
@@ -109,10 +120,10 @@ def scrim(path: str) -> str:
         alpha = int(150 * max(0.0, 1 - t / 0.45) + 165 * max(0.0, (t - 0.55) / 0.45) + 40)
         draw.line([(0, y), (WIDTH, y)], fill=(6, 4, 12, min(alpha, 210)))
     img.save(path)
-    return path
+    return path, 0, 0
 
 
-def hook(path: str, text: str, language: str) -> str:
+def hook(path: str, text: str, language: str) -> tuple[str, int, int]:
     img = _blank()
     draw = ImageDraw.Draw(img)
     font, lines = _fit_font(draw, text, language, "display", 82, WIDTH * 0.86, 2)
@@ -121,11 +132,10 @@ def hook(path: str, text: str, language: str) -> str:
     draw.rounded_rectangle(
         [WIDTH / 2 - 150, underline_y, WIDTH / 2 + 150, underline_y + 8], radius=4, fill=GOLD
     )
-    img.save(path)
-    return path
+    return _save_cropped(img, path)
 
 
-def body(path: str, text: str, language: str) -> str:
+def body(path: str, text: str, language: str) -> tuple[str, int, int]:
     img = _blank()
     draw = ImageDraw.Draw(img)
     font, lines = _fit_font(draw, text, language, "body", 58, WIDTH * 0.76, 5)
@@ -143,11 +153,10 @@ def body(path: str, text: str, language: str) -> str:
         fill=PANEL,
     )
     _draw_block(img, lines, font, BODY_CENTER_Y, language, CREAM, 1.62, False)
-    img.save(path)
-    return path
+    return _save_cropped(img, path)
 
 
-def cta(path: str, text: str, note: str | None, language: str) -> str:
+def cta(path: str, text: str, note: str | None, language: str) -> tuple[str, int, int]:
     img = _blank()
     draw = ImageDraw.Draw(img)
     font, lines = _fit_font(draw, text, language, "button", 52, WIDTH * 0.72, 1)
@@ -169,5 +178,4 @@ def cta(path: str, text: str, note: str | None, language: str) -> str:
     if note:
         note_font, note_lines = _fit_font(draw, note, language, "body", 38, WIDTH * 0.8, 2)
         _draw_block(img, note_lines, note_font, CTA_CENTER_Y + 118, language, CREAM, 1.3, True)
-    img.save(path)
-    return path
+    return _save_cropped(img, path)
