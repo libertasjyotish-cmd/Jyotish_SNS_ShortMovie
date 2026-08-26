@@ -67,7 +67,9 @@ def build(
     chain.append(
         "".join(f"[a{index}]" for index in range(len(audio)))
         + f"amix=inputs={len(audio)}:normalize=0:duration=longest,"
-        f"apad,atrim=duration={total},aresample=48000[aout]"
+        # `apad` needs an explicit length: with ffmpeg 7 an unbounded pad followed by
+        # `atrim` yields a stream that ends at the first delay instead of `total`.
+        f"apad=whole_dur={total},atrim=duration={total},aresample=48000[aout]"
     )
 
     subprocess.run(
