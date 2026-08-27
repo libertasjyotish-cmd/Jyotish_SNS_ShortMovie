@@ -42,5 +42,6 @@ export async function GET() {
     missing_posting: missingPosting,
     google_credentials: googleCredentials,
     google_private_key_looks_valid: privateKeyLooksValid,
+    renderer: process.env.RENDERER_URL ? 'cloud-run' : 'creatomate',
   });
 }
