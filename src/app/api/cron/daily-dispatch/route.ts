@@ -3,7 +3,7 @@ import { isCronAuthorized } from '@/lib/auth';
 import { buildDescription, limitHashtags } from '@/lib/cta';
 import { GeneratedScript } from '@/services/gemini';
 import { InstagramService } from '@/services/instagram';
-import { ContentQueue, GoogleSheetsService, Platform } from '@/services/sheets';
+import { Channel, ContentQueue, GoogleSheetsService, Platform } from '@/services/sheets';
 import { TikTokService } from '@/services/tiktok';
 import { YouTubeService } from '@/services/youtube';
 
@@ -16,6 +16,19 @@ function isDue(scheduledPostTime: string, now: Date): boolean {
     throw new Error(`Invalid scheduled_post_time: "${scheduledPostTime}"`);
   }
   return scheduled.getTime() <= now.getTime();
+}
+
+/** Platforms are onboarded one at a time, so a channel row without credentials is skipped. */
+function isConnected(channel: Channel | null): channel is Channel {
+  if (!channel) return false;
+  switch (channel.platform) {
+    case 'YouTube':
+      return Boolean(channel.youtube_refresh_token);
+    case 'Instagram':
+      return Boolean(channel.ig_access_token && channel.ig_user_id);
+    case 'TikTok':
+      return Boolean(channel.tiktok_access_token || channel.tiktok_refresh_token);
+  }
 }
 
 function buildTitle(task: ContentQueue, script: GeneratedScript): string {
@@ -47,49 +60,60 @@ export async function GET(request: Request) {
           sheetsService.getRenderOutput(post.task_id),
         ]);
         if (!scriptOutput) throw new Error(`No script output for ${post.task_id}`);
-        if (!renderOutput?.video_url_20s || !renderOutput.video_url_65s) {
-          throw new Error(`Missing rendered video URLs for ${post.task_id}`);
-        }
 
         const script20s: GeneratedScript = JSON.parse(scriptOutput.script_20s_json);
         const script65s: GeneratedScript = JSON.parse(scriptOutput.script_65s_json);
-        const channels = await Promise.all(
-          (['YouTube', 'Instagram', 'TikTok'] as Platform[]).map(async (platform) => {
-            const channel = await sheetsService.getChannelConfig(post.lang_code, platform);
-            if (!channel) {
-              throw new Error(`No ${platform} channel configured for "${post.lang_code}"`);
-            }
-            return channel;
-          }),
+        const [youtubeChannel, instagramChannel, tiktokChannel] = await Promise.all(
+          (['YouTube', 'Instagram', 'TikTok'] as Platform[]).map((platform) =>
+            sheetsService.getChannelConfig(post.lang_code, platform),
+          ),
         );
-        const [youtubeChannel, instagramChannel, tiktokChannel] = channels;
 
-        await youtubeService.uploadVideo({
-          channel: youtubeChannel,
-          title: buildTitle(post, script20s),
-          description: buildDescription({
-            lang: post.lang_code,
-            body: script20s.body_script,
-            hashtags: scriptOutput.hashtags,
-          }),
-          videoUrl: renderOutput.video_url_20s,
-        });
+        const uploads: (() => Promise<unknown>)[] = [];
+        if (isConnected(youtubeChannel) && renderOutput?.video_url_20s) {
+          const videoUrl = renderOutput.video_url_20s;
+          uploads.push(() =>
+            youtubeService.uploadVideo({
+              channel: youtubeChannel,
+              title: buildTitle(post, script20s),
+              description: buildDescription({
+                lang: post.lang_code,
+                body: script20s.body_script,
+                hashtags: scriptOutput.hashtags,
+              }),
+              videoUrl,
+            }),
+          );
+        }
+        if (isConnected(instagramChannel) && renderOutput?.video_url_20s) {
+          const videoUrl = renderOutput.video_url_20s;
+          uploads.push(() =>
+            instagramService.uploadVideo({
+              channel: instagramChannel,
+              caption: buildDescription({
+                lang: post.lang_code,
+                body: script20s.hook_text,
+                hashtags: scriptOutput.hashtags,
+              }),
+              videoUrl,
+            }),
+          );
+        }
+        if (isConnected(tiktokChannel) && renderOutput?.video_url_65s) {
+          const videoUrl = renderOutput.video_url_65s;
+          uploads.push(() =>
+            tiktokService.uploadVideo({
+              channel: tiktokChannel,
+              description: `${script65s.hook_text} ${limitHashtags(scriptOutput.hashtags)}`,
+              videoUrl,
+            }),
+          );
+        }
 
-        await instagramService.uploadVideo({
-          channel: instagramChannel,
-          caption: buildDescription({
-            lang: post.lang_code,
-            body: script20s.hook_text,
-            hashtags: scriptOutput.hashtags,
-          }),
-          videoUrl: renderOutput.video_url_20s,
-        });
-
-        await tiktokService.uploadVideo({
-          channel: tiktokChannel,
-          description: `${script65s.hook_text} ${limitHashtags(scriptOutput.hashtags)}`,
-          videoUrl: renderOutput.video_url_65s,
-        });
+        if (uploads.length === 0) {
+          throw new Error(`No connected platform with a rendered video for ${post.task_id}`);
+        }
+        for (const upload of uploads) await upload();
 
         await sheetsService.updatePostStatus(post.task_id, 'Posted');
         posted += 1;
