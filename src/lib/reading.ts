@@ -17,7 +17,7 @@ const JA_READINGS: Array<[RegExp, string]> = [
   [/山羊座/g, 'やぎ座'],
   [/水瓶座/g, 'みずがめ座'],
   [/魚座/g, 'うお座'],
-  [/月星座/g, 'つき星座'],
+  [/月星座/g, 'つきせいざ'],
 ];
 
 export function applyReadingHints(text: string, language: Language): string {
