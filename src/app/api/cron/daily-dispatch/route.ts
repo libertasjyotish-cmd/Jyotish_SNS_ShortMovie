@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
+import { buildDescription, limitHashtags } from '@/lib/cta';
 import { GeneratedScript } from '@/services/gemini';
 import { InstagramService } from '@/services/instagram';
 import { ContentQueue, GoogleSheetsService, Platform } from '@/services/sheets';
@@ -66,19 +67,27 @@ export async function GET(request: Request) {
         await youtubeService.uploadVideo({
           channel: youtubeChannel,
           title: buildTitle(post, script20s),
-          description: `${script20s.body_script}\n\n${script20s.cta_text}\n\n${scriptOutput.hashtags}`,
+          description: buildDescription({
+            lang: post.lang_code,
+            body: script20s.body_script,
+            hashtags: scriptOutput.hashtags,
+          }),
           videoUrl: renderOutput.video_url_20s,
         });
 
         await instagramService.uploadVideo({
           channel: instagramChannel,
-          caption: `${script20s.hook_text}\n\n${script20s.cta_text}\n\n${scriptOutput.hashtags}`,
+          caption: buildDescription({
+            lang: post.lang_code,
+            body: script20s.hook_text,
+            hashtags: scriptOutput.hashtags,
+          }),
           videoUrl: renderOutput.video_url_20s,
         });
 
         await tiktokService.uploadVideo({
           channel: tiktokChannel,
-          description: `${script65s.hook_text} ${scriptOutput.hashtags}`,
+          description: `${script65s.hook_text} ${limitHashtags(scriptOutput.hashtags)}`,
           videoUrl: renderOutput.video_url_65s,
         });
 

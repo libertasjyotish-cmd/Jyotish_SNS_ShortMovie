@@ -130,6 +130,8 @@ function buildPrompt(request: GenerationRequest): string {
     '3. Never add original interpretations that contradict classical Jyotish (dasha, nakshatra, planetary rulership).',
     '4. Explain exactly one planetary movement, plainly.',
     '5. The CTA invites viewers to the Libertas Jyotish app (https://www.libertas-jyotish.com/) for their personal reading.',
+    '6. Never give definitive medical, mental-health, financial, investment or legal advice, and never predict illness, death, pregnancy, accidents, lawsuits, or specific gains and losses of money. Phrase practical suggestions as everyday actions (rest, planning, communication), not as diagnoses or instructions.',
+    '7. Keep the tone calm and specific. Vary the opening sentence and the concrete example between zodiac signs so the twelve scripts of a week never read as one template.',
     '',
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
     profile.note ?? '',
