@@ -1,4 +1,5 @@
-import { optionalEnv, requireEnv } from '@/lib/env';
+import { optionalEnv } from '@/lib/env';
+import { tiktokCredentials } from '@/lib/tiktok-oauth';
 import { Channel, GoogleSheetsService } from './sheets';
 
 const PUBLISH_INIT_ENDPOINT = 'https://open.tiktokapis.com/v2/post/publish/video/init/';
@@ -95,7 +96,7 @@ interface TikTokUserInfoResponse {
 /** Consent screen the admin page sends the account owner to. */
 export function tiktokAuthorizeUrl(redirectUri: string, state: string): string {
   const params = new URLSearchParams({
-    client_key: requireEnv('TIKTOK_CLIENT_KEY'),
+    client_key: tiktokCredentials().clientKey,
     scope: TIKTOK_SCOPES.join(','),
     response_type: 'code',
     redirect_uri: redirectUri,
@@ -112,8 +113,8 @@ export async function exchangeTikTokCode(
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_key: requireEnv('TIKTOK_CLIENT_KEY'),
-      client_secret: requireEnv('TIKTOK_CLIENT_SECRET'),
+      client_key: tiktokCredentials().clientKey,
+      client_secret: tiktokCredentials().clientSecret,
       code,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
@@ -168,8 +169,8 @@ export class TikTokService {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_key: requireEnv('TIKTOK_CLIENT_KEY'),
-        client_secret: requireEnv('TIKTOK_CLIENT_SECRET'),
+        client_key: tiktokCredentials().clientKey,
+        client_secret: tiktokCredentials().clientSecret,
         grant_type: 'refresh_token',
         refresh_token: channel.tiktok_refresh_token,
       }),
