@@ -70,7 +70,7 @@ interface TikTokTokenResponse {
 }
 
 interface TikTokInitResponse {
-  data?: { publish_id?: string };
+  data?: { publish_id?: string; upload_url?: string };
   error?: { code?: string; message?: string };
 }
 
@@ -141,6 +141,14 @@ export async function exchangeTikTokCode(
  */
 function privacyLevel(): string {
   return optionalEnv('TIKTOK_PRIVACY_LEVEL') ?? 'SELF_ONLY';
+}
+
+async function downloadVideo(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Fetching the video failed (${response.status}): ${url}`);
+  }
+  return response.arrayBuffer();
 }
 
 export class TikTokService {
@@ -261,7 +269,10 @@ export class TikTokService {
       brand_content_toggle: options?.brandContentToggle ?? false,
     };
 
-    // PULL_FROM_URL requires the rendered video's domain to be verified in the TikTok developer portal.
+    // PULL_FROM_URL would require the rendered video's domain to be a verified
+    // URL prefix in the developer portal, so the bytes are relayed instead.
+    const video = await downloadVideo(params.videoUrl);
+
     const response = await fetch(params.draft ? INBOX_INIT_ENDPOINT : PUBLISH_INIT_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -271,8 +282,10 @@ export class TikTokService {
       body: JSON.stringify({
         ...(params.draft ? {} : { post_info: postInfo }),
         source_info: {
-          source: 'PULL_FROM_URL',
-          video_url: params.videoUrl,
+          source: 'FILE_UPLOAD',
+          video_size: video.byteLength,
+          chunk_size: video.byteLength,
+          total_chunk_count: 1,
         },
       }),
     });
@@ -285,7 +298,22 @@ export class TikTokService {
     }
 
     const publishId = payload.data?.publish_id;
-    if (!publishId) throw new Error('TikTok publish returned no publish_id');
+    const uploadUrl = payload.data?.upload_url;
+    if (!publishId || !uploadUrl) throw new Error('TikTok publish returned no upload target');
+
+    const upload = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'video/mp4',
+        'Content-Length': String(video.byteLength),
+        'Content-Range': `bytes 0-${video.byteLength - 1}/${video.byteLength}`,
+      },
+      body: video,
+    });
+    if (!upload.ok) {
+      throw new Error(`TikTok video upload failed (${upload.status})`);
+    }
+
     return publishId;
   }
 }
