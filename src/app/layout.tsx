@@ -13,11 +13,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-          <h1>System is running...</h1>
-          <p>This is a background API server. No GUI is provided.</p>
-        </main>
-        <div style={{ display: 'none' }}>{children}</div>
+        <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}>{children}</main>
       </body>
     </html>
   );
