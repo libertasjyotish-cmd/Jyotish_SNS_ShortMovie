@@ -11,6 +11,8 @@ export interface RendererRequest {
   script: GeneratedScript;
   backgroundUrl: string;
   note?: string;
+  /** Duration window the renderer fits the speaking rate to. */
+  target: { min: number; max: number };
   /** When set, the renderer answers immediately and posts the result here when done. */
   callbackUrl?: string;
 }
@@ -92,6 +94,8 @@ export class RendererService {
           queue_task_id: request.taskId,
           pattern: request.pattern,
           callback_url: request.callbackUrl,
+          target_min: request.target.min,
+          target_max: request.target.max,
         }),
       });
 

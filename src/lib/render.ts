@@ -147,6 +147,7 @@ async function renderOnCloudRun(
     script: params.script,
     backgroundUrl,
     note: CTA_NOTES[params.language],
+    target: DURATION_BOUNDS[params.pattern],
   };
 
   const callbackUrl = rendererCallbackUrl();

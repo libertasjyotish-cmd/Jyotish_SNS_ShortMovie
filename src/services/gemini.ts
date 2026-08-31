@@ -11,7 +11,7 @@ const ATTEMPT_TIMEOUT_MS = 25_000;
 export function isTransientGeminiError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /\b(429|500|502|503|504)\b|RESOURCE_EXHAUSTED|UNAVAILABLE|DEADLINE_EXCEEDED|abort/i.test(
-    message
+    message,
   );
 }
 
@@ -46,26 +46,58 @@ export interface GeneratedContent {
 
 interface LanguageProfile {
   name: string;
+  /** How the tradition is named on screen; "Vedic astrology" reads as a sect in Japanese. */
+  tradition: string;
   /** Narration length targets, expressed in the unit natural for the script. */
   length20s: string;
   length65s: string;
+  /** The 65s body is where the model consistently falls short, so it is budgeted apart. */
+  body65s: string;
   note?: string;
 }
 
 const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
-  ja: { name: '日本語', length20s: '合計100〜120文字', length65s: '合計350〜380文字' },
-  en: { name: 'English', length20s: '45-55 words in total', length65s: '160-180 words in total' },
-  es: { name: 'Español', length20s: '45-55 palabras en total', length65s: '160-180 palabras en total' },
-  pt: { name: 'Português', length20s: '45-55 palavras no total', length65s: '160-180 palavras no total' },
+  ja: {
+    name: '日本語',
+    tradition: 'インド占星術（ジョーティシュ）',
+    length20s: '合計75〜90文字',
+    length65s: '合計390〜420文字',
+    body65s: '320〜350文字',
+  },
+  en: {
+    name: 'English',
+    tradition: 'Indian (Vedic) astrology, Jyotish',
+    length20s: '45-55 words in total',
+    length65s: '160-180 words in total',
+    body65s: '130-150 words',
+  },
+  es: {
+    name: 'Español',
+    tradition: 'la astrología india (Jyotish)',
+    length20s: '45-55 palabras en total',
+    length65s: '160-180 palabras en total',
+    body65s: '130-150 palabras',
+  },
+  pt: {
+    name: 'Português',
+    tradition: 'a astrologia indiana (Jyotish)',
+    length20s: '45-55 palavras no total',
+    length65s: '160-180 palavras no total',
+    body65s: '130-150 palavras',
+  },
   id: {
     name: 'Bahasa Indonesia',
+    tradition: 'astrologi India (Jyotish)',
     length20s: 'total 45-55 kata',
     length65s: 'total 160-180 kata',
+    body65s: '130-150 kata',
   },
   ar: {
     name: 'العربية',
+    tradition: 'التنجيم الهندي (جيوتيش)',
     length20s: '45-55 كلمة إجمالاً',
     length65s: '160-180 كلمة إجمالاً',
+    body65s: '130-150 كلمة',
     note: 'Right-to-left script. Do not insert Latin punctuation or emoji that break RTL rendering.',
   },
 };
@@ -127,7 +159,10 @@ function stripUrls(text: string): string {
     .trim();
 }
 
-function assertScript(script: Partial<GeneratedScript> | undefined, label: string): GeneratedScript {
+function assertScript(
+  script: Partial<GeneratedScript> | undefined,
+  label: string,
+): GeneratedScript {
   if (!script?.hook_text || !script.body_script || !script.cta_text) {
     throw new Error(`Gemini returned an incomplete ${label}`);
   }
@@ -150,7 +185,9 @@ function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language)
     '2. Keep the same topic, the same claims and the same order of ideas. Only elaborate on what is already there.',
     '3. Never predict illness, death, pregnancy, accidents, lawsuits, or specific gains and losses of money, and never give medical, mental-health, financial or legal advice.',
     '4. Keep the hook close to the original wording; it is what stops the scroll.',
-    '5. The CTA keeps inviting viewers to look up their own chart on the Libertas Jyotish site. Never write a URL, a domain name or an email address in any field; the link lives in the profile and the description.',
+    `5. Name the tradition in the first sentence of body_script, exactly as "${profile.tradition}", unless the source script already names it.`,
+    "6. Stop short of the personal answer: elaborate on the general principle, and leave the viewer's own case (their chart, their Moon sign, their period) to the site. Never let the viewer feel the video already covered their own case.",
+    '7. The CTA keeps inviting viewers to look up their own chart on the Libertas Jyotish site. Never write a URL, a domain name or an email address in any field; the link lives in the profile and the description.',
     '',
     `Write everything in ${profile.name}.`,
     profile.note ?? '',
@@ -160,7 +197,7 @@ function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language)
     `body_script: ${script.body_script}`,
     `cta_text: ${script.cta_text}`,
     '',
-    `Produce one script spoken in 61-68 seconds, ${profile.length65s} (hook_text + body_script + cta_text combined).`,
+    `Produce one script spoken in 61-68 seconds, ${profile.length65s} (hook_text + body_script + cta_text combined), of which body_script carries ${profile.body65s}.`,
     'Return only the JSON object; no markdown fences, no commentary.',
   ]
     .filter(Boolean)
@@ -186,6 +223,10 @@ function buildPrompt(request: GenerationRequest): string {
     '5. The CTA invites viewers to the Libertas Jyotish site for their personal reading. Never write a URL, a domain name or an email address in any field; the link lives in the profile and the description.',
     '6. Never give definitive medical, mental-health, financial, investment or legal advice, and never predict illness, death, pregnancy, accidents, lawsuits, or specific gains and losses of money. Phrase practical suggestions as everyday actions (rest, planning, communication), not as diagnoses or instructions.',
     '7. Keep the tone calm and specific. Vary the opening sentence and the concrete example between zodiac signs so the twelve scripts of a week never read as one template.',
+    `8. Name the tradition in the first sentence of body_script, exactly as "${profile.tradition}". Viewers do not know what a nakshatra or a sidereal Moon sign is, so never open on a technical term without saying which system it comes from.`,
+    '9. hook_text is one short line that stops the scroll: a surprising claim, a question, or naming the viewer. Never announce the video ("here is this week\'s movement of the stars").',
+    '10. The length limits are hard limits; count before answering and cut adjectives rather than overrun.',
+    '11. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
     profile.note ?? '',
@@ -195,8 +236,8 @@ function buildPrompt(request: GenerationRequest): string {
     `Transit reference (the only allowed factual source):\n${request.transit_reference}`,
     '',
     'Produce two narration scripts for the same content:',
-    `- script_20s: spoken in about 20 seconds, ${profile.length20s} (hook_text + body_script + cta_text combined). Structure: 2-second hook, one sentence on the planetary movement, one concrete action, app CTA.`,
-    `- script_65s: spoken in 61-68 seconds, ${profile.length65s} (hook_text + body_script + cta_text combined). Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution, app CTA.`,
+    `- script_20s: spoken in about 20 seconds, ${profile.length20s} (hook_text + body_script + cta_text combined). Structure: 2-second hook, one sentence naming Jyotish and the planetary movement, one concrete action, app CTA.`,
+    `- script_65s: spoken in 61-68 seconds, ${profile.length65s} (hook_text + body_script + cta_text combined). This one is long: body_script alone carries ${profile.body65s} and needs five or six sentences. Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution, app CTA.`,
     '',
     'hashtags: 4-6 space-separated hashtags suitable for the target language, always including #LibertasJyotish.',
     'Return only the JSON object; no markdown fences, no commentary.',
@@ -240,10 +281,7 @@ export class GeminiService {
     };
   }
 
-  async expandThemeScript(
-    script: GeneratedScript,
-    lang_code: Language,
-  ): Promise<GeneratedScript> {
+  async expandThemeScript(script: GeneratedScript, lang_code: Language): Promise<GeneratedScript> {
     const raw = await this.generate<Partial<GeneratedScript>>(
       buildThemeExpansionPrompt(script, lang_code),
       LONG_SCRIPT_SCHEMA,
