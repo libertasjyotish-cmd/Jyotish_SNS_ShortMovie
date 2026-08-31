@@ -354,6 +354,21 @@ export class GoogleSheetsService {
     return { week_id: row.values.week_id, transit_data: row.values.transit_data };
   }
 
+  async saveWeeklyTransits(transit: WeeklyTransit): Promise<void> {
+    const { rows } = await this.loadTable(SHEET_NAMES.weeklyTransits);
+    const row = rows.find((candidate) => candidate.values.week_id === transit.week_id);
+    if (row) {
+      await this.patchRow(SHEET_NAMES.weeklyTransits, row.rowNumber, {
+        transit_data: transit.transit_data,
+      });
+      return;
+    }
+    await this.appendRow(SHEET_NAMES.weeklyTransits, {
+      week_id: transit.week_id,
+      transit_data: transit.transit_data,
+    });
+  }
+
   async getPendingScripts(): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows

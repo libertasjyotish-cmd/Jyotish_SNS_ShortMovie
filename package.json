@@ -11,6 +11,7 @@
   "dependencies": {
     "@google/genai": "^2.16.0",
     "@vercel/blob": "2.7.0",
+    "astronomy-engine": "^2.1.19",
     "axios": "^1.19.0",
     "google-auth-library": "^10.3.0",
     "googleapis": "^174.0.1",
