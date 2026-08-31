@@ -112,14 +112,29 @@ interface RawGeneration {
   hashtags?: string;
 }
 
+const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s、。）)]+/gi;
+
+/**
+ * The scripts are read out loud by TTS and drawn on screen, so a link the model slipped
+ * into the narration would be spoken character by character. Links belong in the profile
+ * and the description instead.
+ */
+function stripUrls(text: string): string {
+  return text
+    .replace(URL_PATTERN, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+([、。,.])/g, '$1')
+    .trim();
+}
+
 function assertScript(script: Partial<GeneratedScript> | undefined, label: string): GeneratedScript {
   if (!script?.hook_text || !script.body_script || !script.cta_text) {
     throw new Error(`Gemini returned an incomplete ${label}`);
   }
   return {
-    hook_text: script.hook_text.trim(),
-    body_script: script.body_script.trim(),
-    cta_text: script.cta_text.trim(),
+    hook_text: stripUrls(script.hook_text),
+    body_script: stripUrls(script.body_script),
+    cta_text: stripUrls(script.cta_text),
   };
 }
 
@@ -131,11 +146,11 @@ function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language)
     'You are given a finished 20-second script. Rewrite it as a longer version of the same video.',
     '',
     'Absolute rules:',
-    '1. Do not introduce any fact, number, degree, year, planet, nakshatra or proper noun that is absent from the source script.',
+    '1. Do not introduce any fact, number, degree, year, planet, nakshatra, tradition or proper noun that is absent from the source script.',
     '2. Keep the same topic, the same claims and the same order of ideas. Only elaborate on what is already there.',
     '3. Never predict illness, death, pregnancy, accidents, lawsuits, or specific gains and losses of money, and never give medical, mental-health, financial or legal advice.',
     '4. Keep the hook close to the original wording; it is what stops the scroll.',
-    '5. The CTA keeps pointing viewers to the Libertas Jyotish site (https://www.libertas-jyotish.com/) to look up their own chart.',
+    '5. The CTA keeps inviting viewers to look up their own chart on the Libertas Jyotish site. Never write a URL, a domain name or an email address in any field; the link lives in the profile and the description.',
     '',
     `Write everything in ${profile.name}.`,
     profile.note ?? '',
@@ -168,7 +183,7 @@ function buildPrompt(request: GenerationRequest): string {
     '2. Base every statement solely on the supplied transit reference and its house relationship to the target Moon sign. Never invent transits, dates, planetary positions, proper nouns, or numbers that are not present in the reference.',
     '3. Never add original interpretations that contradict classical Jyotish (dasha, nakshatra, planetary rulership).',
     '4. Explain exactly one planetary movement, plainly.',
-    '5. The CTA invites viewers to the Libertas Jyotish app (https://www.libertas-jyotish.com/) for their personal reading.',
+    '5. The CTA invites viewers to the Libertas Jyotish site for their personal reading. Never write a URL, a domain name or an email address in any field; the link lives in the profile and the description.',
     '6. Never give definitive medical, mental-health, financial, investment or legal advice, and never predict illness, death, pregnancy, accidents, lawsuits, or specific gains and losses of money. Phrase practical suggestions as everyday actions (rest, planning, communication), not as diagnoses or instructions.',
     '7. Keep the tone calm and specific. Vary the opening sentence and the concrete example between zodiac signs so the twelve scripts of a week never read as one template.',
     '',
