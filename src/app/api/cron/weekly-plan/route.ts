@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { optionalEnv } from '@/lib/env';
+import { buildTransitReference } from '@/lib/ephemeris';
 import {
   DayOfWeek,
   isoWeekId,
@@ -48,8 +49,10 @@ function baseTask(weekId: string, day: DayOfWeek, weekStart: Date, lang: Languag
 
 /**
  * Fills next week's `Content_Queue`: evergreen themes Monday to Thursday, then the
- * twelve Moon-sign readings spread over Friday to Sunday. Re-running is safe; tasks
- * that already exist for the week are skipped.
+ * twelve Moon-sign readings spread over Friday to Sunday, and computes the week's
+ * transit reference the readings are written from. Re-running is safe; tasks that
+ * already exist for the week are skipped and an existing transit row is kept, so a
+ * manually corrected reference survives. `?recompute=1` overwrites it.
  */
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
@@ -61,6 +64,16 @@ export async function GET(request: Request) {
     const weekStart = nextWeekStart(new Date());
     const weekId = isoWeekId(weekStart);
     const existing = new Set((await sheets.getQueueTasks(weekId)).map((task) => task.task_id));
+
+    const recompute = new URL(request.url).searchParams.get('recompute') === '1';
+    const storedTransit = await sheets.getWeeklyTransits(weekId);
+    const transitWritten = recompute || !storedTransit;
+    if (transitWritten) {
+      await sheets.saveWeeklyTransits({
+        week_id: weekId,
+        transit_data: buildTransitReference(weekId, weekStart),
+      });
+    }
 
     const created: string[] = [];
     const skippedDays: string[] = [];
@@ -109,6 +122,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       status: 'Weekly plan completed',
       week_id: weekId,
+      transit_written: transitWritten,
       created: created.length,
       task_ids: created,
       skipped_theme_slots: skippedDays,
