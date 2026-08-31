@@ -92,9 +92,8 @@ def render_video():
             "queue_task_id": payload.get("queue_task_id", payload["task_id"]),
             "pattern": payload.get("pattern"),
         }
-        threading.Thread(
-            target=_render_and_notify, args=(build, callback_url, meta), daemon=True
-        ).start()
+        # Not a daemon: the interpreter waits for the render instead of dropping it.
+        threading.Thread(target=_render_and_notify, args=(build, callback_url, meta)).start()
         return jsonify({"status": "accepted", "task_id": payload["task_id"]}), 202
 
     try:
