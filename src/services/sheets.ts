@@ -4,7 +4,7 @@ import { getGoogleCredentials } from '@/lib/google-credentials';
 
 export type Language = 'ja' | 'en' | 'es' | 'pt' | 'id' | 'ar';
 export type Platform = 'YouTube' | 'TikTok' | 'Instagram';
-export type TargetType = 'All_Signs' | 'Zodiac_Sign';
+export type TargetType = 'All_Signs' | 'Zodiac_Sign' | 'Theme';
 export type ScriptStatus = 'Pending' | 'Script_Done' | 'Error';
 export type RenderStatus = 'Pending' | 'Rendered' | 'Error';
 export type PostStatus = 'Pending' | 'Posted' | 'Error';
@@ -36,6 +36,8 @@ export interface ContentQueue {
   lang_code: Language;
   target_type: TargetType;
   zodiac_sign?: string;
+  /** Set on `Theme` tasks; points at a row of `Evergreen_Scripts`. */
+  theme_id?: string;
   script_status: ScriptStatus;
   render_status_20s: RenderStatus;
   render_status_65s: RenderStatus;
@@ -76,6 +78,21 @@ export interface BackgroundAsset {
   enabled: boolean;
 }
 
+/** A fixed theme script, written once and rotated across weeks. */
+export interface EvergreenScript {
+  script_id: string;
+  /** Day of week the theme belongs to, e.g. `Mon`. */
+  day_of_week: string;
+  lang_code: Language;
+  hook: string;
+  body: string;
+  cta: string;
+  hashtags: string;
+  enabled: boolean;
+  /** `week_id` this script was last scheduled for; blank when never used. */
+  last_used_week: string;
+}
+
 export interface WeeklyTransit {
   week_id: string;
   transit_data: string;
@@ -88,6 +105,7 @@ export const SHEET_NAMES = {
   renderOutputs: 'Render_Outputs',
   weeklyTransits: 'Weekly_Transits',
   backgroundAssets: 'Background_Assets',
+  evergreenScripts: 'Evergreen_Scripts',
 } as const;
 
 type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
@@ -240,6 +258,7 @@ export class GoogleSheetsService {
       lang_code: values.lang_code as Language,
       target_type: values.target_type as TargetType,
       zodiac_sign: values.zodiac_sign || undefined,
+      theme_id: values.theme_id || undefined,
       script_status: (values.script_status || 'Pending') as ScriptStatus,
       render_status_20s: (values.render_status_20s || 'Pending') as RenderStatus,
       render_status_65s: (values.render_status_65s || 'Pending') as RenderStatus,
@@ -272,6 +291,60 @@ export class GoogleSheetsService {
           (!asset.pattern || asset.pattern === filter.pattern) &&
           (!asset.day_of_week || !filter.day_of_week || asset.day_of_week === filter.day_of_week)
       );
+  }
+
+  async getEvergreenScripts(lang_code: Language): Promise<EvergreenScript[]> {
+    const { rows } = await this.loadTable(SHEET_NAMES.evergreenScripts);
+    return rows
+      .filter((row) => row.values.script_id && row.values.lang_code === lang_code)
+      .map((row) => ({
+        script_id: row.values.script_id,
+        day_of_week: row.values.day_of_week,
+        lang_code: row.values.lang_code as Language,
+        hook: row.values.hook,
+        body: row.values.body,
+        cta: row.values.cta,
+        hashtags: row.values.hashtags,
+        enabled: (row.values.enabled || 'TRUE').toUpperCase() !== 'FALSE',
+        last_used_week: row.values.last_used_week || '',
+      }))
+      .filter((script) => script.enabled);
+  }
+
+  async markEvergreenUsed(scriptId: string, lang_code: Language, weekId: string): Promise<void> {
+    const { rows } = await this.loadTable(SHEET_NAMES.evergreenScripts);
+    const row = rows.find(
+      (candidate) =>
+        candidate.values.script_id === scriptId && candidate.values.lang_code === lang_code,
+    );
+    if (!row) {
+      throw new Error(`script_id "${scriptId}" (${lang_code}) not found in ${SHEET_NAMES.evergreenScripts}`);
+    }
+    await this.patchRow(SHEET_NAMES.evergreenScripts, row.rowNumber, { last_used_week: weekId });
+  }
+
+  async getQueueTasks(weekId: string): Promise<ContentQueue[]> {
+    const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
+    return rows
+      .filter((row) => row.values.task_id && row.values.week_id === weekId)
+      .map((row) => GoogleSheetsService.toContentQueue(row.values));
+  }
+
+  async addQueueTask(task: ContentQueue): Promise<void> {
+    await this.appendRow(SHEET_NAMES.contentQueue, {
+      task_id: task.task_id,
+      week_id: task.week_id,
+      day_of_week: task.day_of_week,
+      lang_code: task.lang_code,
+      target_type: task.target_type,
+      zodiac_sign: task.zodiac_sign ?? '',
+      theme_id: task.theme_id ?? '',
+      script_status: task.script_status,
+      render_status_20s: task.render_status_20s,
+      render_status_65s: task.render_status_65s,
+      post_status: task.post_status,
+      scheduled_post_time: task.scheduled_post_time,
+    });
   }
 
   async getWeeklyTransits(weekId: string): Promise<WeeklyTransit | null> {

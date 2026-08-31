@@ -96,6 +96,16 @@ const RESPONSE_SCHEMA = {
   required: ['script_20s', 'script_65s', 'hashtags'],
 } as const;
 
+const LONG_SCRIPT_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    hook_text: { type: Type.STRING },
+    body_script: { type: Type.STRING },
+    cta_text: { type: Type.STRING },
+  },
+  required: ['hook_text', 'body_script', 'cta_text'],
+} as const;
+
 interface RawGeneration {
   script_20s?: Partial<GeneratedScript>;
   script_65s?: Partial<GeneratedScript>;
@@ -111,6 +121,35 @@ function assertScript(script: Partial<GeneratedScript> | undefined, label: strin
     body_script: script.body_script.trim(),
     cta_text: script.cta_text.trim(),
   };
+}
+
+/** Stretches a hand-written theme script to the 65s pattern without adding new claims. */
+function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language): string {
+  const profile = LANGUAGE_PROFILES[lang_code];
+  return [
+    'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
+    'You are given a finished 20-second script. Rewrite it as a longer version of the same video.',
+    '',
+    'Absolute rules:',
+    '1. Do not introduce any fact, number, degree, year, planet, nakshatra or proper noun that is absent from the source script.',
+    '2. Keep the same topic, the same claims and the same order of ideas. Only elaborate on what is already there.',
+    '3. Never predict illness, death, pregnancy, accidents, lawsuits, or specific gains and losses of money, and never give medical, mental-health, financial or legal advice.',
+    '4. Keep the hook close to the original wording; it is what stops the scroll.',
+    '5. The CTA keeps pointing viewers to the Libertas Jyotish site (https://www.libertas-jyotish.com/) to look up their own chart.',
+    '',
+    `Write everything in ${profile.name}.`,
+    profile.note ?? '',
+    '',
+    'Source script:',
+    `hook_text: ${script.hook_text}`,
+    `body_script: ${script.body_script}`,
+    `cta_text: ${script.cta_text}`,
+    '',
+    `Produce one script spoken in 61-68 seconds, ${profile.length65s} (hook_text + body_script + cta_text combined).`,
+    'Return only the JSON object; no markdown fences, no commentary.',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function buildPrompt(request: GenerationRequest): string {
@@ -173,7 +212,31 @@ export class GeminiService {
   }
 
   async generateScript(request: GenerationRequest): Promise<GeneratedContent> {
-    const prompt = buildPrompt(request);
+    const raw = await this.generate<RawGeneration>(buildPrompt(request), RESPONSE_SCHEMA);
+    return {
+      week_id: request.week_id,
+      lang_code: request.lang_code,
+      target_type: request.target_type,
+      zodiac_sign: request.zodiac_sign,
+      transit_reference: request.transit_reference,
+      script_20s: assertScript(raw.script_20s, 'script_20s'),
+      script_65s: assertScript(raw.script_65s, 'script_65s'),
+      hashtags: (raw.hashtags || '').trim(),
+    };
+  }
+
+  async expandThemeScript(
+    script: GeneratedScript,
+    lang_code: Language,
+  ): Promise<GeneratedScript> {
+    const raw = await this.generate<Partial<GeneratedScript>>(
+      buildThemeExpansionPrompt(script, lang_code),
+      LONG_SCRIPT_SCHEMA,
+    );
+    return assertScript(raw, 'theme script_65s');
+  }
+
+  private async generate<T>(prompt: string, schema: object): Promise<T> {
     let lastError: Error | undefined;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
@@ -187,7 +250,7 @@ export class GeminiService {
           config: {
             temperature: 0.7,
             responseMimeType: 'application/json',
-            responseSchema: RESPONSE_SCHEMA,
+            responseSchema: schema,
             abortSignal: controller.signal,
             httpOptions: { timeout: ATTEMPT_TIMEOUT_MS },
           },
@@ -196,17 +259,7 @@ export class GeminiService {
         const text = response.text;
         if (!text) throw new Error('Gemini returned an empty response');
 
-        const raw = JSON.parse(text) as RawGeneration;
-        return {
-          week_id: request.week_id,
-          lang_code: request.lang_code,
-          target_type: request.target_type,
-          zodiac_sign: request.zodiac_sign,
-          transit_reference: request.transit_reference,
-          script_20s: assertScript(raw.script_20s, 'script_20s'),
-          script_65s: assertScript(raw.script_65s, 'script_65s'),
-          hashtags: (raw.hashtags || '').trim(),
-        };
+        return JSON.parse(text) as T;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown Gemini error');
         console.error(`Gemini generation attempt ${attempt} (${model}) failed:`, lastError.message);
