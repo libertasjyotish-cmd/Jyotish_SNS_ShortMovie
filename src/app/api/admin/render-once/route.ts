@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/auth";
 import { buildIntroSource } from "@/lib/layout";
-import { INTRO_SECONDS, synthesizeNarration } from "@/lib/render";
+import { DURATION_BOUNDS, INTRO_SECONDS, synthesizeNarration } from "@/lib/render";
 import { CreatomateService } from "@/services/creatomate";
 import { RendererService, isRendererConfigured } from "@/services/renderer";
 import { Language, Pattern } from "@/services/sheets";
@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
         script,
         backgroundUrl,
         note: payload.note,
+        target: DURATION_BOUNDS[pattern],
       });
       return NextResponse.json({ status: "succeeded", ...rendered });
     }

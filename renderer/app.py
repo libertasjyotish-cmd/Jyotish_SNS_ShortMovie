@@ -25,6 +25,10 @@ def _authorized() -> bool:
     return provided.removeprefix("Bearer ") == secret
 
 
+def _optional_float(value: float | str | None) -> float | None:
+    return None if value is None else float(value)
+
+
 @app.get("/health")
 def health():
     return jsonify({"status": "ok"})
@@ -81,6 +85,8 @@ def render_video():
         max_body_segments=int(payload.get("max_body_segments", 3)),
         tempo=float(payload.get("tempo", 1.05)),
         output_path=payload.get("output_path"),
+        target_min=_optional_float(payload.get("target_min")),
+        target_max=_optional_float(payload.get("target_max")),
     )
 
     # A 65s render outlives any HTTP client, so the caller hands over a callback and
