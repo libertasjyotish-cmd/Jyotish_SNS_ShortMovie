@@ -1,6 +1,10 @@
 """Cloud Run entrypoint for the video renderer."""
 
+import json
 import os
+import threading
+import urllib.error
+import urllib.request
 
 from flask import Flask, jsonify, request
 
@@ -26,6 +30,34 @@ def health():
     return jsonify({"status": "ok"})
 
 
+def _notify(callback_url: str, payload: dict) -> None:
+    """Reports the outcome to the caller, which cannot stay connected for a whole render."""
+    body = json.dumps(payload).encode()
+    notification = urllib.request.Request(
+        callback_url,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Cron-Secret": os.environ.get("CRON_SECRET", ""),
+        },
+    )
+    try:
+        with urllib.request.urlopen(notification, timeout=30):
+            pass
+    except (urllib.error.URLError, TimeoutError):
+        app.logger.exception("Callback to %s failed", callback_url)
+
+
+def _render_and_notify(build: RenderRequest, callback_url: str, meta: dict) -> None:
+    try:
+        result = render(build)
+    except Exception as error:  # noqa: BLE001 - the failure has to reach the caller
+        app.logger.exception("Render failed")
+        _notify(callback_url, {**meta, "error": str(error)})
+        return
+    _notify(callback_url, {**meta, "url": result.url, "duration": result.duration})
+
+
 @app.post("/render")
 def render_video():
     if not _authorized():
@@ -38,21 +70,35 @@ def render_video():
     if payload["language"] not in LANGUAGES:
         return jsonify({"error": f"Unsupported language \"{payload['language']}\""}), 400
 
+    build = RenderRequest(
+        task_id=payload["task_id"],
+        language=payload["language"],
+        background_url=payload["background_url"],
+        hook=payload["hook"],
+        body=payload["body"],
+        cta=payload["cta"],
+        note=payload.get("note"),
+        max_body_segments=int(payload.get("max_body_segments", 3)),
+        tempo=float(payload.get("tempo", 1.05)),
+        output_path=payload.get("output_path"),
+    )
+
+    # A 65s render outlives any HTTP client, so the caller hands over a callback and
+    # hangs up; only the ad-hoc tooling still waits for the finished file inline.
+    callback_url = payload.get("callback_url")
+    if callback_url:
+        meta = {
+            "task_id": payload["task_id"],
+            "queue_task_id": payload.get("queue_task_id", payload["task_id"]),
+            "pattern": payload.get("pattern"),
+        }
+        threading.Thread(
+            target=_render_and_notify, args=(build, callback_url, meta), daemon=True
+        ).start()
+        return jsonify({"status": "accepted", "task_id": payload["task_id"]}), 202
+
     try:
-        result = render(
-            RenderRequest(
-                task_id=payload["task_id"],
-                language=payload["language"],
-                background_url=payload["background_url"],
-                hook=payload["hook"],
-                body=payload["body"],
-                cta=payload["cta"],
-                note=payload.get("note"),
-                max_body_segments=int(payload.get("max_body_segments", 3)),
-                tempo=float(payload.get("tempo", 1.05)),
-                output_path=payload.get("output_path"),
-            )
-        )
+        result = render(build)
     except Exception as error:  # surfaced to the caller so cron can record the failure
         app.logger.exception("Render failed")
         return jsonify({"error": str(error)}), 500

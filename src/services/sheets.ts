@@ -6,7 +6,7 @@ export type Language = 'ja' | 'en' | 'es' | 'pt' | 'id' | 'ar';
 export type Platform = 'YouTube' | 'TikTok' | 'Instagram';
 export type TargetType = 'All_Signs' | 'Zodiac_Sign' | 'Theme';
 export type ScriptStatus = 'Pending' | 'Script_Done' | 'Error';
-export type RenderStatus = 'Pending' | 'Rendered' | 'Error';
+export type RenderStatus = 'Pending' | 'Rendering' | 'Rendered' | 'Error';
 export type PostStatus = 'Pending' | 'Posted' | 'Error';
 export type Pattern = '20s' | '65s';
 
