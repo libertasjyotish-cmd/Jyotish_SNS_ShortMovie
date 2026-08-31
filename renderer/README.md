@@ -28,11 +28,19 @@ X-Cron-Secret: $CRON_SECRET
   "note": "※プロフィール欄のサイトURLをクリック",
   "max_body_segments": 3,
   "tempo": 1.05,
-  "output_path": "renders/intro-ja-20s.mp4"
+  "output_path": "renders/intro-ja-20s.mp4",
+  "callback_url": "https://…/api/webhook/renderer",
+  "queue_task_id": "2026-W37-ja-aries",
+  "pattern": "20s"
 }
 ```
 
 レスポンス: `{ "url": "https://storage.googleapis.com/…", "duration": 28.2, "segments": [...] }`
+
+`callback_url` を付けた場合は即座に `202 {"status":"accepted"}` を返し、レンダリング完了後に
+`{ queue_task_id, pattern, url, duration }`（失敗時は `error`）を `X-Cron-Secret` 付きで
+コールバックへ POST する。65s のレンダリングは5分以上かかりサーバーレス側の待ち時間を超えるため、
+本番のcronは必ずこの非同期モードを使う。
 
 `GET /health` は死活監視用。
 
@@ -54,7 +62,7 @@ TTS と Cloud Storage は Cloud Run のサービスアカウント権限で認�
 gcloud run deploy jyotish-renderer \
   --source renderer \
   --region asia-northeast1 \
-  --memory 2Gi --cpu 2 --timeout 900 --concurrency 1 \
+  --memory 2Gi --cpu 2 --timeout 900 --concurrency 1 --no-cpu-throttling \
   --set-env-vars GCS_BUCKET=<bucket> \
   --set-secrets CRON_SECRET=CRON_SECRET:latest \
   --no-allow-unauthenticated

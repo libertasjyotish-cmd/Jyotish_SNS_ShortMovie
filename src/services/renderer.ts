@@ -11,6 +11,8 @@ export interface RendererRequest {
   script: GeneratedScript;
   backgroundUrl: string;
   note?: string;
+  /** When set, the renderer answers immediately and posts the result here when done. */
+  callbackUrl?: string;
 }
 
 export interface RendererResult {
@@ -21,6 +23,8 @@ export interface RendererResult {
 
 /** Cloud Run keeps the whole render synchronous; a 20s clip takes ~2.5 minutes. */
 const RENDER_TIMEOUT_MS = 280_000;
+/** Handing a render over only costs a TTS-free round trip. */
+const ACCEPT_TIMEOUT_MS = 30_000;
 
 export function isRendererConfigured(): boolean {
   return Boolean(optionalEnv('RENDERER_URL'));
@@ -52,10 +56,20 @@ export class RendererService {
     return header.replace(/^Bearer /, '');
   }
 
+  /** Hands the render over and returns as soon as it is accepted (HTTP 202). */
+  async start(request: RendererRequest & { callbackUrl: string }): Promise<void> {
+    await this.post(request, ACCEPT_TIMEOUT_MS);
+  }
+
   async render(request: RendererRequest): Promise<RendererResult> {
+    const text = await this.post(request, RENDER_TIMEOUT_MS);
+    return JSON.parse(text) as RendererResult;
+  }
+
+  private async post(request: RendererRequest, timeoutMs: number): Promise<string> {
     const token = await this.identityToken();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), RENDER_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(`${this.baseUrl}/render`, {
@@ -75,6 +89,9 @@ export class RendererService {
           cta: request.script.cta_text,
           note: request.note,
           output_path: `renders/${request.taskId}-${request.pattern}.mp4`,
+          queue_task_id: request.taskId,
+          pattern: request.pattern,
+          callback_url: request.callbackUrl,
         }),
       });
 
@@ -82,7 +99,7 @@ export class RendererService {
       if (!response.ok) {
         throw new Error(`Renderer failed (${response.status}): ${text.slice(0, 300)}`);
       }
-      return JSON.parse(text) as RendererResult;
+      return text;
     } finally {
       clearTimeout(timer);
     }

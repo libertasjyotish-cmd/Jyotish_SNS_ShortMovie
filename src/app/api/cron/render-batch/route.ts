@@ -21,41 +21,31 @@ export async function GET(request: Request) {
     let failed = 0;
 
     for (const task of pendingRenders) {
-      try {
-        const scriptOutput = await sheetsService.getScriptOutput(task.task_id);
-        if (!scriptOutput) {
-          throw new Error(`No script output found for ${task.task_id}`);
-        }
+      const scriptOutput = await sheetsService.getScriptOutput(task.task_id);
 
-        if (task.render_status_20s === 'Pending') {
+      for (const pattern of ['20s', '65s'] as const) {
+        const status = pattern === '20s' ? task.render_status_20s : task.render_status_65s;
+        if (status !== 'Pending') continue;
+
+        try {
+          if (!scriptOutput) {
+            throw new Error(`No script output found for ${task.task_id}`);
+          }
           await startRender(sheetsService, creatomateService, {
             taskId: task.task_id,
             language: task.lang_code,
-            pattern: '20s',
+            pattern,
             dayOfWeek: task.day_of_week,
-            script: JSON.parse(scriptOutput.script_20s_json),
+            script: JSON.parse(
+              pattern === '20s' ? scriptOutput.script_20s_json : scriptOutput.script_65s_json,
+            ),
           });
           triggered += 1;
-        }
-        if (task.render_status_65s === 'Pending') {
-          await startRender(sheetsService, creatomateService, {
-            taskId: task.task_id,
-            language: task.lang_code,
-            pattern: '65s',
-            dayOfWeek: task.day_of_week,
-            script: JSON.parse(scriptOutput.script_65s_json),
-          });
-          triggered += 1;
-        }
-      } catch (taskError) {
-        failed += 1;
-        const message = taskError instanceof Error ? taskError.message : 'Unknown error';
-        console.error(`Render trigger failed for ${task.task_id}:`, message);
-        if (task.render_status_20s === 'Pending') {
-          await sheetsService.updateRenderStatus(task.task_id, '20s', 'Error');
-        }
-        if (task.render_status_65s === 'Pending') {
-          await sheetsService.updateRenderStatus(task.task_id, '65s', 'Error');
+        } catch (taskError) {
+          failed += 1;
+          const message = taskError instanceof Error ? taskError.message : 'Unknown error';
+          console.error(`Render trigger failed for ${task.task_id} (${pattern}):`, message);
+          await sheetsService.updateRenderStatus(task.task_id, pattern, 'Error');
         }
       }
     }

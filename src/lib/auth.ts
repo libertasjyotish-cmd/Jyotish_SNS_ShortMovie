@@ -23,6 +23,20 @@ export function isCronAuthorized(request: Request): boolean {
 }
 
 /**
+ * The renderer reports a finished video with the shared cron secret in its own header,
+ * because Vercel's deployment protection owns `Authorization`.
+ */
+export function isRendererCallbackAuthorized(request: Request): boolean {
+  const expected = optionalEnv('CRON_SECRET');
+  if (!expected) {
+    console.error('CRON_SECRET is not configured');
+    return false;
+  }
+  const provided = request.headers.get('x-cron-secret') || '';
+  return provided !== '' && secretsMatch(provided, expected);
+}
+
+/**
  * Creatomate does not sign webhook payloads, so the callback URL carries a
  * shared secret (`?secret=...`) that is verified here.
  */

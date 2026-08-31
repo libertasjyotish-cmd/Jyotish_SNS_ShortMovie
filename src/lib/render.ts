@@ -1,4 +1,5 @@
 import { CTA_NOTES } from '@/lib/cta';
+import { optionalEnv } from '@/lib/env';
 import { mp3DurationSeconds } from '@/lib/mp3';
 import { applyReadingHints } from '@/lib/reading';
 import { CreatomateService } from '@/services/creatomate';
@@ -105,9 +106,16 @@ export function pickBackground(taskId: string, urls: string[]): string | undefin
   return urls[hash % urls.length];
 }
 
+/** Where the renderer reports a finished video; empty when the base URL is unknown. */
+export function rendererCallbackUrl(): string | undefined {
+  const base = optionalEnv('PUBLIC_BASE_URL');
+  return base ? `${base.replace(/\/$/, '')}/api/webhook/renderer` : undefined;
+}
+
 /**
- * Renders on Cloud Run, which synthesizes the narration itself and returns a finished
- * MP4, so there is no webhook to wait for and the queue can be closed out immediately.
+ * Renders on Cloud Run, which synthesizes the narration itself. A 65s render takes longer
+ * than any serverless request may live, so the render is handed over with a callback and
+ * `/api/webhook/renderer` closes the queue row out later.
  */
 async function renderOnCloudRun(
   sheets: GoogleSheetsService,
@@ -132,14 +140,23 @@ async function renderOnCloudRun(
     throw new Error(`No background asset available for "${params.language}"`);
   }
 
-  const result = await new RendererService().render({
+  const request = {
     taskId: params.taskId,
     language: params.language,
     pattern: params.pattern,
     script: params.script,
     backgroundUrl,
     note: CTA_NOTES[params.language],
-  });
+  };
+
+  const callbackUrl = rendererCallbackUrl();
+  if (callbackUrl) {
+    await new RendererService().start({ ...request, callbackUrl });
+    await sheets.updateRenderStatus(params.taskId, params.pattern, 'Rendering');
+    return;
+  }
+
+  const result = await new RendererService().render(request);
 
   await sheets.saveRenderOutput({
     task_id: params.taskId,
