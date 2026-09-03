@@ -67,7 +67,8 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   en: {
     name: 'English',
     tradition: 'Indian (Vedic) astrology, Jyotish',
-    length20s: '45-55 words in total',
+    /** English is read at ~2.6 words per second, so 50 words overran the 22s ceiling. */
+    length20s: '32-40 words in total',
     length65s: '160-180 words in total',
     body65s: '130-150 words',
   },

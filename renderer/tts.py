@@ -8,7 +8,7 @@ from text import apply_reading_hints
 
 VOICES: dict[str, tuple[str, str]] = {
     "ja": ("ja-JP", "ja-JP-Chirp3-HD-Enceladus"),
-    "en": ("en-US", "en-US-Neural2-F"),
+    "en": ("en-US", "en-US-Chirp3-HD-Enceladus"),
     "es": ("es-ES", "es-ES-Neural2-A"),
     "pt": ("pt-BR", "pt-BR-Neural2-A"),
     "id": ("id-ID", "id-ID-Standard-A"),
