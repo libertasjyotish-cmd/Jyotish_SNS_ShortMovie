@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
-import { buildDescription, limitHashtags } from '@/lib/cta';
+import { buildDescription } from '@/lib/cta';
 import { GeneratedScript } from '@/services/gemini';
 import { InstagramService } from '@/services/instagram';
 import { Channel, ContentQueue, GoogleSheetsService, Platform } from '@/services/sheets';
-import { TikTokService } from '@/services/tiktok';
 import { YouTubeService } from '@/services/youtube';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +17,13 @@ function isDue(scheduledPostTime: string, now: Date): boolean {
   return scheduled.getTime() <= now.getTime();
 }
 
-/** Platforms are onboarded one at a time, so a channel row without credentials is skipped. */
+/**
+ * Platforms are onboarded one at a time, so a channel row without credentials is skipped.
+ *
+ * TikTok is never dispatched: the Content Posting API app was rejected because TikTok does not
+ * grant production access to apps that only publish to their own account, so its videos are
+ * uploaded through the TikTok Studio UI instead.
+ */
 function isConnected(channel: Channel | null): channel is Channel {
   if (!channel) return false;
   switch (channel.platform) {
@@ -27,7 +32,7 @@ function isConnected(channel: Channel | null): channel is Channel {
     case 'Instagram':
       return Boolean(channel.ig_access_token && channel.ig_user_id);
     case 'TikTok':
-      return Boolean(channel.tiktok_access_token || channel.tiktok_refresh_token);
+      return false;
   }
 }
 
@@ -45,7 +50,6 @@ export async function GET(request: Request) {
   try {
     const sheetsService = new GoogleSheetsService();
     const youtubeService = new YouTubeService();
-    const tiktokService = new TikTokService(sheetsService);
     const instagramService = new InstagramService();
     const now = new Date();
     const pendingPosts = await sheetsService.getPendingPosts();
@@ -62,9 +66,8 @@ export async function GET(request: Request) {
         if (!scriptOutput) throw new Error(`No script output for ${post.task_id}`);
 
         const script20s: GeneratedScript = JSON.parse(scriptOutput.script_20s_json);
-        const script65s: GeneratedScript = JSON.parse(scriptOutput.script_65s_json);
-        const [youtubeChannel, instagramChannel, tiktokChannel] = await Promise.all(
-          (['YouTube', 'Instagram', 'TikTok'] as Platform[]).map((platform) =>
+        const [youtubeChannel, instagramChannel] = await Promise.all(
+          (['YouTube', 'Instagram'] as Platform[]).map((platform) =>
             sheetsService.getChannelConfig(post.lang_code, platform),
           ),
         );
@@ -95,16 +98,6 @@ export async function GET(request: Request) {
                 body: script20s.hook_text,
                 hashtags: scriptOutput.hashtags,
               }),
-              videoUrl,
-            }),
-          );
-        }
-        if (isConnected(tiktokChannel) && renderOutput?.video_url_65s) {
-          const videoUrl = renderOutput.video_url_65s;
-          uploads.push(() =>
-            tiktokService.uploadVideo({
-              channel: tiktokChannel,
-              description: `${script65s.hook_text} ${limitHashtags(scriptOutput.hashtags)}`,
               videoUrl,
             }),
           );
