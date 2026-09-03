@@ -15,16 +15,18 @@ import video
 from text import split_body_into_segments
 from tts import Narrator
 
-MAX_BODY_SEGMENTS = 3
+"""On-screen text per body segment; more than this and `overlays.body` shrinks the font."""
+CHARS_PER_SEGMENT = {"ja": 70, "default": 150}
+MAX_BODY_SEGMENTS = 6
+MIN_BODY_SEGMENTS = 2
 """Lead-in before the narration, so the opening word is never clipped."""
 LEAD_SECONDS = 1.5
-"""Silence between spoken segments."""
-GAP_SECONDS = 0.3
+"""Silence between spoken segments; also the window each body caption swaps in."""
+GAP_SECONDS = 0.5
 """Silent tail after the narration ends."""
 TAIL_SECONDS = 1.6
 """Slightly faster than the synthesized rate; keeps the delivery from dragging."""
 TEMPO = 1.05
-FADE_SECONDS = 0.35
 """How far the speaking rate may be pushed to land inside the target duration."""
 TEMPO_BOUNDS = (0.85, 1.3)
 
@@ -38,7 +40,7 @@ class RenderRequest:
     body: str
     cta: str
     note: str | None = None
-    max_body_segments: int = MAX_BODY_SEGMENTS
+    max_body_segments: int | None = None
     tempo: float = TEMPO
     output_path: str | None = None
     target_min: float | None = None
@@ -89,8 +91,17 @@ def _fitted_tempo(request: RenderRequest, speech: float, gaps: float, tempo: flo
     return min(max(fitted, TEMPO_BOUNDS[0]), TEMPO_BOUNDS[1])
 
 
+def _segment_count(request: RenderRequest) -> int:
+    """A 65s body holds three times the text of a 20s one, so the chunk count follows it."""
+    if request.max_body_segments is not None:
+        return request.max_body_segments
+    budget = CHARS_PER_SEGMENT.get(request.language, CHARS_PER_SEGMENT["default"])
+    wanted = -(-len(request.body) // budget)
+    return min(max(wanted, MIN_BODY_SEGMENTS), MAX_BODY_SEGMENTS)
+
+
 def render(request: RenderRequest) -> RenderResult:
-    segments = split_body_into_segments(request.body, request.max_body_segments)
+    segments = split_body_into_segments(request.body, _segment_count(request))
     spoken = [("hook", request.hook), *[(f"body{i}", text) for i, text in enumerate(segments)]]
     spoken.append(("cta", request.cta))
 
@@ -129,8 +140,10 @@ def render(request: RenderRequest) -> RenderResult:
             layers.append(
                 (
                     *overlays.body(os.path.join(work, f"{name}.png"), text, request.language),
-                    starts[name] - FADE_SECONDS,
-                    starts[name] + duration + FADE_SECONDS,
+                    # A caption fades in exactly where the previous one finished fading
+                    # out, so two body texts are never legible at once.
+                    starts[name] - (GAP_SECONDS - video.FADE_OUT),
+                    starts[name] + duration,
                 )
             )
         layers.append(

@@ -29,6 +29,10 @@ def _optional_float(value: float | str | None) -> float | None:
     return None if value is None else float(value)
 
 
+def _optional_int(value: int | str | None) -> int | None:
+    return None if value is None else int(value)
+
+
 @app.get("/health")
 def health():
     return jsonify({"status": "ok"})
@@ -82,7 +86,7 @@ def render_video():
         body=payload["body"],
         cta=payload["cta"],
         note=payload.get("note"),
-        max_body_segments=int(payload.get("max_body_segments", 3)),
+        max_body_segments=_optional_int(payload.get("max_body_segments")),
         tempo=float(payload.get("tempo", 1.05)),
         output_path=payload.get("output_path"),
         target_min=_optional_float(payload.get("target_min")),
