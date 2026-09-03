@@ -138,7 +138,7 @@ def hook(path: str, text: str, language: str) -> tuple[str, int, int]:
 def body(path: str, text: str, language: str) -> tuple[str, int, int]:
     img = _blank()
     draw = ImageDraw.Draw(img)
-    font, lines = _fit_font(draw, text, language, "body", 58, WIDTH * 0.76, 5)
+    font, lines = _fit_font(draw, text, language, "body", 58, WIDTH * 0.80, 6)
     line_height = int(font.size * 1.62)
     total = line_height * len(lines)
     padding = 60

@@ -13,8 +13,8 @@ def probe_duration(path: str) -> float:
     return float(output.strip())
 
 
-FADE_IN = 0.6
-FADE_OUT = 0.45
+FADE_IN = 0.3
+FADE_OUT = 0.3
 
 
 def build(
