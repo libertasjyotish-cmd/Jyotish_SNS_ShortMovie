@@ -47,12 +47,19 @@ export function splitBodyIntoSegments(text: string, max: number): string[] {
     }
     segments = [
       ...segments.slice(0, shortest),
-      `${segments[shortest]}${segments[shortest + 1]}`,
+      joinSegments(segments[shortest], segments[shortest + 1]),
       ...segments.slice(shortest + 2),
     ];
   }
 
   return segments;
+}
+
+/** Space-separated languages need the separator back when two sentences are merged. */
+function joinSegments(left: string, right: string): string {
+  return /[\u3000-\u303f\uff00-\uffef]$/.test(left)
+    ? `${left}${right}`
+    : `${left} ${right}`;
 }
 
 function averageLength(segments: string[]): number {

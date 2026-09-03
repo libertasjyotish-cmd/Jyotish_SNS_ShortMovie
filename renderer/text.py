@@ -8,6 +8,7 @@ import re
 
 SENTENCE_END = re.compile(r"(?<=[。．.!?！？])\s*")
 COMMAS = "、,"
+CJK_PUNCTUATION = re.compile(r"[\u3000-\u303f\uff00-\uffef]$")
 CJK_LANGUAGES = {"ja"}
 RTL_LANGUAGES = {"ar"}
 
@@ -73,9 +74,16 @@ def split_body_into_segments(text: str, maximum: int) -> list[str]:
             range(len(segments) - 1),
             key=lambda i: len(segments[i]) + len(segments[i + 1]),
         )
-        segments[shortest : shortest + 2] = [segments[shortest] + segments[shortest + 1]]
+        segments[shortest : shortest + 2] = [
+            _join_segments(segments[shortest], segments[shortest + 1])
+        ]
 
     return segments
+
+
+def _join_segments(left: str, right: str) -> str:
+    """Space-separated languages need the separator back when two sentences are merged."""
+    return left + right if CJK_PUNCTUATION.search(left) else f"{left} {right}"
 
 
 def wrap_lines(measure, text: str, language: str, max_width: float) -> list[str]:
