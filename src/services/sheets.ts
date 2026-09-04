@@ -224,12 +224,50 @@ export class GoogleSheetsService {
     this.tableCache.delete(sheet);
   }
 
+  /**
+   * Grows the sheet grid so it can hold `columnCount` columns. Sheets rejects writes past the
+   * grid, so new headers need the grid widened before they can be written.
+   */
+  private async ensureGridWidth(sheet: SheetName, columnCount: number): Promise<void> {
+    const metadata = await this.sheets.spreadsheets.get({
+      spreadsheetId: this.spreadsheetId,
+      fields: 'sheets(properties(sheetId,title,gridProperties(columnCount)))',
+    });
+    const properties = metadata.data.sheets?.find(
+      (candidate) => candidate.properties?.title === sheet,
+    )?.properties;
+    if (properties?.sheetId === undefined || properties.sheetId === null) {
+      throw new Error(`Sheet "${sheet}" not found in spreadsheet`);
+    }
+    const sheetId = properties.sheetId;
+    const current = properties.gridProperties?.columnCount ?? 0;
+    if (current >= columnCount) return;
+
+    await withWriteRetry(() =>
+      this.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: this.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              appendDimension: {
+                sheetId,
+                dimension: 'COLUMNS',
+                length: columnCount - current,
+              },
+            },
+          ],
+        },
+      }),
+    );
+  }
+
   /** Appends any header the code expects but the sheet does not have yet. */
   private async ensureColumns(sheet: SheetName, columns: string[]): Promise<void> {
     const { headers } = await this.loadTable(sheet);
     const missing = columns.filter((column) => !headers.includes(column));
     if (missing.length === 0) return;
 
+    await this.ensureGridWidth(sheet, headers.length + missing.length);
     await withWriteRetry(() =>
       this.sheets.spreadsheets.values.update({
         spreadsheetId: this.spreadsheetId,
