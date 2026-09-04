@@ -8,6 +8,7 @@ export interface WatchdogResult {
   requeued: number;
   gaveUp: number;
   retriggered: number;
+  stillPending: number;
   alerts: string[];
   alerted: boolean;
 }
@@ -21,8 +22,11 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
   const recoveries = planRenderRecovery(tasks, now);
   const alerts: string[] = [];
 
+  await sheets.updateRenderStatuses(
+    recoveries.map(({ taskId, pattern, action }) => ({ taskId, pattern, status: action })),
+  );
+
   for (const recovery of recoveries) {
-    await sheets.updateRenderStatus(recovery.taskId, recovery.pattern, recovery.action);
     const label = `${recovery.taskId} (${recovery.pattern})`;
     if (recovery.action === 'Error') {
       alerts.push(
@@ -45,6 +49,7 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
     requeued,
     gaveUp: recoveries.length - requeued,
     retriggered: batch?.triggered ?? 0,
+    stillPending: batch?.remaining ?? 0,
     alerts,
     alerted,
   };

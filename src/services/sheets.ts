@@ -243,18 +243,24 @@ export class GoogleSheetsService {
     rowNumber: number,
     patch: Record<string, string>,
   ): Promise<void> {
+    await this.patchRows(sheet, [{ rowNumber, patch }]);
+  }
+
+  /** Patches several rows of one sheet with a single write request. */
+  private async patchRows(
+    sheet: SheetName,
+    patches: { rowNumber: number; patch: Record<string, string> }[],
+  ): Promise<void> {
     const { headers } = await this.loadTable(sheet);
-    const data = Object.entries(patch)
-      .map(([header, value]) => {
+    const data = patches.flatMap(({ rowNumber, patch }) =>
+      Object.entries(patch).map(([header, value]) => {
         const columnIndex = headers.indexOf(header);
         if (columnIndex === -1) {
           throw new Error(`Column "${header}" not found in sheet "${sheet}"`);
         }
-        return {
-          range: `${sheet}!${columnLetter(columnIndex)}${rowNumber}`,
-          values: [[value]],
-        };
-      });
+        return { range: `${sheet}!${columnLetter(columnIndex)}${rowNumber}`, values: [[value]] };
+      }),
+    );
 
     if (data.length === 0) return;
 
@@ -471,6 +477,26 @@ export class GoogleSheetsService {
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
       [RENDER_COLUMNS[pattern].status]: status,
     });
+  }
+
+  /**
+   * Writes every status in one request. The Sheets API allows 60 writes per minute, which a
+   * per-row loop blows through when the watchdog recovers a whole week of renders at once.
+   */
+  async updateRenderStatuses(
+    updates: { taskId: string; pattern: Pattern; status: RenderStatus }[],
+  ): Promise<void> {
+    if (updates.length === 0) return;
+    const patches = await Promise.all(
+      updates.map(async ({ taskId, pattern, status }) => {
+        const row = await this.findQueueRow(taskId);
+        return {
+          rowNumber: row.rowNumber,
+          patch: { [RENDER_COLUMNS[pattern].status]: status },
+        };
+      }),
+    );
+    await this.patchRows(SHEET_NAMES.contentQueue, patches);
   }
 
   /**
