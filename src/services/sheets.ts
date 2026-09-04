@@ -41,9 +41,31 @@ export interface ContentQueue {
   script_status: ScriptStatus;
   render_status_20s: RenderStatus;
   render_status_65s: RenderStatus;
+  /** ISO timestamp the current render was handed to the renderer; blank before the first try. */
+  render_started_at_20s?: string;
+  render_started_at_65s?: string;
+  render_attempts_20s: number;
+  render_attempts_65s: number;
   post_status: PostStatus;
   scheduled_post_time: string;
 }
+
+/** Per-pattern column names of `Content_Queue`, so callers never build them by hand. */
+export const RENDER_COLUMNS: Record<
+  Pattern,
+  { status: string; startedAt: string; attempts: string }
+> = {
+  '20s': {
+    status: 'render_status_20s',
+    startedAt: 'render_started_at_20s',
+    attempts: 'render_attempts_20s',
+  },
+  '65s': {
+    status: 'render_status_65s',
+    startedAt: 'render_started_at_65s',
+    attempts: 'render_attempts_65s',
+  },
+};
 
 export interface ScriptOutput {
   task_id: string;
@@ -186,6 +208,23 @@ export class GoogleSheetsService {
     this.tableCache.delete(sheet);
   }
 
+  /** Appends any header the code expects but the sheet does not have yet. */
+  private async ensureColumns(sheet: SheetName, columns: string[]): Promise<void> {
+    const { headers } = await this.loadTable(sheet);
+    const missing = columns.filter((column) => !headers.includes(column));
+    if (missing.length === 0) return;
+
+    await this.sheets.spreadsheets.values.update({
+      spreadsheetId: this.spreadsheetId,
+      range: `${sheet}!${columnLetter(headers.length)}1:${columnLetter(
+        headers.length + missing.length - 1,
+      )}1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [missing] },
+    });
+    this.invalidate(sheet);
+  }
+
   private async appendRow(sheet: SheetName, record: Record<string, string>): Promise<void> {
     const { headers } = await this.loadTable(sheet);
     await this.sheets.spreadsheets.values.append({
@@ -262,6 +301,10 @@ export class GoogleSheetsService {
       script_status: (values.script_status || 'Pending') as ScriptStatus,
       render_status_20s: (values.render_status_20s || 'Pending') as RenderStatus,
       render_status_65s: (values.render_status_65s || 'Pending') as RenderStatus,
+      render_started_at_20s: values.render_started_at_20s || undefined,
+      render_started_at_65s: values.render_started_at_65s || undefined,
+      render_attempts_20s: toNumber(values.render_attempts_20s) ?? 0,
+      render_attempts_65s: toNumber(values.render_attempts_65s) ?? 0,
       post_status: (values.post_status || 'Pending') as PostStatus,
       scheduled_post_time: values.scheduled_post_time,
     };
@@ -425,8 +468,34 @@ export class GoogleSheetsService {
 
   async updateRenderStatus(taskId: string, pattern: Pattern, status: RenderStatus): Promise<void> {
     const row = await this.findQueueRow(taskId);
-    const column = pattern === '20s' ? 'render_status_20s' : 'render_status_65s';
-    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, { [column]: status });
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      [RENDER_COLUMNS[pattern].status]: status,
+    });
+  }
+
+  /**
+   * Marks a render as running and stamps when it started, which is what lets the watchdog
+   * tell a slow render apart from one whose callback never arrived. Returns the attempt count.
+   */
+  async markRenderStarted(taskId: string, pattern: Pattern): Promise<number> {
+    const columns = RENDER_COLUMNS[pattern];
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [columns.startedAt, columns.attempts]);
+    const row = await this.findQueueRow(taskId);
+    const attempts = (toNumber(row.values[columns.attempts]) ?? 0) + 1;
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      [columns.status]: 'Rendering',
+      [columns.startedAt]: new Date().toISOString(),
+      [columns.attempts]: String(attempts),
+    });
+    return attempts;
+  }
+
+  /** Every queue row, for the watchdog to audit statuses regardless of week. */
+  async getAllQueueTasks(): Promise<ContentQueue[]> {
+    const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
+    return rows
+      .filter((row) => row.values.task_id)
+      .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
 
   async saveRenderOutput(output: RenderOutput): Promise<void> {

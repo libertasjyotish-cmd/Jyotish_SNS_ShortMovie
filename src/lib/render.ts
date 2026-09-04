@@ -153,7 +153,7 @@ async function renderOnCloudRun(
   const callbackUrl = rendererCallbackUrl();
   if (callbackUrl) {
     await new RendererService().start({ ...request, callbackUrl });
-    await sheets.updateRenderStatus(params.taskId, params.pattern, 'Rendering');
+    await sheets.markRenderStarted(params.taskId, params.pattern);
     return;
   }
 
