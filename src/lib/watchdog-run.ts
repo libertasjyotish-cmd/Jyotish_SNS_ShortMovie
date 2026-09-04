@@ -9,6 +9,8 @@ export interface WatchdogResult {
   gaveUp: number;
   retriggered: number;
   stillPending: number;
+  renderFailed: number;
+  renderErrors: string[];
   alerts: string[];
   alerted: boolean;
 }
@@ -50,6 +52,8 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
     gaveUp: recoveries.length - requeued,
     retriggered: batch?.triggered ?? 0,
     stillPending: batch?.remaining ?? 0,
+    renderFailed: batch?.failed ?? 0,
+    renderErrors: batch?.errors ?? [],
     alerts,
     alerted,
   };
