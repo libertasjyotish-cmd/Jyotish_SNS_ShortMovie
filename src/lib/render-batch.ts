@@ -7,6 +7,16 @@ export interface RenderBatchResult {
   triggered: number;
   failed: number;
   remaining: number;
+  /** Why renders failed, so a cron response explains itself without reading the logs. */
+  errors: string[];
+}
+
+/**
+ * Rate limits and dropped connections say nothing about the task, so those renders stay
+ * `Pending` and are retried on the next run instead of counting an attempt against them.
+ */
+function isTransient(message: string): boolean {
+  return /quota|rate limit|429|503|ECONNRESET|ETIMEDOUT|aborted|timeout/i.test(message);
 }
 
 /**
@@ -25,6 +35,7 @@ export async function runRenderBatch(
   let triggered = 0;
   let failed = 0;
   let skipped = 0;
+  const errors: string[] = [];
 
   for (const task of pendingRenders) {
     if (triggered + failed >= limit) {
@@ -55,10 +66,19 @@ export async function runRenderBatch(
         failed += 1;
         const message = taskError instanceof Error ? taskError.message : 'Unknown error';
         console.error(`Render trigger failed for ${task.task_id} (${pattern}):`, message);
-        await sheets.updateRenderStatus(task.task_id, pattern, 'Error');
+        errors.push(`${task.task_id} (${pattern}): ${message}`);
+        if (!isTransient(message)) {
+          await sheets.updateRenderStatus(task.task_id, pattern, 'Error');
+        }
       }
     }
   }
 
-  return { processed: pendingRenders.length - skipped, triggered, failed, remaining: skipped };
+  return {
+    processed: pendingRenders.length - skipped,
+    triggered,
+    failed,
+    remaining: skipped,
+    errors: errors.slice(0, 5),
+  };
 }

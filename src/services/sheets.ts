@@ -154,6 +154,22 @@ function columnLetter(index: number): string {
   return letter;
 }
 
+/**
+ * Sheets allows 60 writes per minute per user; a burst of finished renders reporting back at
+ * once can exceed it, and losing a result to that would be worse than waiting.
+ */
+async function withWriteRetry<T>(write: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await write();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt >= 3 || !/quota|rate limit|429/i.test(message)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 20_000));
+    }
+  }
+}
+
 function toNumber(value: string | undefined): number | undefined {
   if (value === undefined || value === '') return undefined;
   const parsed = Number(value);
@@ -214,26 +230,30 @@ export class GoogleSheetsService {
     const missing = columns.filter((column) => !headers.includes(column));
     if (missing.length === 0) return;
 
-    await this.sheets.spreadsheets.values.update({
-      spreadsheetId: this.spreadsheetId,
-      range: `${sheet}!${columnLetter(headers.length)}1:${columnLetter(
-        headers.length + missing.length - 1,
-      )}1`,
-      valueInputOption: 'RAW',
-      requestBody: { values: [missing] },
-    });
+    await withWriteRetry(() =>
+      this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheet}!${columnLetter(headers.length)}1:${columnLetter(
+          headers.length + missing.length - 1,
+        )}1`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [missing] },
+      }),
+    );
     this.invalidate(sheet);
   }
 
   private async appendRow(sheet: SheetName, record: Record<string, string>): Promise<void> {
     const { headers } = await this.loadTable(sheet);
-    await this.sheets.spreadsheets.values.append({
-      spreadsheetId: this.spreadsheetId,
-      range: `${sheet}!A:${columnLetter(headers.length - 1)}`,
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [headers.map((header) => record[header] ?? '')] },
-    });
+    await withWriteRetry(() =>
+      this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheet}!A:${columnLetter(headers.length - 1)}`,
+        valueInputOption: 'RAW',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: { values: [headers.map((header) => record[header] ?? '')] },
+      }),
+    );
     this.invalidate(sheet);
   }
 
@@ -264,10 +284,12 @@ export class GoogleSheetsService {
 
     if (data.length === 0) return;
 
-    await this.sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId: this.spreadsheetId,
-      requestBody: { valueInputOption: 'RAW', data },
-    });
+    await withWriteRetry(() =>
+      this.sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: this.spreadsheetId,
+        requestBody: { valueInputOption: 'RAW', data },
+      }),
+    );
     this.invalidate(sheet);
   }
 
