@@ -25,8 +25,11 @@ export interface RendererResult {
 
 /** Cloud Run keeps the whole render synchronous; a 20s clip takes ~2.5 minutes. */
 const RENDER_TIMEOUT_MS = 280_000;
-/** Handing a render over only costs a TTS-free round trip. */
-const ACCEPT_TIMEOUT_MS = 30_000;
+/**
+ * The renderer runs the render inside the request so Cloud Run's `--concurrency 1` keeps one
+ * render per instance, so handing a render over means opening the request and hanging up on it.
+ */
+const HANDOVER_MS = 10_000;
 
 export function isRendererConfigured(): boolean {
   return Boolean(optionalEnv('RENDERER_URL'));
@@ -58,9 +61,15 @@ export class RendererService {
     return header.replace(/^Bearer /, '');
   }
 
-  /** Hands the render over and returns as soon as it is accepted (HTTP 202). */
+  /** Hands the render over and hangs up; the result arrives at the callback URL. */
   async start(request: RendererRequest & { callbackUrl: string }): Promise<void> {
-    await this.post(request, ACCEPT_TIMEOUT_MS);
+    try {
+      await this.post(request, HANDOVER_MS);
+    } catch (error) {
+      // Hanging up is the expected path: the render outlives this request by minutes.
+      if (error instanceof Error && error.name === 'AbortError') return;
+      throw error;
+    }
   }
 
   async render(request: RendererRequest): Promise<RendererResult> {

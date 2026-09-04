@@ -2,7 +2,6 @@
 
 import json
 import os
-import threading
 import urllib.error
 import urllib.request
 
@@ -93,8 +92,11 @@ def render_video():
         target_max=_optional_float(payload.get("target_max")),
     )
 
-    # A 65s render outlives any HTTP client, so the caller hands over a callback and
-    # hangs up; only the ad-hoc tooling still waits for the finished file inline.
+    # A 65s render outlives any HTTP client, so the caller hands over a callback and hangs up
+    # on the request. The render still runs inside the request: answering early would make
+    # Cloud Run treat the instance as idle and stack further renders onto it until it hits the
+    # memory limit and is killed mid-render. Holding the request keeps `--concurrency 1`
+    # meaningful, so extra renders start on their own instances.
     callback_url = payload.get("callback_url")
     if callback_url:
         meta = {
@@ -102,9 +104,8 @@ def render_video():
             "queue_task_id": payload.get("queue_task_id", payload["task_id"]),
             "pattern": payload.get("pattern"),
         }
-        # Not a daemon: the interpreter waits for the render instead of dropping it.
-        threading.Thread(target=_render_and_notify, args=(build, callback_url, meta)).start()
-        return jsonify({"status": "accepted", "task_id": payload["task_id"]}), 202
+        _render_and_notify(build, callback_url, meta)
+        return jsonify({"status": "done", "task_id": payload["task_id"]})
 
     try:
         result = render(build)
