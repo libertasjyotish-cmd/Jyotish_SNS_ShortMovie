@@ -6,18 +6,31 @@ export interface RenderBatchResult {
   processed: number;
   triggered: number;
   failed: number;
+  remaining: number;
 }
 
-/** Hands every `Pending` render of a script-complete task to the renderer. */
+/**
+ * Starting a render costs a Sheets write, and the API allows 60 per minute, so a batch stops
+ * well short of that. Whatever is left stays `Pending` and the next run picks it up.
+ */
+export const MAX_RENDERS_PER_BATCH = 20;
+
+/** Hands `Pending` renders of script-complete tasks to the renderer, up to the batch limit. */
 export async function runRenderBatch(
   sheets: GoogleSheetsService,
   creatomate: CreatomateService,
+  limit = MAX_RENDERS_PER_BATCH,
 ): Promise<RenderBatchResult> {
   const pendingRenders = await sheets.getPendingRenders();
   let triggered = 0;
   let failed = 0;
+  let skipped = 0;
 
   for (const task of pendingRenders) {
+    if (triggered + failed >= limit) {
+      skipped += 1;
+      continue;
+    }
     const scriptOutput = await sheets.getScriptOutput(task.task_id);
 
     for (const pattern of ['20s', '65s'] as Pattern[]) {
@@ -47,5 +60,5 @@ export async function runRenderBatch(
     }
   }
 
-  return { processed: pendingRenders.length, triggered, failed };
+  return { processed: pendingRenders.length - skipped, triggered, failed, remaining: skipped };
 }
