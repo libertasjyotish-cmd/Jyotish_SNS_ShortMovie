@@ -119,7 +119,7 @@ TypeScript 型 `GenerationRequest` / `GeneratedScript` / `GeneratedContent` と�
 | シート | カラム |
 | --- | --- |
 | `Channels` | `channel_id, platform, lang_code, account_handle, youtube_refresh_token, tiktok_access_token, ig_access_token, creatomate_template_20s, creatomate_template_65s` |
-| `Content_Queue` | `task_id, week_id, day_of_week, lang_code, target_type, zodiac_sign, script_status, render_status_20s, render_status_65s, post_status, scheduled_post_time` |
+| `Content_Queue` | `task_id, week_id, day_of_week, lang_code, target_type, zodiac_sign, script_status, render_status_20s, render_status_65s, render_started_at_20s, render_started_at_65s, render_attempts_20s, render_attempts_65s, post_status, scheduled_post_time` |
 | `Script_Outputs` | `task_id, week_id, lang_code, zodiac_sign, transit_reference, script_20s_json, script_65s_json, hashtags, created_at` |
 | `Render_Outputs` | `task_id, creatomate_render_id_20s, video_url_20s, creatomate_render_id_65s, video_url_65s, duration_20s, duration_65s, rendered_at` |
 | `Weekly_Transits` | `week_id, transit_data`（v5 設計書には無い。`getWeeklyTransits()` が参照） |

@@ -42,6 +42,8 @@ function baseTask(weekId: string, day: DayOfWeek, weekStart: Date, lang: Languag
     script_status: 'Pending' as const,
     render_status_20s: 'Pending' as const,
     render_status_65s: 'Pending' as const,
+    render_attempts_20s: 0,
+    render_attempts_65s: 0,
     post_status: 'Pending' as const,
     scheduled_post_time: scheduledPostTime(weekStart, day),
   };
