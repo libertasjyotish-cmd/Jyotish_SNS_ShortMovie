@@ -62,7 +62,8 @@ TTS と Cloud Storage は Cloud Run のサービスアカウント権限で認�
 gcloud run deploy jyotish-renderer \
   --source renderer \
   --region asia-northeast1 \
-  --memory 2Gi --cpu 2 --timeout 900 --concurrency 1 --no-cpu-throttling \
+  --memory 4Gi --cpu 2 --timeout 900 --concurrency 1 --no-cpu-throttling \
+  --max-instances 10 \
   --set-env-vars GCS_BUCKET=<bucket> \
   --set-secrets CRON_SECRET=CRON_SECRET:latest \
   --no-allow-unauthenticated

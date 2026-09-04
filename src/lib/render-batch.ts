@@ -25,6 +25,13 @@ function isTransient(message: string): boolean {
  */
 export const MAX_RENDERS_PER_BATCH = 20;
 
+/**
+ * The renderer runs one render per Cloud Run instance and scales to 10, so anything started
+ * beyond that sits in Cloud Run's request queue while this function holds the connection open,
+ * which times the cron out and leaves rows stuck in `Rendering` with no render behind them.
+ */
+export const RENDERER_CAPACITY = 8;
+
 /** Hands `Pending` renders of script-complete tasks to the renderer, up to the batch limit. */
 export async function runRenderBatch(
   sheets: GoogleSheetsService,
@@ -32,13 +39,15 @@ export async function runRenderBatch(
   limit = MAX_RENDERS_PER_BATCH,
 ): Promise<RenderBatchResult> {
   const pendingRenders = await sheets.getPendingRenders();
+  const running = await sheets.countRunningRenders();
+  const effectiveLimit = Math.max(0, Math.min(limit, RENDERER_CAPACITY - running));
   let triggered = 0;
   let failed = 0;
   let skipped = 0;
   const errors: string[] = [];
 
   for (const task of pendingRenders) {
-    if (triggered + failed >= limit) {
+    if (triggered + failed >= effectiveLimit) {
       skipped += 1;
       continue;
     }
