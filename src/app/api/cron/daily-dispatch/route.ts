@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { buildDescription } from '@/lib/cta';
+import { runWatchdog } from '@/lib/watchdog-run';
 import { GeneratedScript } from '@/services/gemini';
 import { InstagramService } from '@/services/instagram';
 import { Channel, ContentQueue, GoogleSheetsService, Platform } from '@/services/sheets';
@@ -52,6 +53,9 @@ export async function GET(request: Request) {
     const youtubeService = new YouTubeService();
     const instagramService = new InstagramService();
     const now = new Date();
+    // Vercel Hobby only allows daily crons, so recovery rides along with the dispatch that
+    // needs the videos, and stuck renders get one more chance before the posting window.
+    const watchdog = await runWatchdog(sheetsService, now);
     const pendingPosts = await sheetsService.getPendingPosts();
     const duePosts = pendingPosts.filter((post) => isDue(post.scheduled_post_time, now));
     let posted = 0;
@@ -123,6 +127,7 @@ export async function GET(request: Request) {
       due: duePosts.length,
       posted,
       failed,
+      watchdog,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

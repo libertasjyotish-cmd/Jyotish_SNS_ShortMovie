@@ -8,6 +8,6 @@
     { "path": "/api/cron/render-batch", "schedule": "0 20 * * 3" },
     { "path": "/api/cron/render-batch", "schedule": "0 1 * * 4" },
     { "path": "/api/cron/daily-dispatch", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/watchdog", "schedule": "20 * * * *" }
+    { "path": "/api/cron/watchdog", "schedule": "20 3 * * *" }
   ]
 }
