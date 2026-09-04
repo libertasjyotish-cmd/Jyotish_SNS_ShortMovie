@@ -532,6 +532,18 @@ export class GoogleSheetsService {
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
 
+  /** How many renders the renderer is believed to be working on right now. */
+  async countRunningRenders(): Promise<number> {
+    const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
+    return rows.reduce(
+      (total, row) =>
+        total +
+        (row.values.render_status_20s === 'Rendering' ? 1 : 0) +
+        (row.values.render_status_65s === 'Rendering' ? 1 : 0),
+      0,
+    );
+  }
+
   async updateRenderStatus(taskId: string, pattern: Pattern, status: RenderStatus): Promise<void> {
     const row = await this.findQueueRow(taskId);
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
