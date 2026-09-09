@@ -655,16 +655,18 @@ export class GoogleSheetsService {
     await this.patchRow(SHEET_NAMES.channels, row.rowNumber, patch);
   }
 
+  /** Channel rows are hand-written, so the platform is matched without regard to case. */
   async getChannelConfig(lang_code: Language, platform: Platform): Promise<Channel | null> {
     const { rows } = await this.loadTable(SHEET_NAMES.channels);
     const row = rows.find(
       (candidate) =>
-        candidate.values.lang_code === lang_code && candidate.values.platform === platform,
+        candidate.values.lang_code === lang_code &&
+        candidate.values.platform?.toLowerCase() === platform.toLowerCase(),
     );
     if (!row) return null;
     return {
       channel_id: row.values.channel_id,
-      platform: row.values.platform as Platform,
+      platform,
       lang_code: row.values.lang_code as Language,
       account_handle: row.values.account_handle,
       youtube_refresh_token: row.values.youtube_refresh_token || undefined,

@@ -32,6 +32,20 @@ async function graphRequest<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export class InstagramService {
+  /** Reads the account back, so a stale 60-day token is found before a posting window. */
+  async verifyChannel(channel: Channel): Promise<string> {
+    const accessToken = channel.ig_access_token;
+    const igUserId = channel.ig_user_id;
+    if (!accessToken || !igUserId) {
+      throw new Error(`Missing ig_access_token / ig_user_id for channel "${channel.channel_id}"`);
+    }
+    const account = await graphRequest<{ username?: string }>(
+      `${GRAPH_BASE}/${igUserId}?fields=username&access_token=${encodeURIComponent(accessToken)}`,
+    );
+    if (!account.username) throw new Error('Instagram returned no username');
+    return `@${account.username}`;
+  }
+
   /**
    * Reels are published in two steps: create a media container from the video
    * URL, wait until Instagram finishes downloading it, then publish it.
