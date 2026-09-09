@@ -15,19 +15,32 @@ function privacyStatus(): string {
   return optionalEnv('YOUTUBE_PRIVACY_STATUS') ?? 'private';
 }
 
-export class YouTubeService {
-  async uploadVideo(params: YouTubeUploadParams): Promise<string> {
-    const refreshToken = params.channel.youtube_refresh_token;
-    if (!refreshToken) {
-      throw new Error(`No youtube_refresh_token for channel "${params.channel.channel_id}"`);
-    }
+/** Each language may use its own Google Cloud project to get a separate upload quota. */
+function authorize(channel: Channel) {
+  const refreshToken = channel.youtube_refresh_token;
+  if (!refreshToken) {
+    throw new Error(`No youtube_refresh_token for channel "${channel.channel_id}"`);
+  }
+  const auth = new google.auth.OAuth2(
+    channel.youtube_client_id ?? requireEnv('YOUTUBE_CLIENT_ID'),
+    channel.youtube_client_secret ?? requireEnv('YOUTUBE_CLIENT_SECRET'),
+  );
+  auth.setCredentials({ refresh_token: refreshToken });
+  return auth;
+}
 
-    // Each language may use its own Google Cloud project to get a separate upload quota.
-    const auth = new google.auth.OAuth2(
-      params.channel.youtube_client_id ?? requireEnv('YOUTUBE_CLIENT_ID'),
-      params.channel.youtube_client_secret ?? requireEnv('YOUTUBE_CLIENT_SECRET'),
-    );
-    auth.setCredentials({ refresh_token: refreshToken });
+export class YouTubeService {
+  /** Exchanges the refresh token and reads the channel back, without uploading anything. */
+  async verifyChannel(channel: Channel): Promise<string> {
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    const response = await youtube.channels.list({ part: ['snippet'], mine: true });
+    const found = response.data.items?.[0];
+    if (!found?.id) throw new Error('YouTube returned no channel for these credentials');
+    return `${found.snippet?.title ?? found.id} (${found.id})`;
+  }
+
+  async uploadVideo(params: YouTubeUploadParams): Promise<string> {
+    const auth = authorize(params.channel);
 
     const response = await fetch(params.videoUrl);
     if (!response.ok || !response.body) {
