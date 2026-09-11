@@ -96,6 +96,18 @@ TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすた�
 4. `/admin/threads` から言語を選んで認可すると、60 日有効の長期トークンと
    `threads_user_id` が `Channels` シートへ保存される（失効前に自動更新される）。
 5. 投稿は動画を公開 URL でホストして URL を渡す方式で、Instagram Reels と同じ MP4 を使う。
+6. 6 アカウントが同一のアカウントセンターに属していると、Threads の OAuth 同意画面は
+   センターの主プロフィール（現状 pt）に固定され、他言語では認可できない。
+   ブラウザや端末を変えても変わらないため、現状 pt のみ接続している。
+
+### Facebook Reels
+
+1. Instagram と同じ Meta アプリ・同じページを使う。`Channels` シートの Facebook 行に
+   `fb_page_id` と `fb_page_access_token`（ページトークン）を入れる。
+2. 投稿は Reels のレジューム型アップロード:
+   `POST /{page-id}/video_reels`（`upload_phase=start`）→ `rupload.facebook.com` に
+   `file_url` ヘッダーで公開 URL を渡す → `upload_phase=finish`（`video_state=PUBLISHED`）。
+3. Instagram Reels と同じ 20s の MP4 をそのまま使う。
 
 ### TikTok
 

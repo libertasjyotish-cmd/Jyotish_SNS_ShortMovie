@@ -1,15 +1,21 @@
-import { NextResponse } from 'next/server';
-import { isCronAuthorized } from '@/lib/auth';
-import { buildDescription } from '@/lib/cta';
-import { optionalEnv } from '@/lib/env';
-import { runWatchdog } from '@/lib/watchdog-run';
-import { GeneratedScript } from '@/services/gemini';
-import { InstagramService } from '@/services/instagram';
-import { Channel, ContentQueue, GoogleSheetsService, Platform } from '@/services/sheets';
-import { ThreadsService } from '@/services/threads';
-import { YouTubeService } from '@/services/youtube';
+import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/auth";
+import { buildDescription } from "@/lib/cta";
+import { optionalEnv } from "@/lib/env";
+import { runWatchdog } from "@/lib/watchdog-run";
+import { FacebookService } from "@/services/facebook";
+import { GeneratedScript } from "@/services/gemini";
+import { InstagramService } from "@/services/instagram";
+import {
+  Channel,
+  ContentQueue,
+  GoogleSheetsService,
+  Platform,
+} from "@/services/sheets";
+import { ThreadsService } from "@/services/threads";
+import { YouTubeService } from "@/services/youtube";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 function isDue(scheduledPostTime: string, now: Date): boolean {
@@ -30,13 +36,15 @@ function isDue(scheduledPostTime: string, now: Date): boolean {
 function isConnected(channel: Channel | null): channel is Channel {
   if (!channel) return false;
   switch (channel.platform) {
-    case 'YouTube':
+    case "YouTube":
       return Boolean(channel.youtube_refresh_token);
-    case 'Instagram':
+    case "Instagram":
       return Boolean(channel.ig_access_token && channel.ig_user_id);
-    case 'Threads':
+    case "Threads":
       return Boolean(channel.threads_access_token && channel.threads_user_id);
-    case 'TikTok':
+    case "Facebook":
+      return Boolean(channel.fb_page_id && channel.fb_page_access_token);
+    case "TikTok":
       return false;
   }
 }
@@ -46,18 +54,18 @@ function isConnected(channel: Channel | null): channel is Channel {
  * due rows, connected channels, rendered videos — and stops short of the upload.
  */
 function isDispatchEnabled(): boolean {
-  return optionalEnv('DISPATCH_ENABLED') === 'true';
+  return optionalEnv("DISPATCH_ENABLED") === "true";
 }
 
 function buildTitle(task: ContentQueue, script: GeneratedScript): string {
-  const subject = task.zodiac_sign || task.target_type.replace('_', ' ');
+  const subject = task.zodiac_sign || task.target_type.replace("_", " ");
   return `${script.hook_text || subject} | Libertas Jyotish`.slice(0, 100);
 }
 
 export async function GET(request: Request) {
   // Scenario 3: Multi-platform post scheduler
   if (!isCronAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -65,12 +73,15 @@ export async function GET(request: Request) {
     const youtubeService = new YouTubeService();
     const instagramService = new InstagramService();
     const threadsService = new ThreadsService(sheetsService);
+    const facebookService = new FacebookService();
     const now = new Date();
     // Vercel Hobby only allows daily crons, so recovery rides along with the dispatch that
     // needs the videos, and stuck renders get one more chance before the posting window.
     const watchdog = await runWatchdog(sheetsService, now);
     const pendingPosts = await sheetsService.getPendingPosts();
-    const duePosts = pendingPosts.filter((post) => isDue(post.scheduled_post_time, now));
+    const duePosts = pendingPosts.filter((post) =>
+      isDue(post.scheduled_post_time, now),
+    );
     const dispatchEnabled = isDispatchEnabled();
     let posted = 0;
     let failed = 0;
@@ -82,12 +93,21 @@ export async function GET(request: Request) {
           sheetsService.getScriptOutput(post.task_id),
           sheetsService.getRenderOutput(post.task_id),
         ]);
-        if (!scriptOutput) throw new Error(`No script output for ${post.task_id}`);
+        if (!scriptOutput)
+          throw new Error(`No script output for ${post.task_id}`);
 
-        const script20s: GeneratedScript = JSON.parse(scriptOutput.script_20s_json);
-        const [youtubeChannel, instagramChannel, threadsChannel] = await Promise.all(
-          (['YouTube', 'Instagram', 'Threads'] as Platform[]).map((platform) =>
-            sheetsService.getChannelConfig(post.lang_code, platform),
+        const script20s: GeneratedScript = JSON.parse(
+          scriptOutput.script_20s_json,
+        );
+        const [
+          youtubeChannel,
+          instagramChannel,
+          threadsChannel,
+          facebookChannel,
+        ] = await Promise.all(
+          (["YouTube", "Instagram", "Threads", "Facebook"] as Platform[]).map(
+            (platform) =>
+              sheetsService.getChannelConfig(post.lang_code, platform),
           ),
         );
 
@@ -137,30 +157,50 @@ export async function GET(request: Request) {
           );
         }
 
+        if (isConnected(facebookChannel) && renderOutput?.video_url_20s) {
+          const videoUrl = renderOutput.video_url_20s;
+          uploads.push(() =>
+            facebookService.uploadVideo({
+              channel: facebookChannel,
+              description: buildDescription({
+                lang: post.lang_code,
+                body: script20s.hook_text,
+                hashtags: scriptOutput.hashtags,
+              }),
+              videoUrl,
+            }),
+          );
+        }
+
         if (uploads.length === 0) {
-          throw new Error(`No connected platform with a rendered video for ${post.task_id}`);
+          throw new Error(
+            `No connected platform with a rendered video for ${post.task_id}`,
+          );
         }
 
         if (!dispatchEnabled) {
-          console.log(`Dry run: ${post.task_id} ready for ${uploads.length} upload(s)`);
+          console.log(
+            `Dry run: ${post.task_id} ready for ${uploads.length} upload(s)`,
+          );
           skipped += 1;
           continue;
         }
 
         for (const upload of uploads) await upload();
 
-        await sheetsService.updatePostStatus(post.task_id, 'Posted');
+        await sheetsService.updatePostStatus(post.task_id, "Posted");
         posted += 1;
       } catch (taskError) {
         failed += 1;
-        const message = taskError instanceof Error ? taskError.message : 'Unknown error';
+        const message =
+          taskError instanceof Error ? taskError.message : "Unknown error";
         console.error(`Failed to post task ${post.task_id}:`, message);
-        await sheetsService.updatePostStatus(post.task_id, 'Error');
+        await sheetsService.updatePostStatus(post.task_id, "Error");
       }
     }
 
     return NextResponse.json({
-      status: 'Dispatch completed',
+      status: "Dispatch completed",
       dispatch_enabled: dispatchEnabled,
       due: duePosts.length,
       posted,
@@ -169,8 +209,8 @@ export async function GET(request: Request) {
       watchdog,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Dispatch failed:', message);
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("Dispatch failed:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
