@@ -85,6 +85,18 @@ TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすた�
 4. Reels の API 投稿は「動画を公開 URL でホストして URL を渡す」方式。
    レンダリング済み MP4 は GCS の公開 URL にあるためそのまま使える。
 
+### Threads
+
+1. 各 Instagram アカウントから Threads プロフィールを作成する（Threads アプリで
+   該当 Instagram アカウントにログインして作成）。
+2. Instagram とは別 API（`graph.threads.net`）で、Facebook ページの紐付けは不要。
+   認可は Threads の OAuth（`threads_basic` / `threads_content_publish`）で行う。
+3. 審査前のアプリでは **Threads テスター** に招待して承諾したプロフィールのみ投稿できる。
+   招待は App Dashboard > アプリの役割 > 役割、承諾は Threads の設定 > ウェブサイトの許可。
+4. `/admin/threads` から言語を選んで認可すると、60 日有効の長期トークンと
+   `threads_user_id` が `Channels` シートへ保存される（失効前に自動更新される）。
+5. 投稿は動画を公開 URL でホストして URL を渡す方式で、Instagram Reels と同じ MP4 を使う。
+
 ### TikTok
 
 1. 各アカウントを作成し、TikTok for Developers でアプリを 1 つ作る。
@@ -101,15 +113,15 @@ TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすた�
 
 | 置き場所 | 値 |
 | --- | --- |
-| `Channels` シート | `youtube_refresh_token` / `tiktok_access_token` / `ig_access_token`、および言語別の `youtube_client_id` / `youtube_client_secret` |
-| 環境変数 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` / `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` |
+| `Channels` シート | `youtube_refresh_token` / `tiktok_access_token` / `ig_access_token` / `threads_access_token` / `threads_user_id`、および言語別の `youtube_client_id` / `youtube_client_secret` |
+| 環境変数 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` / `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` / `THREADS_APP_ID` / `THREADS_APP_SECRET` |
 
 `Channels` シートの 1 行が 1 アカウントに対応する。18 行になる。
 
 | 列 | 例 |
 | --- | --- |
 | `channel_id` | `yt-ja` |
-| `platform` | `youtube` / `instagram` / `tiktok` |
+| `platform` | `youtube` / `instagram` / `threads` / `tiktok` |
 | `lang_code` | `ja` |
 | `account_handle` | `@jyotish_ja` |
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { InstagramService } from '@/services/instagram';
 import { GoogleSheetsService, Language, Platform } from '@/services/sheets';
+import { ThreadsService } from '@/services/threads';
 import { YouTubeService } from '@/services/youtube';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +10,7 @@ export const maxDuration = 60;
 
 const LANGUAGES: Language[] = ['ja', 'en', 'es', 'pt', 'id', 'ar'];
 /** TikTok is not dispatched, so its rows are not worth reporting on. */
-const PLATFORMS: Platform[] = ['YouTube', 'Instagram'];
+const PLATFORMS: Platform[] = ['YouTube', 'Instagram', 'Threads'];
 
 interface ChannelStatus {
   lang_code: Language;
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
     const sheets = new GoogleSheetsService();
     const youtube = new YouTubeService();
     const instagram = new InstagramService();
+    const threads = new ThreadsService(sheets);
     const statuses: ChannelStatus[] = [];
 
     for (const lang of LANGUAGES) {
@@ -40,10 +42,14 @@ export async function GET(request: NextRequest) {
         const channel = await sheets.getChannelConfig(lang, platform);
         if (!channel) continue;
         try {
-          const account =
-            platform === 'YouTube'
-              ? await youtube.verifyChannel(channel)
-              : await instagram.verifyChannel(channel);
+          let account: string;
+          if (platform === 'YouTube') {
+            account = await youtube.verifyChannel(channel);
+          } else if (platform === 'Threads') {
+            account = await threads.verifyChannel(channel);
+          } else {
+            account = await instagram.verifyChannel(channel);
+          }
           statuses.push({
             lang_code: lang,
             platform,
