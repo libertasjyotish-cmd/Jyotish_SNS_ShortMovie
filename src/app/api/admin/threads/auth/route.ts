@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdminAuthorized } from '@/lib/admin-auth';
+import { adminTokenMatches, isAdminAuthorized } from '@/lib/admin-auth';
 import { THREADS_STATE_COOKIE, threadsRedirectUri } from '@/lib/threads-oauth';
 import { Language } from '@/services/sheets';
 import { threadsAuthorizeUrl } from '@/services/threads';
@@ -9,7 +9,9 @@ export const dynamic = 'force-dynamic';
 
 /** Starts the Threads consent flow for one language's profile. */
 export async function GET(req: NextRequest) {
-  if (!isAdminAuthorized(req)) {
+  /** Consent must run in a browser profile per Threads account, where signing in first is fragile. */
+  const token = req.nextUrl.searchParams.get('token') ?? '';
+  if (!isAdminAuthorized(req) && !adminTokenMatches(token)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
