@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FACEBOOK_STATE_COOKIE, facebookRedirectUri } from '@/lib/facebook-oauth';
-import { exchangeFacebookCode } from '@/services/facebook';
+import { exchangeFacebookCode, fetchFacebookPage } from '@/services/facebook';
 import { GoogleSheetsService, Language } from '@/services/sheets';
 
 export const dynamic = 'force-dynamic';
@@ -30,19 +30,18 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const pages = await exchangeFacebookCode(code, facebookRedirectUri());
-    const byId = new Map(pages.map((page) => [page.id, page]));
+    const userToken = await exchangeFacebookCode(code, facebookRedirectUri());
     const sheets = new GoogleSheetsService();
     const connected: string[] = [];
     const missing: string[] = [];
 
     for (const lang of LANGUAGES) {
       const channel = await sheets.getChannelConfig(lang, 'Facebook');
-      const page = channel?.fb_page_id ? byId.get(channel.fb_page_id) : undefined;
-      if (!channel || !page) {
+      if (!channel?.fb_page_id) {
         missing.push(lang);
         continue;
       }
+      const page = await fetchFacebookPage(channel.fb_page_id, userToken);
       await sheets.updateChannelTokens(channel.channel_id, {
         fb_page_access_token: page.accessToken,
       });

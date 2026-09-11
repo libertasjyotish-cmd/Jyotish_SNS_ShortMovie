@@ -69,14 +69,8 @@ export function facebookAuthorizeUrl(redirectUri: string, state: string): string
   return `${AUTHORIZE_ENDPOINT}?${params.toString()}`;
 }
 
-/**
- * One consent covers every page the user administers, so the code is traded for a long-lived
- * user token and every page token is read back from it in the same pass.
- */
-export async function exchangeFacebookCode(
-  code: string,
-  redirectUri: string,
-): Promise<FacebookPage[]> {
+/** One consent covers every page the user administers; the code becomes a long-lived user token. */
+export async function exchangeFacebookCode(code: string, redirectUri: string): Promise<string> {
   const { appId, appSecret } = facebookCredentials();
   const short = await graphRequest<{ access_token: string }>(
     `${GRAPH_BASE}/oauth/access_token?${new URLSearchParams({
@@ -96,17 +90,20 @@ export async function exchangeFacebookCode(
     }).toString()}`,
   );
 
-  const pages = await graphRequest<{ data?: { id: string; name: string; access_token: string }[] }>(
-    `${GRAPH_BASE}/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(
-      long.access_token,
+  return long.access_token;
+}
+
+/**
+ * Pages owned by a business portfolio are absent from `/me/accounts`, so each page token is read
+ * from its own node instead.
+ */
+export async function fetchFacebookPage(pageId: string, userToken: string): Promise<FacebookPage> {
+  const page = await graphRequest<{ id: string; name: string; access_token: string }>(
+    `${GRAPH_BASE}/${pageId}?fields=id,name,access_token&access_token=${encodeURIComponent(
+      userToken,
     )}`,
   );
-
-  return (pages.data ?? []).map((page) => ({
-    id: page.id,
-    name: page.name,
-    accessToken: page.access_token,
-  }));
+  return { id: page.id, name: page.name, accessToken: page.access_token };
 }
 
 export class FacebookService {
