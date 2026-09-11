@@ -18,7 +18,7 @@ export default function ThreadsAdminPage() {
   const [message, setMessage] = useState('');
 
   const loadStatus = useCallback(async () => {
-    const response = await fetch(`/api/threads/status?lang=${lang}`);
+    const response = await fetch(`/api/admin/threads/status?lang=${lang}`);
     const body = (await response.json()) as Status;
     setStatus(response.ok ? body : null);
     if (!response.ok) setMessage(body.error ?? 'Failed to load status');
@@ -76,7 +76,7 @@ export default function ThreadsAdminPage() {
           Authorize this app to post to the Threads profile of this language. The profile must be a
           Threads tester of the Meta app and have accepted the invitation.
         </p>
-        <a href={`/api/threads/auth?lang=${lang}`}>
+        <a href={`/api/admin/threads/auth?lang=${lang}`}>
           <button type="button">Connect Threads profile</button>
         </a>
       </section>

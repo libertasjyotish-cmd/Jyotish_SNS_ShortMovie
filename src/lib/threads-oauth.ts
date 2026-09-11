@@ -11,5 +11,5 @@ export function threadsCredentials(): { appId: string; appSecret: string } {
 }
 
 export function threadsRedirectUri(): string {
-  return `${requireEnv('PUBLIC_BASE_URL').replace(/\/$/, '')}/api/threads/callback`;
+  return `${requireEnv('PUBLIC_BASE_URL').replace(/\/$/, '')}/api/admin/threads/callback`;
 }
