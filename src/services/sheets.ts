@@ -1,15 +1,14 @@
-import { google, sheets_v4 } from "googleapis";
-import { requireEnv } from "@/lib/env";
-import { getGoogleCredentials } from "@/lib/google-credentials";
+import { google, sheets_v4 } from 'googleapis';
+import { requireEnv } from '@/lib/env';
+import { getGoogleCredentials } from '@/lib/google-credentials';
 
-export type Language = "ja" | "en" | "es" | "pt" | "id" | "ar";
-export type Platform =
-  "YouTube" | "TikTok" | "Instagram" | "Threads" | "Facebook";
-export type TargetType = "All_Signs" | "Zodiac_Sign" | "Theme";
-export type ScriptStatus = "Pending" | "Script_Done" | "Error";
-export type RenderStatus = "Pending" | "Rendering" | "Rendered" | "Error";
-export type PostStatus = "Pending" | "Posted" | "Error";
-export type Pattern = "20s" | "65s";
+export type Language = 'ja' | 'en' | 'es' | 'pt' | 'id' | 'ar';
+export type Platform = 'YouTube' | 'TikTok' | 'Instagram' | 'Threads' | 'Facebook';
+export type TargetType = 'All_Signs' | 'Zodiac_Sign' | 'Theme';
+export type ScriptStatus = 'Pending' | 'Script_Done' | 'Error';
+export type RenderStatus = 'Pending' | 'Rendering' | 'Rendered' | 'Error';
+export type PostStatus = 'Pending' | 'Posted' | 'Error';
+export type Pattern = '20s' | '65s';
 
 export interface Channel {
   channel_id: string;
@@ -31,7 +30,7 @@ export interface Channel {
   /** ISO timestamp at which `threads_access_token` expires (60 days, refreshable). */
   threads_token_expires_at?: string;
   fb_page_id?: string;
-  /** Page token from the linked Facebook page; long-lived tokens do not expire on their own. */
+  /** Page access token; it does not expire while the page token's user token stays valid. */
   fb_page_access_token?: string;
   creatomate_template_20s: string;
   creatomate_template_65s: string;
@@ -63,15 +62,15 @@ export const RENDER_COLUMNS: Record<
   Pattern,
   { status: string; startedAt: string; attempts: string }
 > = {
-  "20s": {
-    status: "render_status_20s",
-    startedAt: "render_started_at_20s",
-    attempts: "render_attempts_20s",
+  '20s': {
+    status: 'render_status_20s',
+    startedAt: 'render_started_at_20s',
+    attempts: 'render_attempts_20s',
   },
-  "65s": {
-    status: "render_status_65s",
-    startedAt: "render_started_at_65s",
-    attempts: "render_attempts_65s",
+  '65s': {
+    status: 'render_status_65s',
+    startedAt: 'render_started_at_65s',
+    attempts: 'render_attempts_65s',
   },
 };
 
@@ -129,13 +128,13 @@ export interface WeeklyTransit {
 }
 
 export const SHEET_NAMES = {
-  channels: "Channels",
-  contentQueue: "Content_Queue",
-  scriptOutputs: "Script_Outputs",
-  renderOutputs: "Render_Outputs",
-  weeklyTransits: "Weekly_Transits",
-  backgroundAssets: "Background_Assets",
-  evergreenScripts: "Evergreen_Scripts",
+  channels: 'Channels',
+  contentQueue: 'Content_Queue',
+  scriptOutputs: 'Script_Outputs',
+  renderOutputs: 'Render_Outputs',
+  weeklyTransits: 'Weekly_Transits',
+  backgroundAssets: 'Background_Assets',
+  evergreenScripts: 'Evergreen_Scripts',
 } as const;
 
 type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
@@ -152,7 +151,7 @@ interface SheetTable {
 }
 
 function columnLetter(index: number): string {
-  let letter = "";
+  let letter = '';
   let n = index + 1;
   while (n > 0) {
     const remainder = (n - 1) % 26;
@@ -179,7 +178,7 @@ async function withWriteRetry<T>(write: () => Promise<T>): Promise<T> {
 }
 
 function toNumber(value: string | undefined): number | undefined {
-  if (value === undefined || value === "") return undefined;
+  if (value === undefined || value === '') return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
@@ -192,10 +191,10 @@ export class GoogleSheetsService {
   constructor() {
     const auth = new google.auth.GoogleAuth({
       credentials: getGoogleCredentials(),
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
-    this.sheets = google.sheets({ version: "v4", auth });
-    this.spreadsheetId = requireEnv("GOOGLE_SHEETS_ID");
+    this.sheets = google.sheets({ version: 'v4', auth });
+    this.spreadsheetId = requireEnv('GOOGLE_SHEETS_ID');
   }
 
   private async loadTable(sheet: SheetName): Promise<SheetTable> {
@@ -205,7 +204,7 @@ export class GoogleSheetsService {
     const response = await this.sheets.spreadsheets.values.get({
       spreadsheetId: this.spreadsheetId,
       range: sheet,
-      valueRenderOption: "UNFORMATTED_VALUE",
+      valueRenderOption: 'UNFORMATTED_VALUE',
     });
 
     const values = (response.data.values || []) as unknown[][];
@@ -213,13 +212,12 @@ export class GoogleSheetsService {
       throw new Error(`Sheet "${sheet}" is empty: a header row is required`);
     }
 
-    const headers = values[0].map((header) => String(header ?? "").trim());
+    const headers = values[0].map((header) => String(header ?? '').trim());
     const rows: SheetRow[] = values.slice(1).map((rawRow, index) => {
       const record: Record<string, string> = {};
       headers.forEach((header, columnIndex) => {
         const cell = rawRow[columnIndex];
-        record[header] =
-          cell === undefined || cell === null ? "" : String(cell);
+        record[header] = cell === undefined || cell === null ? '' : String(cell);
       });
       return { rowNumber: index + 2, values: record };
     });
@@ -237,13 +235,10 @@ export class GoogleSheetsService {
    * Grows the sheet grid so it can hold `columnCount` columns. Sheets rejects writes past the
    * grid, so new headers need the grid widened before they can be written.
    */
-  private async ensureGridWidth(
-    sheet: SheetName,
-    columnCount: number,
-  ): Promise<void> {
+  private async ensureGridWidth(sheet: SheetName, columnCount: number): Promise<void> {
     const metadata = await this.sheets.spreadsheets.get({
       spreadsheetId: this.spreadsheetId,
-      fields: "sheets(properties(sheetId,title,gridProperties(columnCount)))",
+      fields: 'sheets(properties(sheetId,title,gridProperties(columnCount)))',
     });
     const properties = metadata.data.sheets?.find(
       (candidate) => candidate.properties?.title === sheet,
@@ -263,7 +258,7 @@ export class GoogleSheetsService {
             {
               appendDimension: {
                 sheetId,
-                dimension: "COLUMNS",
+                dimension: 'COLUMNS',
                 length: columnCount - current,
               },
             },
@@ -274,10 +269,7 @@ export class GoogleSheetsService {
   }
 
   /** Appends any header the code expects but the sheet does not have yet. */
-  private async ensureColumns(
-    sheet: SheetName,
-    columns: string[],
-  ): Promise<void> {
+  private async ensureColumns(sheet: SheetName, columns: string[]): Promise<void> {
     const { headers } = await this.loadTable(sheet);
     const missing = columns.filter((column) => !headers.includes(column));
     if (missing.length === 0) return;
@@ -289,27 +281,22 @@ export class GoogleSheetsService {
         range: `${sheet}!${columnLetter(headers.length)}1:${columnLetter(
           headers.length + missing.length - 1,
         )}1`,
-        valueInputOption: "RAW",
+        valueInputOption: 'RAW',
         requestBody: { values: [missing] },
       }),
     );
     this.invalidate(sheet);
   }
 
-  private async appendRow(
-    sheet: SheetName,
-    record: Record<string, string>,
-  ): Promise<void> {
+  private async appendRow(sheet: SheetName, record: Record<string, string>): Promise<void> {
     const { headers } = await this.loadTable(sheet);
     await withWriteRetry(() =>
       this.sheets.spreadsheets.values.append({
         spreadsheetId: this.spreadsheetId,
         range: `${sheet}!A:${columnLetter(headers.length - 1)}`,
-        valueInputOption: "RAW",
-        insertDataOption: "INSERT_ROWS",
-        requestBody: {
-          values: [headers.map((header) => record[header] ?? "")],
-        },
+        valueInputOption: 'RAW',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: { values: [headers.map((header) => record[header] ?? '')] },
       }),
     );
     this.invalidate(sheet);
@@ -336,10 +323,7 @@ export class GoogleSheetsService {
         if (columnIndex === -1) {
           throw new Error(`Column "${header}" not found in sheet "${sheet}"`);
         }
-        return {
-          range: `${sheet}!${columnLetter(columnIndex)}${rowNumber}`,
-          values: [[value]],
-        };
+        return { range: `${sheet}!${columnLetter(columnIndex)}${rowNumber}`, values: [[value]] };
       }),
     );
 
@@ -348,7 +332,7 @@ export class GoogleSheetsService {
     await withWriteRetry(() =>
       this.sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: this.spreadsheetId,
-        requestBody: { valueInputOption: "RAW", data },
+        requestBody: { valueInputOption: 'RAW', data },
       }),
     );
     this.invalidate(sheet);
@@ -373,9 +357,7 @@ export class GoogleSheetsService {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     const row = rows.find((candidate) => candidate.values.task_id === taskId);
     if (!row) {
-      throw new Error(
-        `task_id "${taskId}" not found in ${SHEET_NAMES.contentQueue}`,
-      );
+      throw new Error(`task_id "${taskId}" not found in ${SHEET_NAMES.contentQueue}`);
     }
     return row;
   }
@@ -389,16 +371,14 @@ export class GoogleSheetsService {
       target_type: values.target_type as TargetType,
       zodiac_sign: values.zodiac_sign || undefined,
       theme_id: values.theme_id || undefined,
-      script_status: (values.script_status || "Pending") as ScriptStatus,
-      render_status_20s: (values.render_status_20s ||
-        "Pending") as RenderStatus,
-      render_status_65s: (values.render_status_65s ||
-        "Pending") as RenderStatus,
+      script_status: (values.script_status || 'Pending') as ScriptStatus,
+      render_status_20s: (values.render_status_20s || 'Pending') as RenderStatus,
+      render_status_65s: (values.render_status_65s || 'Pending') as RenderStatus,
       render_started_at_20s: values.render_started_at_20s || undefined,
       render_started_at_65s: values.render_started_at_65s || undefined,
       render_attempts_20s: toNumber(values.render_attempts_20s) ?? 0,
       render_attempts_65s: toNumber(values.render_attempts_65s) ?? 0,
-      post_status: (values.post_status || "Pending") as PostStatus,
+      post_status: (values.post_status || 'Pending') as PostStatus,
       scheduled_post_time: values.scheduled_post_time,
     };
   }
@@ -418,25 +398,21 @@ export class GoogleSheetsService {
         lang_code: (row.values.lang_code || undefined) as Language | undefined,
         day_of_week: row.values.day_of_week || undefined,
         pattern: (row.values.pattern || undefined) as Pattern | undefined,
-        enabled: (row.values.enabled || "TRUE").toUpperCase() !== "FALSE",
+        enabled: (row.values.enabled || 'TRUE').toUpperCase() !== 'FALSE',
       }))
       .filter(
         (asset) =>
           asset.enabled &&
           (!asset.lang_code || asset.lang_code === filter.lang_code) &&
           (!asset.pattern || asset.pattern === filter.pattern) &&
-          (!asset.day_of_week ||
-            !filter.day_of_week ||
-            asset.day_of_week === filter.day_of_week),
+          (!asset.day_of_week || !filter.day_of_week || asset.day_of_week === filter.day_of_week)
       );
   }
 
   async getEvergreenScripts(lang_code: Language): Promise<EvergreenScript[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.evergreenScripts);
     return rows
-      .filter(
-        (row) => row.values.script_id && row.values.lang_code === lang_code,
-      )
+      .filter((row) => row.values.script_id && row.values.lang_code === lang_code)
       .map((row) => ({
         script_id: row.values.script_id,
         day_of_week: row.values.day_of_week,
@@ -445,31 +421,22 @@ export class GoogleSheetsService {
         body: row.values.body,
         cta: row.values.cta,
         hashtags: row.values.hashtags,
-        enabled: (row.values.enabled || "TRUE").toUpperCase() !== "FALSE",
-        last_used_week: row.values.last_used_week || "",
+        enabled: (row.values.enabled || 'TRUE').toUpperCase() !== 'FALSE',
+        last_used_week: row.values.last_used_week || '',
       }))
       .filter((script) => script.enabled);
   }
 
-  async markEvergreenUsed(
-    scriptId: string,
-    lang_code: Language,
-    weekId: string,
-  ): Promise<void> {
+  async markEvergreenUsed(scriptId: string, lang_code: Language, weekId: string): Promise<void> {
     const { rows } = await this.loadTable(SHEET_NAMES.evergreenScripts);
     const row = rows.find(
       (candidate) =>
-        candidate.values.script_id === scriptId &&
-        candidate.values.lang_code === lang_code,
+        candidate.values.script_id === scriptId && candidate.values.lang_code === lang_code,
     );
     if (!row) {
-      throw new Error(
-        `script_id "${scriptId}" (${lang_code}) not found in ${SHEET_NAMES.evergreenScripts}`,
-      );
+      throw new Error(`script_id "${scriptId}" (${lang_code}) not found in ${SHEET_NAMES.evergreenScripts}`);
     }
-    await this.patchRow(SHEET_NAMES.evergreenScripts, row.rowNumber, {
-      last_used_week: weekId,
-    });
+    await this.patchRow(SHEET_NAMES.evergreenScripts, row.rowNumber, { last_used_week: weekId });
   }
 
   async getQueueTasks(weekId: string): Promise<ContentQueue[]> {
@@ -486,8 +453,8 @@ export class GoogleSheetsService {
       day_of_week: task.day_of_week,
       lang_code: task.lang_code,
       target_type: task.target_type,
-      zodiac_sign: task.zodiac_sign ?? "",
-      theme_id: task.theme_id ?? "",
+      zodiac_sign: task.zodiac_sign ?? '',
+      theme_id: task.theme_id ?? '',
       script_status: task.script_status,
       render_status_20s: task.render_status_20s,
       render_status_65s: task.render_status_65s,
@@ -500,17 +467,12 @@ export class GoogleSheetsService {
     const { rows } = await this.loadTable(SHEET_NAMES.weeklyTransits);
     const row = rows.find((candidate) => candidate.values.week_id === weekId);
     if (!row) return null;
-    return {
-      week_id: row.values.week_id,
-      transit_data: row.values.transit_data,
-    };
+    return { week_id: row.values.week_id, transit_data: row.values.transit_data };
   }
 
   async saveWeeklyTransits(transit: WeeklyTransit): Promise<void> {
     const { rows } = await this.loadTable(SHEET_NAMES.weeklyTransits);
-    const row = rows.find(
-      (candidate) => candidate.values.week_id === transit.week_id,
-    );
+    const row = rows.find((candidate) => candidate.values.week_id === transit.week_id);
     if (row) {
       await this.patchRow(SHEET_NAMES.weeklyTransits, row.rowNumber, {
         transit_data: transit.transit_data,
@@ -526,29 +488,20 @@ export class GoogleSheetsService {
   async getPendingScripts(): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows
-      .filter(
-        (row) =>
-          row.values.task_id &&
-          (row.values.script_status || "Pending") === "Pending",
-      )
+      .filter((row) => row.values.task_id && (row.values.script_status || 'Pending') === 'Pending')
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
 
-  async updateScriptStatus(
-    taskId: string,
-    status: ScriptStatus,
-  ): Promise<void> {
+  async updateScriptStatus(taskId: string, status: ScriptStatus): Promise<void> {
     const row = await this.findQueueRow(taskId);
-    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
-      script_status: status,
-    });
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, { script_status: status });
   }
 
   async saveScriptOutput(output: ScriptOutput): Promise<void> {
     await this.upsertByTaskId(SHEET_NAMES.scriptOutputs, output.task_id, {
       week_id: output.week_id,
       lang_code: output.lang_code,
-      zodiac_sign: output.zodiac_sign ?? "",
+      zodiac_sign: output.zodiac_sign ?? '',
       transit_reference: output.transit_reference,
       script_20s_json: output.script_20s_json,
       script_65s_json: output.script_65s_json,
@@ -577,14 +530,11 @@ export class GoogleSheetsService {
   async getPendingRenders(): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows
+      .filter((row) => row.values.task_id && row.values.script_status === 'Script_Done')
       .filter(
         (row) =>
-          row.values.task_id && row.values.script_status === "Script_Done",
-      )
-      .filter(
-        (row) =>
-          (row.values.render_status_20s || "Pending") === "Pending" ||
-          (row.values.render_status_65s || "Pending") === "Pending",
+          (row.values.render_status_20s || 'Pending') === 'Pending' ||
+          (row.values.render_status_65s || 'Pending') === 'Pending',
       )
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
@@ -595,17 +545,13 @@ export class GoogleSheetsService {
     return rows.reduce(
       (total, row) =>
         total +
-        (row.values.render_status_20s === "Rendering" ? 1 : 0) +
-        (row.values.render_status_65s === "Rendering" ? 1 : 0),
+        (row.values.render_status_20s === 'Rendering' ? 1 : 0) +
+        (row.values.render_status_65s === 'Rendering' ? 1 : 0),
       0,
     );
   }
 
-  async updateRenderStatus(
-    taskId: string,
-    pattern: Pattern,
-    status: RenderStatus,
-  ): Promise<void> {
+  async updateRenderStatus(taskId: string, pattern: Pattern, status: RenderStatus): Promise<void> {
     const row = await this.findQueueRow(taskId);
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
       [RENDER_COLUMNS[pattern].status]: status,
@@ -638,14 +584,11 @@ export class GoogleSheetsService {
    */
   async markRenderStarted(taskId: string, pattern: Pattern): Promise<number> {
     const columns = RENDER_COLUMNS[pattern];
-    await this.ensureColumns(SHEET_NAMES.contentQueue, [
-      columns.startedAt,
-      columns.attempts,
-    ]);
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [columns.startedAt, columns.attempts]);
     const row = await this.findQueueRow(taskId);
     const attempts = (toNumber(row.values[columns.attempts]) ?? 0) + 1;
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
-      [columns.status]: "Rendering",
+      [columns.status]: 'Rendering',
       [columns.startedAt]: new Date().toISOString(),
       [columns.attempts]: String(attempts),
     });
@@ -665,19 +608,14 @@ export class GoogleSheetsService {
     if (output.creatomate_render_id_20s !== undefined) {
       patch.creatomate_render_id_20s = output.creatomate_render_id_20s;
     }
-    if (output.video_url_20s !== undefined)
-      patch.video_url_20s = output.video_url_20s;
+    if (output.video_url_20s !== undefined) patch.video_url_20s = output.video_url_20s;
     if (output.creatomate_render_id_65s !== undefined) {
       patch.creatomate_render_id_65s = output.creatomate_render_id_65s;
     }
-    if (output.video_url_65s !== undefined)
-      patch.video_url_65s = output.video_url_65s;
-    if (output.duration_20s !== undefined)
-      patch.duration_20s = String(output.duration_20s);
-    if (output.duration_65s !== undefined)
-      patch.duration_65s = String(output.duration_65s);
-    if (output.rendered_at !== undefined)
-      patch.rendered_at = output.rendered_at;
+    if (output.video_url_65s !== undefined) patch.video_url_65s = output.video_url_65s;
+    if (output.duration_20s !== undefined) patch.duration_20s = String(output.duration_20s);
+    if (output.duration_65s !== undefined) patch.duration_65s = String(output.duration_65s);
+    if (output.rendered_at !== undefined) patch.rendered_at = output.rendered_at;
 
     await this.upsertByTaskId(SHEET_NAMES.renderOutputs, output.task_id, patch);
   }
@@ -688,11 +626,9 @@ export class GoogleSheetsService {
     if (!row) return null;
     return {
       task_id: row.values.task_id,
-      creatomate_render_id_20s:
-        row.values.creatomate_render_id_20s || undefined,
+      creatomate_render_id_20s: row.values.creatomate_render_id_20s || undefined,
       video_url_20s: row.values.video_url_20s || undefined,
-      creatomate_render_id_65s:
-        row.values.creatomate_render_id_65s || undefined,
+      creatomate_render_id_65s: row.values.creatomate_render_id_65s || undefined,
       video_url_65s: row.values.video_url_65s || undefined,
       duration_20s: toNumber(row.values.duration_20s),
       duration_65s: toNumber(row.values.duration_65s),
@@ -703,48 +639,31 @@ export class GoogleSheetsService {
   async getPendingPosts(): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows
+      .filter((row) => row.values.task_id && (row.values.post_status || 'Pending') === 'Pending')
       .filter(
         (row) =>
-          row.values.task_id &&
-          (row.values.post_status || "Pending") === "Pending",
-      )
-      .filter(
-        (row) =>
-          row.values.render_status_20s === "Rendered" &&
-          row.values.render_status_65s === "Rendered",
+          row.values.render_status_20s === 'Rendered' && row.values.render_status_65s === 'Rendered',
       )
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
 
   async updatePostStatus(taskId: string, status: PostStatus): Promise<void> {
     const row = await this.findQueueRow(taskId);
-    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
-      post_status: status,
-    });
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, { post_status: status });
   }
 
   /** Persists rotated OAuth tokens back onto the channel's row. */
-  async updateChannelTokens(
-    channelId: string,
-    patch: Record<string, string>,
-  ): Promise<void> {
+  async updateChannelTokens(channelId: string, patch: Record<string, string>): Promise<void> {
     const { rows } = await this.loadTable(SHEET_NAMES.channels);
-    const row = rows.find(
-      (candidate) => candidate.values.channel_id === channelId,
-    );
+    const row = rows.find((candidate) => candidate.values.channel_id === channelId);
     if (!row) {
-      throw new Error(
-        `channel_id "${channelId}" not found in ${SHEET_NAMES.channels}`,
-      );
+      throw new Error(`channel_id "${channelId}" not found in ${SHEET_NAMES.channels}`);
     }
     await this.patchRow(SHEET_NAMES.channels, row.rowNumber, patch);
   }
 
   /** Channel rows are hand-written, so the platform is matched without regard to case. */
-  async getChannelConfig(
-    lang_code: Language,
-    platform: Platform,
-  ): Promise<Channel | null> {
+  async getChannelConfig(lang_code: Language, platform: Platform): Promise<Channel | null> {
     const { rows } = await this.loadTable(SHEET_NAMES.channels);
     const row = rows.find(
       (candidate) =>
@@ -767,8 +686,7 @@ export class GoogleSheetsService {
       ig_user_id: row.values.ig_user_id || undefined,
       threads_access_token: row.values.threads_access_token || undefined,
       threads_user_id: row.values.threads_user_id || undefined,
-      threads_token_expires_at:
-        row.values.threads_token_expires_at || undefined,
+      threads_token_expires_at: row.values.threads_token_expires_at || undefined,
       fb_page_id: row.values.fb_page_id || undefined,
       fb_page_access_token: row.values.fb_page_access_token || undefined,
       creatomate_template_20s: row.values.creatomate_template_20s,
