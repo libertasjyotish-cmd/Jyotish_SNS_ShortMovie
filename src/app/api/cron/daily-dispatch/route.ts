@@ -6,6 +6,7 @@ import { runWatchdog } from '@/lib/watchdog-run';
 import { GeneratedScript } from '@/services/gemini';
 import { InstagramService } from '@/services/instagram';
 import { Channel, ContentQueue, GoogleSheetsService, Platform } from '@/services/sheets';
+import { ThreadsService } from '@/services/threads';
 import { YouTubeService } from '@/services/youtube';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,8 @@ function isConnected(channel: Channel | null): channel is Channel {
       return Boolean(channel.youtube_refresh_token);
     case 'Instagram':
       return Boolean(channel.ig_access_token && channel.ig_user_id);
+    case 'Threads':
+      return Boolean(channel.threads_access_token && channel.threads_user_id);
     case 'TikTok':
       return false;
   }
@@ -61,6 +64,7 @@ export async function GET(request: Request) {
     const sheetsService = new GoogleSheetsService();
     const youtubeService = new YouTubeService();
     const instagramService = new InstagramService();
+    const threadsService = new ThreadsService(sheetsService);
     const now = new Date();
     // Vercel Hobby only allows daily crons, so recovery rides along with the dispatch that
     // needs the videos, and stuck renders get one more chance before the posting window.
@@ -81,8 +85,8 @@ export async function GET(request: Request) {
         if (!scriptOutput) throw new Error(`No script output for ${post.task_id}`);
 
         const script20s: GeneratedScript = JSON.parse(scriptOutput.script_20s_json);
-        const [youtubeChannel, instagramChannel] = await Promise.all(
-          (['YouTube', 'Instagram'] as Platform[]).map((platform) =>
+        const [youtubeChannel, instagramChannel, threadsChannel] = await Promise.all(
+          (['YouTube', 'Instagram', 'Threads'] as Platform[]).map((platform) =>
             sheetsService.getChannelConfig(post.lang_code, platform),
           ),
         );
@@ -109,6 +113,21 @@ export async function GET(request: Request) {
             instagramService.uploadVideo({
               channel: instagramChannel,
               caption: buildDescription({
+                lang: post.lang_code,
+                body: script20s.hook_text,
+                hashtags: scriptOutput.hashtags,
+              }),
+              videoUrl,
+            }),
+          );
+        }
+
+        if (isConnected(threadsChannel) && renderOutput?.video_url_20s) {
+          const videoUrl = renderOutput.video_url_20s;
+          uploads.push(() =>
+            threadsService.uploadVideo({
+              channel: threadsChannel,
+              text: buildDescription({
                 lang: post.lang_code,
                 body: script20s.hook_text,
                 hashtags: scriptOutput.hashtags,

@@ -3,7 +3,7 @@ import { requireEnv } from '@/lib/env';
 import { getGoogleCredentials } from '@/lib/google-credentials';
 
 export type Language = 'ja' | 'en' | 'es' | 'pt' | 'id' | 'ar';
-export type Platform = 'YouTube' | 'TikTok' | 'Instagram';
+export type Platform = 'YouTube' | 'TikTok' | 'Instagram' | 'Threads';
 export type TargetType = 'All_Signs' | 'Zodiac_Sign' | 'Theme';
 export type ScriptStatus = 'Pending' | 'Script_Done' | 'Error';
 export type RenderStatus = 'Pending' | 'Rendering' | 'Rendered' | 'Error';
@@ -25,6 +25,10 @@ export interface Channel {
   tiktok_token_expires_at?: string;
   ig_access_token?: string;
   ig_user_id?: string;
+  threads_access_token?: string;
+  threads_user_id?: string;
+  /** ISO timestamp at which `threads_access_token` expires (60 days, refreshable). */
+  threads_token_expires_at?: string;
   creatomate_template_20s: string;
   creatomate_template_65s: string;
 }
@@ -677,6 +681,9 @@ export class GoogleSheetsService {
       tiktok_token_expires_at: row.values.tiktok_token_expires_at || undefined,
       ig_access_token: row.values.ig_access_token || undefined,
       ig_user_id: row.values.ig_user_id || undefined,
+      threads_access_token: row.values.threads_access_token || undefined,
+      threads_user_id: row.values.threads_user_id || undefined,
+      threads_token_expires_at: row.values.threads_token_expires_at || undefined,
       creatomate_template_20s: row.values.creatomate_template_20s,
       creatomate_template_65s: row.values.creatomate_template_65s,
     };
