@@ -1,26 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
-import { FacebookService } from '@/services/facebook';
-import { InstagramService } from '@/services/instagram';
-import { GoogleSheetsService, Language, Platform } from '@/services/sheets';
-import { ThreadsService } from '@/services/threads';
-import { YouTubeService } from '@/services/youtube';
+import { collectChannelStatuses } from '@/lib/channel-status';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
-
-const LANGUAGES: Language[] = ['ja', 'en', 'es', 'pt', 'id', 'ar'];
-/** TikTok is not dispatched, so its rows are not worth reporting on. */
-const PLATFORMS: Platform[] = ['YouTube', 'Instagram', 'Threads', 'Facebook'];
-
-interface ChannelStatus {
-  lang_code: Language;
-  platform: Platform;
-  channel_id?: string;
-  connected: boolean;
-  account?: string;
-  error?: string;
-}
 
 /**
  * Reports whether each language's channel is authorized, by reading the account back from
@@ -32,46 +15,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const sheets = new GoogleSheetsService();
-    const youtube = new YouTubeService();
-    const instagram = new InstagramService();
-    const threads = new ThreadsService(sheets);
-    const facebook = new FacebookService();
-    const statuses: ChannelStatus[] = [];
-
-    for (const lang of LANGUAGES) {
-      for (const platform of PLATFORMS) {
-        const channel = await sheets.getChannelConfig(lang, platform);
-        if (!channel) continue;
-        try {
-          let account: string;
-          if (platform === 'YouTube') {
-            account = await youtube.verifyChannel(channel);
-          } else if (platform === 'Threads') {
-            account = await threads.verifyChannel(channel);
-          } else if (platform === 'Facebook') {
-            account = await facebook.verifyChannel(channel);
-          } else {
-            account = await instagram.verifyChannel(channel);
-          }
-          statuses.push({
-            lang_code: lang,
-            platform,
-            channel_id: channel.channel_id,
-            connected: true,
-            account,
-          });
-        } catch (error) {
-          statuses.push({
-            lang_code: lang,
-            platform,
-            channel_id: channel.channel_id,
-            connected: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
-        }
-      }
-    }
+    const statuses = await collectChannelStatuses();
 
     return NextResponse.json({
       connected: statuses.filter((status) => status.connected).length,
