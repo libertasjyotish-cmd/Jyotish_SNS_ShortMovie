@@ -36,8 +36,9 @@ export const ZODIAC_DAYS: { day: DayOfWeek; signs: ZodiacSign[] }[] = [
 ];
 
 /**
- * Local posting time per day, in JST hours and minutes. `daily-dispatch` runs once a
- * day at 18:00 JST and posts everything already due, so every slot sits on that hour.
+ * Local posting time per day, in JST hours and minutes, for the one theme video a day.
+ * `daily-dispatch` posts everything already due, so a slot only has to fall on one of
+ * the hours it runs.
  */
 const POST_TIME_JST: Record<DayOfWeek, [number, number]> = {
   Mon: [18, 0],
@@ -48,6 +49,18 @@ const POST_TIME_JST: Record<DayOfWeek, [number, number]> = {
   Sat: [18, 0],
   Sun: [18, 0],
 };
+
+/**
+ * The four sign readings of a day go out three hours apart instead of together: posts
+ * released at the same minute compete with each other for the same audience, which costs
+ * each one part of the first-hour reach the platforms decide distribution from.
+ */
+export const ZODIAC_SLOTS_JST: [number, number][] = [
+  [12, 0],
+  [15, 0],
+  [18, 0],
+  [21, 0],
+];
 
 const DAY_OFFSET: Record<DayOfWeek, number> = {
   Mon: 0,
@@ -88,9 +101,14 @@ export function isoWeekId(date: Date): string {
   return `${thursday.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
-/** ISO timestamp of the posting slot for `day` of the week starting at `weekStart`. */
-export function scheduledPostTime(weekStart: Date, day: DayOfWeek): string {
-  const [hour, minute] = POST_TIME_JST[day];
+/**
+ * ISO timestamp of the posting slot for `day` of the week starting at `weekStart`.
+ * `slot` picks one of `ZODIAC_SLOTS_JST` for the sign readings; theme videos omit it and
+ * take the single slot of their day.
+ */
+export function scheduledPostTime(weekStart: Date, day: DayOfWeek, slot?: number): string {
+  const [hour, minute] =
+    slot === undefined ? POST_TIME_JST[day] : ZODIAC_SLOTS_JST[slot % ZODIAC_SLOTS_JST.length];
   const time = new Date(weekStart.getTime() + DAY_OFFSET[day] * MS_PER_DAY);
   time.setUTCHours(hour - JST_OFFSET_HOURS, minute, 0, 0);
   return time.toISOString();
