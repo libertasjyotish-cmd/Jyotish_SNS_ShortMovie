@@ -70,8 +70,8 @@ export async function GET(request: Request) {
     const threadsService = new ThreadsService(sheetsService);
     const facebookService = new FacebookService();
     const now = new Date();
-    // Vercel Hobby only allows daily crons, so recovery rides along with the dispatch that
-    // needs the videos, and stuck renders get one more chance before the posting window.
+    // Recovery rides along with the dispatch that needs the videos, so a stuck render gets
+    // one more chance before each posting window.
     const watchdog = await runWatchdog(sheetsService, now);
     const pendingPosts = await sheetsService.getPendingPosts();
     const duePosts = pendingPosts.filter((post) => isDue(post.scheduled_post_time, now));

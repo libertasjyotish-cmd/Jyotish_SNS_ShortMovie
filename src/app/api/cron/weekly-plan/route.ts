@@ -34,7 +34,13 @@ function pickTheme(scripts: EvergreenScript[], day: DayOfWeek, taken: Set<string
     .sort((a, b) => a.last_used_week.localeCompare(b.last_used_week))[0];
 }
 
-function baseTask(weekId: string, day: DayOfWeek, weekStart: Date, lang: Language) {
+function baseTask(
+  weekId: string,
+  day: DayOfWeek,
+  weekStart: Date,
+  lang: Language,
+  slot?: number,
+) {
   return {
     week_id: weekId,
     day_of_week: day,
@@ -45,7 +51,7 @@ function baseTask(weekId: string, day: DayOfWeek, weekStart: Date, lang: Languag
     render_attempts_30s: 0,
     render_attempts_65s: 0,
     post_status: 'Pending' as const,
-    scheduled_post_time: scheduledPostTime(weekStart, day),
+    scheduled_post_time: scheduledPostTime(weekStart, day, slot),
   };
 }
 
@@ -106,9 +112,10 @@ export async function GET(request: Request) {
       }
 
       for (const { day, signs } of ZODIAC_DAYS) {
-        for (const sign of signs) {
+        for (let slot = 0; slot < signs.length; slot += 1) {
+          const sign = signs[slot];
           const task: ContentQueue = {
-            ...baseTask(weekId, day, weekStart, lang),
+            ...baseTask(weekId, day, weekStart, lang, slot),
             task_id: `${weekId}-${lang}-${sign.toLowerCase()}`,
             target_type: 'Zodiac_Sign',
             zodiac_sign: sign,
