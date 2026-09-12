@@ -11,7 +11,7 @@
 | プラットフォーム | YouTube / Instagram / TikTok（3） |
 | アカウント数 | 6 × 3 = 18 |
 | 投稿本数 | 12 星座 × 6 言語 = 72 本/週 |
-| 投稿する尺 | YouTube Shorts・Instagram Reels = 20s 版 / TikTok = 65s 版 |
+| 投稿する尺 | YouTube Shorts・Instagram Reels = 30s 版 / TikTok = 65s 版 |
 
 TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすため。
 
@@ -107,7 +107,7 @@ TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすた�
 2. 投稿は Reels のレジューム型アップロード:
    `POST /{page-id}/video_reels`（`upload_phase=start`）→ `rupload.facebook.com` に
    `file_url` ヘッダーで公開 URL を渡す → `upload_phase=finish`（`video_state=PUBLISHED`）。
-3. Instagram Reels と同じ 20s の MP4 をそのまま使う。
+3. Instagram Reels と同じ 30s の MP4 をそのまま使う。
 
 ### TikTok
 

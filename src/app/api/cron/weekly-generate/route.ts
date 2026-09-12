@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { numberEnv, runWithinBudget, triggerNextBatch } from '@/lib/batch';
+import { describeIssues, lintScript } from '@/lib/script-lint';
 import { GeminiService, GeneratedScript, isTransientGeminiError } from '@/services/gemini';
 import { ContentQueue, GoogleSheetsService, WeeklyTransit } from '@/services/sheets';
 
@@ -15,7 +16,7 @@ async function generateThemeScript(
   sheets: GoogleSheetsService,
   gemini: GeminiService,
   task: ContentQueue,
-): Promise<{ script_20s: GeneratedScript; script_65s: GeneratedScript; hashtags: string }> {
+): Promise<{ script_30s: GeneratedScript; script_65s: GeneratedScript; hashtags: string }> {
   if (!task.theme_id) {
     throw new Error(`Theme task ${task.task_id} has no theme_id`);
   }
@@ -25,14 +26,14 @@ async function generateThemeScript(
     throw new Error(`No evergreen script "${task.theme_id}" for "${task.lang_code}"`);
   }
 
-  const script_20s: GeneratedScript = {
+  const script_30s: GeneratedScript = {
     hook_text: source.hook,
     body_script: source.body,
     cta_text: source.cta,
   };
   return {
-    script_20s,
-    script_65s: await gemini.expandThemeScript(script_20s, task.lang_code),
+    script_30s,
+    script_65s: await gemini.expandThemeScript(script_30s, task.lang_code),
     hashtags: source.hashtags,
   };
 }
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
     let succeeded = 0;
     let failed = 0;
     let deferred = 0;
+    const lintWarnings: string[] = [];
 
     const remainingTasks = await runWithinBudget(
       pendingTasks,
@@ -58,7 +60,7 @@ export async function GET(request: Request) {
         try {
           let transitReference = '';
           let scriptData: {
-            script_20s: GeneratedScript;
+            script_30s: GeneratedScript;
             script_65s: GeneratedScript;
             hashtags: string;
           };
@@ -83,13 +85,25 @@ export async function GET(request: Request) {
             });
           }
 
+          for (const [pattern, script] of [
+            ['30s', scriptData.script_30s],
+            ['65s', scriptData.script_65s],
+          ] as const) {
+            const issues = lintScript(script, task.lang_code, pattern);
+            if (issues.length > 0) {
+              const warning = `${task.task_id} (${pattern}): ${describeIssues(issues)}`;
+              console.warn(`Script lint: ${warning}`);
+              lintWarnings.push(warning);
+            }
+          }
+
           await sheetsService.saveScriptOutput({
             task_id: task.task_id,
             week_id: task.week_id,
             lang_code: task.lang_code,
             zodiac_sign: task.zodiac_sign,
             transit_reference: transitReference,
-            script_20s_json: JSON.stringify(scriptData.script_20s),
+            script_30s_json: JSON.stringify(scriptData.script_30s),
             script_65s_json: JSON.stringify(scriptData.script_65s),
             hashtags: scriptData.hashtags,
             created_at: new Date().toISOString(),
@@ -129,6 +143,7 @@ export async function GET(request: Request) {
       deferred,
       remaining: remainingTasks.length,
       continued,
+      lint_warnings: lintWarnings,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

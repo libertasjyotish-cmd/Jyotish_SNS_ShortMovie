@@ -79,7 +79,7 @@ vercel.json                   ビルド設定のみ（crons 未定義）        
 
 | パターン | 対象 | 目標長 | 文字数(日本語) | 構成 |
 | --- | --- | --- | --- | --- |
-| ① 20s | YouTube Shorts / Instagram Reels | 18〜22 秒 | 100〜120 | 2 秒フック → 星回り解説 1 文 → 開運アクション → アプリ誘導 CTA |
+| ① 30s | YouTube Shorts / Instagram Reels / Threads / Facebook Reels | 26〜32 秒 | 145〜165 | 体感を名指すフック → インド占星術＋トランジットとハウス 1 文 → 効いている人の見分け方 1 文 → 強さは出生図次第という CTA |
 | ② 65s | TikTok | 61〜68 秒（厳守） | 350〜380 | フック → サイデリアル式の説明 → トランジットとハウスの根拠 → 詳細運勢と注意点 → アプリ誘導 CTA |
 
 65 秒版は TikTok の収益化要件（60 秒超）を満たすため、TTS 速度を調整して
@@ -104,7 +104,7 @@ vercel.json                   ビルド設定のみ（crons 未定義）        
   "target_type": "Zodiac_Sign",     // "All_Signs" | "Zodiac_Sign"
   "zodiac_sign": "Aries",
   "transit_reference": "Sun transit in Leo (5th House from Moon)",
-  "script_20s": { "hook_text": "", "body_script": "", "cta_text": "" },
+  "script_30s": { "hook_text": "", "body_script": "", "cta_text": "" },
   "script_65s": { "hook_text": "", "body_script": "", "cta_text": "" },
   "hashtags": "#インド占星術 #月星座 #運勢 #LibertasJyotish"
 }
@@ -118,10 +118,10 @@ TypeScript 型 `GenerationRequest` / `GeneratedScript` / `GeneratedContent` と�
 
 | シート | カラム |
 | --- | --- |
-| `Channels` | `channel_id, platform, lang_code, account_handle, youtube_refresh_token, tiktok_access_token, ig_access_token, creatomate_template_20s, creatomate_template_65s` |
-| `Content_Queue` | `task_id, week_id, day_of_week, lang_code, target_type, zodiac_sign, script_status, render_status_20s, render_status_65s, render_started_at_20s, render_started_at_65s, render_attempts_20s, render_attempts_65s, post_status, scheduled_post_time` |
-| `Script_Outputs` | `task_id, week_id, lang_code, zodiac_sign, transit_reference, script_20s_json, script_65s_json, hashtags, created_at` |
-| `Render_Outputs` | `task_id, creatomate_render_id_20s, video_url_20s, creatomate_render_id_65s, video_url_65s, duration_20s, duration_65s, rendered_at` |
+| `Channels` | `channel_id, platform, lang_code, account_handle, youtube_refresh_token, tiktok_access_token, ig_access_token, creatomate_template_30s, creatomate_template_65s` |
+| `Content_Queue` | `task_id, week_id, day_of_week, lang_code, target_type, zodiac_sign, script_status, render_status_30s, render_status_65s, render_started_at_30s, render_started_at_65s, render_attempts_30s, render_attempts_65s, post_status, scheduled_post_time` |
+| `Script_Outputs` | `task_id, week_id, lang_code, zodiac_sign, transit_reference, script_30s_json, script_65s_json, hashtags, created_at` |
+| `Render_Outputs` | `task_id, creatomate_render_id_30s, video_url_30s, creatomate_render_id_65s, video_url_65s, duration_30s, duration_65s, rendered_at` |
 | `Weekly_Transits` | `week_id, transit_data`（v5 設計書には無い。`getWeeklyTransits()` が参照） |
 
 ステータス遷移: `Pending` → `Script_Done` → `Rendered` → `Posted` / `Error`
@@ -135,10 +135,10 @@ TypeScript 型 `GenerationRequest` / `GeneratedScript` / `GeneratedContent` と�
 未実装: Sheets I/O、Gemini 呼び出し、`transit_reference` の動的取得（現状 `"Sun transit in Leo"` 固定）。
 
 ### Step 2: `GET /api/cron/render-batch` — 動画レンダリング
-実装済みの制御フロー: `getPendingRenders()` → 20s / 65s それぞれ `triggerRender()` →
+実装済みの制御フロー: `getPendingRenders()` → 30s / 65s それぞれ `triggerRender()` →
 `saveRenderOutput()` に render_id を保存。
 未実装: Creatomate API 呼び出し、原稿データの取得（現状 stub）、
-チャンネル別テンプレート ID の取得（現状 `'creatomate_template_20s'` という文字列リテラル）、
+チャンネル別テンプレート ID の取得（現状 `'creatomate_template_30s'` という文字列リテラル）、
 65 秒の尺バリデーション。
 
 ### Step 2': `POST /api/webhook/createmate` — レンダリング完了通知
@@ -147,10 +147,10 @@ TypeScript 型 `GenerationRequest` / `GeneratedScript` / `GeneratedContent` と�
 未実装: 署名検証、`failed` ステータスの処理、Sheets I/O。
 
 ### Step 3: `GET /api/cron/daily-dispatch` — SNS 配信
-実装済みの制御フロー: `getPendingPosts()` → YouTube / Instagram に 20s、TikTok に 65s を投稿 →
+実装済みの制御フロー: `getPendingPosts()` → YouTube / Instagram に 30s、TikTok に 65s を投稿 →
 `updatePostStatus(task_id, 'Posted')`、失敗時は `'Error'`。
 未実装: 各 SNS API の実装（全て `console.log` のみ）、`Render_Outputs` からの実 URL 取得
-（現状 `stub_url_20s_${task_id}`）、`scheduled_post_time` による時刻フィルタ、リトライ、Slack 通知。
+（現状 `stub_url_30s_${task_id}`）、`scheduled_post_time` による時刻フィルタ、リトライ、Slack 通知。
 
 ## 10. 環境変数
 
@@ -176,7 +176,7 @@ SNS のトークン（`youtube_refresh_token` / `tiktok_access_token` / `ig_acce
 
 1. Sheets I/O の実装（全パイプラインの前提）
 2. `vercel.json` に `crons` を定義 + `CRON_SECRET` による認可
-3. Gemini プロンプト実装（6 言語 / 20s・65s / 厳格ルール）
+3. Gemini プロンプト実装（6 言語 / 30s・65s / 厳格ルール）
 4. Creatomate 連携（テンプレート ID をチャンネル設定から取得、webhook に `context` を付与）
 5. 65 秒尺バリデーション（TTS 速度調整とリトライ）
 6. YouTube / TikTok / Instagram の各 API 実装 + OAuth トークン更新

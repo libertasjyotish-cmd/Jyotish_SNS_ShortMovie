@@ -53,8 +53,8 @@ export async function runRenderBatch(
     }
     const scriptOutput = await sheets.getScriptOutput(task.task_id);
 
-    for (const pattern of ['20s', '65s'] as Pattern[]) {
-      const status = pattern === '20s' ? task.render_status_20s : task.render_status_65s;
+    for (const pattern of ['30s', '65s'] as Pattern[]) {
+      const status = pattern === '30s' ? task.render_status_30s : task.render_status_65s;
       if (status !== 'Pending') continue;
 
       try {
@@ -67,7 +67,7 @@ export async function runRenderBatch(
           pattern,
           dayOfWeek: task.day_of_week,
           script: JSON.parse(
-            pattern === '20s' ? scriptOutput.script_20s_json : scriptOutput.script_65s_json,
+            pattern === '30s' ? scriptOutput.script_30s_json : scriptOutput.script_65s_json,
           ),
         });
         triggered += 1;

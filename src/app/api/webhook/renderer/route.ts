@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   const payload = (await req.json()) as RendererCallbackPayload;
   const taskId = payload.queue_task_id;
   const pattern = payload.pattern;
-  if (!taskId || (pattern !== '20s' && pattern !== '65s')) {
+  if (!taskId || (pattern !== '30s' && pattern !== '65s')) {
     return NextResponse.json({ error: 'Missing task_id or pattern' }, { status: 400 });
   }
 
@@ -34,9 +34,9 @@ export async function POST(req: NextRequest) {
   }
 
   const output: RenderOutput = { task_id: taskId, rendered_at: new Date().toISOString() };
-  if (pattern === '20s') {
-    output.video_url_20s = payload.url;
-    output.duration_20s = payload.duration;
+  if (pattern === '30s') {
+    output.video_url_30s = payload.url;
+    output.duration_30s = payload.duration;
   } else {
     output.video_url_65s = payload.url;
     output.duration_65s = payload.duration;

@@ -39,7 +39,7 @@ export interface GeneratedContent {
   target_type: TargetType;
   zodiac_sign?: string;
   transit_reference: string;
-  script_20s: GeneratedScript;
+  script_30s: GeneratedScript;
   script_65s: GeneratedScript;
   hashtags: string;
 }
@@ -49,7 +49,7 @@ interface LanguageProfile {
   /** How the tradition is named on screen; "Vedic astrology" reads as a sect in Japanese. */
   tradition: string;
   /** Narration length targets, expressed in the unit natural for the script. */
-  length20s: string;
+  length30s: string;
   length65s: string;
   /** The 65s body is where the model consistently falls short, so it is budgeted apart. */
   body65s: string;
@@ -60,43 +60,43 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   ja: {
     name: '日本語',
     tradition: 'インド占星術（ジョーティシュ）',
-    length20s: '合計75〜90文字',
+    length30s: '合計145〜165文字',
     length65s: '合計390〜420文字',
     body65s: '320〜350文字',
   },
   en: {
     name: 'English',
     tradition: 'Indian (Vedic) astrology, Jyotish',
-    /** English is read at ~2.6 words per second, so 50 words overran the 22s ceiling. */
-    length20s: '32-40 words in total',
+    /** English is read at ~2.2 words per second at the default speaking rate. */
+    length30s: '52-62 words in total',
     length65s: '160-180 words in total',
     body65s: '130-150 words',
   },
   es: {
     name: 'Español',
     tradition: 'la astrología india (Jyotish)',
-    length20s: '45-55 palabras en total',
+    length30s: '70-85 palabras en total',
     length65s: '160-180 palabras en total',
     body65s: '130-150 palabras',
   },
   pt: {
     name: 'Português',
     tradition: 'a astrologia indiana (Jyotish)',
-    length20s: '45-55 palavras no total',
+    length30s: '70-85 palavras no total',
     length65s: '160-180 palavras no total',
     body65s: '130-150 palavras',
   },
   id: {
     name: 'Bahasa Indonesia',
     tradition: 'astrologi India (Jyotish)',
-    length20s: 'total 45-55 kata',
+    length30s: 'total 70-85 kata',
     length65s: 'total 160-180 kata',
     body65s: '130-150 kata',
   },
   ar: {
     name: 'العربية',
     tradition: 'التنجيم الهندي (جيوتيش)',
-    length20s: '45-55 كلمة إجمالاً',
+    length30s: '70-85 كلمة إجمالاً',
     length65s: '160-180 كلمة إجمالاً',
     body65s: '130-150 كلمة',
     note: 'Right-to-left script. Do not insert Latin punctuation or emoji that break RTL rendering.',
@@ -106,7 +106,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
 const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    script_20s: {
+    script_30s: {
       type: Type.OBJECT,
       properties: {
         hook_text: { type: Type.STRING },
@@ -126,7 +126,7 @@ const RESPONSE_SCHEMA = {
     },
     hashtags: { type: Type.STRING },
   },
-  required: ['script_20s', 'script_65s', 'hashtags'],
+  required: ['script_30s', 'script_65s', 'hashtags'],
 } as const;
 
 const LONG_SCRIPT_SCHEMA = {
@@ -140,7 +140,7 @@ const LONG_SCRIPT_SCHEMA = {
 } as const;
 
 interface RawGeneration {
-  script_20s?: Partial<GeneratedScript>;
+  script_30s?: Partial<GeneratedScript>;
   script_65s?: Partial<GeneratedScript>;
   hashtags?: string;
 }
@@ -179,7 +179,7 @@ function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language)
   const profile = LANGUAGE_PROFILES[lang_code];
   return [
     'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
-    'You are given a finished 20-second script. Rewrite it as a longer version of the same video.',
+    'You are given a finished 30-second script. Rewrite it as a longer version of the same video.',
     '',
     'Absolute rules:',
     '1. Do not introduce any fact, number, degree, year, planet, nakshatra, tradition or proper noun that is absent from the source script.',
@@ -225,9 +225,12 @@ function buildPrompt(request: GenerationRequest): string {
     '6. Never give definitive medical, mental-health, financial, investment or legal advice, and never predict illness, death, pregnancy, accidents, lawsuits, or specific gains and losses of money. Phrase practical suggestions as everyday actions (rest, planning, communication), not as diagnoses or instructions.',
     '7. Keep the tone calm and specific. Vary the opening sentence and the concrete example between zodiac signs so the twelve scripts of a week never read as one template.',
     `8. Name the tradition in the first sentence of body_script, exactly as "${profile.tradition}". Viewers do not know what a nakshatra or a sidereal Moon sign is, so never open on a technical term without saying which system it comes from.`,
-    '9. hook_text is one short line that stops the scroll: a surprising claim, a question, or naming the viewer. Never announce the video ("here is this week\'s movement of the stars").',
+    '9. hook_text is one short line that stops the scroll by naming something the viewer may already be noticing in daily life, addressed to their Moon sign, and asking whether it is happening to them. Never announce the video ("here is this week\'s movement of the stars").',
     '10. The length limits are hard limits; count before answering and cut adjectives rather than overrun.',
-    '11. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
+    '11. body_script contains one sentence that lets the viewer decide for themselves whether the transit is acting on them, phrased as what it looks like in the people it reaches ("the ones it reaches find that ..."). Describe everyday actions, never symptoms, luck or loss.',
+    '12. cta_text says that it does not land equally on everyone and that how strongly it lands follows from the birth chart, then invites them to work theirs out on the site. Never close on a definitive statement about the individual viewer.',
+    '13. Never create urgency through fear. Do not use danger, warning, running out of time, misfortune, or "if you do not do this" framings, and never promise that something will certainly happen.',
+    '14. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
     profile.note ?? '',
@@ -237,7 +240,7 @@ function buildPrompt(request: GenerationRequest): string {
     `Transit reference (the only allowed factual source):\n${request.transit_reference}`,
     '',
     'Produce two narration scripts for the same content:',
-    `- script_20s: spoken in about 20 seconds, ${profile.length20s} (hook_text + body_script + cta_text combined). Structure: 2-second hook, one sentence naming Jyotish and the planetary movement, one concrete action, app CTA.`,
+    `- script_30s: spoken in about 28 seconds, ${profile.length30s} (hook_text + body_script + cta_text combined). Structure: hook naming a feeling the viewer may already be having, one sentence naming Jyotish and the planetary movement with the house it falls in, one sentence telling the viewer how to recognise whether it is acting on them, then the CTA saying how strongly it lands depends on the birth time.`,
     `- script_65s: spoken in 61-68 seconds, ${profile.length65s} (hook_text + body_script + cta_text combined). This one is long: body_script alone carries ${profile.body65s} and needs five or six sentences. Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution, app CTA.`,
     '',
     'hashtags: 4-6 space-separated hashtags suitable for the target language, always including #LibertasJyotish.',
@@ -276,7 +279,7 @@ export class GeminiService {
       target_type: request.target_type,
       zodiac_sign: request.zodiac_sign,
       transit_reference: request.transit_reference,
-      script_20s: assertScript(raw.script_20s, 'script_20s'),
+      script_30s: assertScript(raw.script_30s, 'script_30s'),
       script_65s: assertScript(raw.script_65s, 'script_65s'),
       hashtags: (raw.hashtags || '').trim(),
     };
