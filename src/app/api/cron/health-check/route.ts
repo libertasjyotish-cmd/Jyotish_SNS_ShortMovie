@@ -24,7 +24,9 @@ export async function GET(request: Request) {
 
   try {
     const statuses = await collectChannelStatuses();
-    const disconnected = statuses.filter((status) => !status.connected);
+    // Rows without a credential are unfinished setup (e.g. Threads outside pt), not an outage.
+    const disconnected = statuses.filter((status) => !status.connected && status.configured);
+    const unconfigured = statuses.filter((status) => !status.configured);
     const expiring = statuses.filter(
       (status) =>
         status.connected &&
@@ -34,7 +36,7 @@ export async function GET(request: Request) {
 
     if (disconnected.length > 0 || expiring.length > 0) {
       await sendAlert([
-        `Jyotish SNS channel health: ${statuses.length - disconnected.length}/${statuses.length} connected`,
+        `Jyotish SNS channel health: ${statuses.filter((s) => s.connected).length}/${statuses.length - unconfigured.length} connected`,
         ...disconnected.map((status) => `NG ${label(status)}: ${status.error ?? 'not connected'}`),
         ...expiring.map(
           (status) => `期限間近 ${label(status)}: あと${status.expires_in_days}日でトークン失効`,
@@ -44,9 +46,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       status: 'Health check completed',
-      connected: statuses.length - disconnected.length,
+      connected: statuses.filter((status) => status.connected).length,
       total: statuses.length,
       disconnected: disconnected.map(label),
+      unconfigured: unconfigured.map(label),
       expiring: expiring.map(label),
     });
   } catch (error) {
