@@ -1,4 +1,5 @@
 import { sendAlert } from '@/lib/alert';
+import { optionalEnv } from '@/lib/env';
 import { runRenderBatch } from '@/lib/render-batch';
 import { MAX_RENDER_ATTEMPTS, findBlockedTasks, planRenderRecovery } from '@/lib/watchdog';
 import { CreatomateService } from '@/services/creatomate';
@@ -42,7 +43,11 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
   const requeued = recoveries.filter((recovery) => recovery.action === 'Pending').length;
   const batch = requeued > 0 ? await runRenderBatch(sheets, new CreatomateService()) : undefined;
 
-  alerts.push(...findBlockedTasks(tasks, now));
+  alerts.push(
+    ...findBlockedTasks(tasks, now, {
+      dispatchEnabled: optionalEnv('DISPATCH_ENABLED') === 'true',
+    }),
+  );
   const alerted = await sendAlert(
     alerts.length > 0 ? ['Jyotish SNS pipeline needs attention:', ...alerts] : [],
   );

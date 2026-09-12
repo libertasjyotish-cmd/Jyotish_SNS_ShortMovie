@@ -70,8 +70,15 @@ export function planRenderRecovery(tasks: ContentQueue[], now: Date): RenderReco
   return recoveries;
 }
 
-/** Queue rows a human has to deal with, because retrying will not fix them. */
-export function findBlockedTasks(tasks: ContentQueue[], now: Date): string[] {
+/**
+ * Queue rows a human has to deal with, because retrying will not fix them. While posting is
+ * disabled every due row is overdue by design, so that check only runs once dispatch is on.
+ */
+export function findBlockedTasks(
+  tasks: ContentQueue[],
+  now: Date,
+  options: { dispatchEnabled: boolean },
+): string[] {
   const blocked: string[] = [];
 
   for (const task of tasks) {
@@ -82,7 +89,12 @@ export function findBlockedTasks(tasks: ContentQueue[], now: Date): string[] {
       blocked.push(`${task.task_id}: posting failed`);
     }
     const overdue = elapsedMinutes(task.scheduled_post_time, now);
-    if (task.post_status === 'Pending' && overdue !== undefined && overdue >= POST_OVERDUE_MINUTES) {
+    if (
+      options.dispatchEnabled &&
+      task.post_status === 'Pending' &&
+      overdue !== undefined &&
+      overdue >= POST_OVERDUE_MINUTES
+    ) {
       blocked.push(
         `${task.task_id}: still unposted ${Math.round(overdue / 60)}h after ${task.scheduled_post_time}`,
       );
