@@ -17,8 +17,18 @@ export interface ChannelStatus {
   connected: boolean;
   account?: string;
   error?: string;
+  /** False while the row has no credential yet, so an unfinished setup is not an outage. */
+  configured: boolean;
   /** Days until the stored token expires; absent when the platform's token has no expiry. */
   expires_in_days?: number;
+}
+
+function isConfigured(channel: Channel, platform: Platform): boolean {
+  if (platform === 'YouTube') return Boolean(channel.youtube_refresh_token);
+  if (platform === 'Instagram') return Boolean(channel.ig_access_token);
+  if (platform === 'Threads') return Boolean(channel.threads_access_token);
+  if (platform === 'Facebook') return Boolean(channel.fb_page_access_token);
+  return Boolean(channel.tiktok_access_token);
 }
 
 function expiresInDays(channel: Channel, platform: Platform): number | undefined {
@@ -62,6 +72,7 @@ export async function collectChannelStatuses(): Promise<ChannelStatus[]> {
           channel_id: channel.channel_id,
           connected: true,
           account,
+          configured: true,
           expires_in_days: expiresInDays(channel, platform),
         });
       } catch (error) {
@@ -71,6 +82,7 @@ export async function collectChannelStatuses(): Promise<ChannelStatus[]> {
           channel_id: channel.channel_id,
           connected: false,
           error: error instanceof Error ? error.message : 'Unknown error',
+          configured: isConfigured(channel, platform),
           expires_in_days: expiresInDays(channel, platform),
         });
       }
