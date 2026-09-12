@@ -6,8 +6,8 @@ const GRAPH_BASE = 'https://graph.threads.net';
 const API_BASE = `${GRAPH_BASE}/v1.0`;
 const STATUS_POLL_INTERVAL_MS = 10000;
 const STATUS_POLL_ATTEMPTS = 30;
-/** Refresh a little early so a token never expires mid-upload. */
-const EXPIRY_MARGIN_MS = 24 * 60 * 60 * 1000;
+/** Refresh well before expiry, so a few failed daily checks still leave room to recover. */
+const EXPIRY_MARGIN_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** `threads_content_publish` is what allows posting to the profile. */
 export const THREADS_SCOPES = ['threads_basic', 'threads_content_publish'];
