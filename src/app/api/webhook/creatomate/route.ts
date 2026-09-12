@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
     }
 
     const renderOutput: RenderOutput = { task_id: taskId, rendered_at: new Date().toISOString() };
-    if (pattern === '20s') {
-      renderOutput.video_url_20s = payload.url;
-      renderOutput.duration_20s = payload.duration;
+    if (pattern === '30s') {
+      renderOutput.video_url_30s = payload.url;
+      renderOutput.duration_30s = payload.duration;
     } else {
       renderOutput.video_url_65s = payload.url;
       renderOutput.duration_65s = payload.duration;

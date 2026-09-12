@@ -8,7 +8,7 @@ export type TargetType = 'All_Signs' | 'Zodiac_Sign' | 'Theme';
 export type ScriptStatus = 'Pending' | 'Script_Done' | 'Error';
 export type RenderStatus = 'Pending' | 'Rendering' | 'Rendered' | 'Error';
 export type PostStatus = 'Pending' | 'Posted' | 'Error';
-export type Pattern = '20s' | '65s';
+export type Pattern = '30s' | '65s';
 
 export interface Channel {
   channel_id: string;
@@ -32,7 +32,7 @@ export interface Channel {
   fb_page_id?: string;
   /** Page access token; it does not expire while the page token's user token stays valid. */
   fb_page_access_token?: string;
-  creatomate_template_20s: string;
+  creatomate_template_30s: string;
   creatomate_template_65s: string;
 }
 
@@ -46,12 +46,12 @@ export interface ContentQueue {
   /** Set on `Theme` tasks; points at a row of `Evergreen_Scripts`. */
   theme_id?: string;
   script_status: ScriptStatus;
-  render_status_20s: RenderStatus;
+  render_status_30s: RenderStatus;
   render_status_65s: RenderStatus;
   /** ISO timestamp the current render was handed to the renderer; blank before the first try. */
-  render_started_at_20s?: string;
+  render_started_at_30s?: string;
   render_started_at_65s?: string;
-  render_attempts_20s: number;
+  render_attempts_30s: number;
   render_attempts_65s: number;
   post_status: PostStatus;
   scheduled_post_time: string;
@@ -62,10 +62,10 @@ export const RENDER_COLUMNS: Record<
   Pattern,
   { status: string; startedAt: string; attempts: string }
 > = {
-  '20s': {
-    status: 'render_status_20s',
-    startedAt: 'render_started_at_20s',
-    attempts: 'render_attempts_20s',
+  '30s': {
+    status: 'render_status_30s',
+    startedAt: 'render_started_at_30s',
+    attempts: 'render_attempts_30s',
   },
   '65s': {
     status: 'render_status_65s',
@@ -80,7 +80,7 @@ export interface ScriptOutput {
   lang_code: Language;
   zodiac_sign?: string;
   transit_reference: string;
-  script_20s_json: string;
+  script_30s_json: string;
   script_65s_json: string;
   hashtags: string;
   created_at: string;
@@ -88,11 +88,11 @@ export interface ScriptOutput {
 
 export interface RenderOutput {
   task_id: string;
-  creatomate_render_id_20s?: string;
-  video_url_20s?: string;
+  creatomate_render_id_30s?: string;
+  video_url_30s?: string;
   creatomate_render_id_65s?: string;
   video_url_65s?: string;
-  duration_20s?: number;
+  duration_30s?: number;
   duration_65s?: number;
   rendered_at?: string;
 }
@@ -372,11 +372,11 @@ export class GoogleSheetsService {
       zodiac_sign: values.zodiac_sign || undefined,
       theme_id: values.theme_id || undefined,
       script_status: (values.script_status || 'Pending') as ScriptStatus,
-      render_status_20s: (values.render_status_20s || 'Pending') as RenderStatus,
+      render_status_30s: (values.render_status_30s || 'Pending') as RenderStatus,
       render_status_65s: (values.render_status_65s || 'Pending') as RenderStatus,
-      render_started_at_20s: values.render_started_at_20s || undefined,
+      render_started_at_30s: values.render_started_at_30s || undefined,
       render_started_at_65s: values.render_started_at_65s || undefined,
-      render_attempts_20s: toNumber(values.render_attempts_20s) ?? 0,
+      render_attempts_30s: toNumber(values.render_attempts_30s) ?? 0,
       render_attempts_65s: toNumber(values.render_attempts_65s) ?? 0,
       post_status: (values.post_status || 'Pending') as PostStatus,
       scheduled_post_time: values.scheduled_post_time,
@@ -456,7 +456,7 @@ export class GoogleSheetsService {
       zodiac_sign: task.zodiac_sign ?? '',
       theme_id: task.theme_id ?? '',
       script_status: task.script_status,
-      render_status_20s: task.render_status_20s,
+      render_status_30s: task.render_status_30s,
       render_status_65s: task.render_status_65s,
       post_status: task.post_status,
       scheduled_post_time: task.scheduled_post_time,
@@ -503,7 +503,7 @@ export class GoogleSheetsService {
       lang_code: output.lang_code,
       zodiac_sign: output.zodiac_sign ?? '',
       transit_reference: output.transit_reference,
-      script_20s_json: output.script_20s_json,
+      script_30s_json: output.script_30s_json,
       script_65s_json: output.script_65s_json,
       hashtags: output.hashtags,
       created_at: output.created_at,
@@ -520,7 +520,7 @@ export class GoogleSheetsService {
       lang_code: row.values.lang_code as Language,
       zodiac_sign: row.values.zodiac_sign || undefined,
       transit_reference: row.values.transit_reference,
-      script_20s_json: row.values.script_20s_json,
+      script_30s_json: row.values.script_30s_json,
       script_65s_json: row.values.script_65s_json,
       hashtags: row.values.hashtags,
       created_at: row.values.created_at,
@@ -533,7 +533,7 @@ export class GoogleSheetsService {
       .filter((row) => row.values.task_id && row.values.script_status === 'Script_Done')
       .filter(
         (row) =>
-          (row.values.render_status_20s || 'Pending') === 'Pending' ||
+          (row.values.render_status_30s || 'Pending') === 'Pending' ||
           (row.values.render_status_65s || 'Pending') === 'Pending',
       )
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
@@ -545,7 +545,7 @@ export class GoogleSheetsService {
     return rows.reduce(
       (total, row) =>
         total +
-        (row.values.render_status_20s === 'Rendering' ? 1 : 0) +
+        (row.values.render_status_30s === 'Rendering' ? 1 : 0) +
         (row.values.render_status_65s === 'Rendering' ? 1 : 0),
       0,
     );
@@ -605,15 +605,15 @@ export class GoogleSheetsService {
 
   async saveRenderOutput(output: RenderOutput): Promise<void> {
     const patch: Record<string, string> = {};
-    if (output.creatomate_render_id_20s !== undefined) {
-      patch.creatomate_render_id_20s = output.creatomate_render_id_20s;
+    if (output.creatomate_render_id_30s !== undefined) {
+      patch.creatomate_render_id_30s = output.creatomate_render_id_30s;
     }
-    if (output.video_url_20s !== undefined) patch.video_url_20s = output.video_url_20s;
+    if (output.video_url_30s !== undefined) patch.video_url_30s = output.video_url_30s;
     if (output.creatomate_render_id_65s !== undefined) {
       patch.creatomate_render_id_65s = output.creatomate_render_id_65s;
     }
     if (output.video_url_65s !== undefined) patch.video_url_65s = output.video_url_65s;
-    if (output.duration_20s !== undefined) patch.duration_20s = String(output.duration_20s);
+    if (output.duration_30s !== undefined) patch.duration_30s = String(output.duration_30s);
     if (output.duration_65s !== undefined) patch.duration_65s = String(output.duration_65s);
     if (output.rendered_at !== undefined) patch.rendered_at = output.rendered_at;
 
@@ -626,11 +626,11 @@ export class GoogleSheetsService {
     if (!row) return null;
     return {
       task_id: row.values.task_id,
-      creatomate_render_id_20s: row.values.creatomate_render_id_20s || undefined,
-      video_url_20s: row.values.video_url_20s || undefined,
+      creatomate_render_id_30s: row.values.creatomate_render_id_30s || undefined,
+      video_url_30s: row.values.video_url_30s || undefined,
       creatomate_render_id_65s: row.values.creatomate_render_id_65s || undefined,
       video_url_65s: row.values.video_url_65s || undefined,
-      duration_20s: toNumber(row.values.duration_20s),
+      duration_30s: toNumber(row.values.duration_30s),
       duration_65s: toNumber(row.values.duration_65s),
       rendered_at: row.values.rendered_at || undefined,
     };
@@ -642,7 +642,7 @@ export class GoogleSheetsService {
       .filter((row) => row.values.task_id && (row.values.post_status || 'Pending') === 'Pending')
       .filter(
         (row) =>
-          row.values.render_status_20s === 'Rendered' && row.values.render_status_65s === 'Rendered',
+          row.values.render_status_30s === 'Rendered' && row.values.render_status_65s === 'Rendered',
       )
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
@@ -689,7 +689,7 @@ export class GoogleSheetsService {
       threads_token_expires_at: row.values.threads_token_expires_at || undefined,
       fb_page_id: row.values.fb_page_id || undefined,
       fb_page_access_token: row.values.fb_page_access_token || undefined,
-      creatomate_template_20s: row.values.creatomate_template_20s,
+      creatomate_template_30s: row.values.creatomate_template_30s,
       creatomate_template_65s: row.values.creatomate_template_65s,
     };
   }

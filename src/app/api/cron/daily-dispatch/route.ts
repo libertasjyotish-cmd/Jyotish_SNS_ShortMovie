@@ -88,7 +88,7 @@ export async function GET(request: Request) {
         ]);
         if (!scriptOutput) throw new Error(`No script output for ${post.task_id}`);
 
-        const script20s: GeneratedScript = JSON.parse(scriptOutput.script_20s_json);
+        const script30s: GeneratedScript = JSON.parse(scriptOutput.script_30s_json);
         const [youtubeChannel, instagramChannel, threadsChannel, facebookChannel] =
           await Promise.all(
             (['YouTube', 'Instagram', 'Threads', 'Facebook'] as Platform[]).map((platform) =>
@@ -97,29 +97,29 @@ export async function GET(request: Request) {
           );
 
         const uploads: (() => Promise<unknown>)[] = [];
-        if (isConnected(youtubeChannel) && renderOutput?.video_url_20s) {
-          const videoUrl = renderOutput.video_url_20s;
+        if (isConnected(youtubeChannel) && renderOutput?.video_url_30s) {
+          const videoUrl = renderOutput.video_url_30s;
           uploads.push(() =>
             youtubeService.uploadVideo({
               channel: youtubeChannel,
-              title: buildTitle(post, script20s),
+              title: buildTitle(post, script30s),
               description: buildDescription({
                 lang: post.lang_code,
-                body: script20s.body_script,
+                body: script30s.body_script,
                 hashtags: scriptOutput.hashtags,
               }),
               videoUrl,
             }),
           );
         }
-        if (isConnected(instagramChannel) && renderOutput?.video_url_20s) {
-          const videoUrl = renderOutput.video_url_20s;
+        if (isConnected(instagramChannel) && renderOutput?.video_url_30s) {
+          const videoUrl = renderOutput.video_url_30s;
           uploads.push(() =>
             instagramService.uploadVideo({
               channel: instagramChannel,
               caption: buildDescription({
                 lang: post.lang_code,
-                body: script20s.hook_text,
+                body: script30s.hook_text,
                 hashtags: scriptOutput.hashtags,
               }),
               videoUrl,
@@ -127,14 +127,14 @@ export async function GET(request: Request) {
           );
         }
 
-        if (isConnected(threadsChannel) && renderOutput?.video_url_20s) {
-          const videoUrl = renderOutput.video_url_20s;
+        if (isConnected(threadsChannel) && renderOutput?.video_url_30s) {
+          const videoUrl = renderOutput.video_url_30s;
           uploads.push(() =>
             threadsService.uploadVideo({
               channel: threadsChannel,
               text: buildDescription({
                 lang: post.lang_code,
-                body: script20s.hook_text,
+                body: script30s.hook_text,
                 hashtags: scriptOutput.hashtags,
               }),
               videoUrl,
@@ -142,14 +142,14 @@ export async function GET(request: Request) {
           );
         }
 
-        if (isConnected(facebookChannel) && renderOutput?.video_url_20s) {
-          const videoUrl = renderOutput.video_url_20s;
+        if (isConnected(facebookChannel) && renderOutput?.video_url_30s) {
+          const videoUrl = renderOutput.video_url_30s;
           uploads.push(() =>
             facebookService.uploadVideo({
               channel: facebookChannel,
               description: buildDescription({
                 lang: post.lang_code,
-                body: script20s.hook_text,
+                body: script30s.hook_text,
                 hashtags: scriptOutput.hashtags,
               }),
               videoUrl,

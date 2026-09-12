@@ -11,12 +11,12 @@ import { TextToSpeechService } from '@/services/tts';
 
 /** Duration the finished video must fall within; TikTok monetization needs >60s. */
 export const DURATION_BOUNDS: Record<Pattern, { min: number; max: number }> = {
-  '20s': { min: 18, max: 22 },
+  '30s': { min: 26, max: 32 },
   '65s': { min: 61, max: 68 },
 };
 
 /** Narration length aimed for; the rest of the pattern budget is visual tail. */
-const TARGET_NARRATION: Record<Pattern, number> = { '20s': 17.5, '65s': 61 };
+const TARGET_NARRATION: Record<Pattern, number> = { '30s': 27.5, '65s': 61 };
 
 /** Free TTS passes used to land the narration on its target length. */
 export const MAX_TTS_ATTEMPTS = 3;
@@ -26,9 +26,9 @@ const OUTRO_SECONDS = 0.8;
 /** Lead-in before the narration starts, so the opening word is never clipped. */
 export const INTRO_SECONDS = 2;
 
-/** 20s videos go to YouTube Shorts / Instagram Reels, 65s videos to TikTok. */
+/** 30s videos go to YouTube Shorts / Instagram Reels, 65s videos to TikTok. */
 export const TEMPLATE_SOURCE_PLATFORM: Record<Pattern, Platform> = {
-  '20s': 'YouTube',
+  '30s': 'YouTube',
   '65s': 'TikTok',
 };
 
@@ -85,7 +85,7 @@ export async function resolveTemplateId(
     throw new Error(`No ${platform} channel configured for "${language}"`);
   }
   const templateId =
-    pattern === '20s' ? channel.creatomate_template_20s : channel.creatomate_template_65s;
+    pattern === '30s' ? channel.creatomate_template_30s : channel.creatomate_template_65s;
   if (!templateId) {
     throw new Error(`No ${pattern} template configured for channel "${channel.channel_id}"`);
   }
@@ -162,8 +162,8 @@ async function renderOnCloudRun(
   await sheets.saveRenderOutput({
     task_id: params.taskId,
     rendered_at: new Date().toISOString(),
-    ...(params.pattern === '20s'
-      ? { video_url_20s: result.url, duration_20s: result.duration }
+    ...(params.pattern === '30s'
+      ? { video_url_30s: result.url, duration_30s: result.duration }
       : { video_url_65s: result.url, duration_65s: result.duration }),
   });
   await sheets.updateRenderStatus(params.taskId, params.pattern, 'Rendered');
@@ -219,8 +219,8 @@ export async function startRender(
 
   await sheets.saveRenderOutput({
     task_id: params.taskId,
-    ...(params.pattern === '20s'
-      ? { creatomate_render_id_20s: response.renderId }
+    ...(params.pattern === '30s'
+      ? { creatomate_render_id_30s: response.renderId }
       : { creatomate_render_id_65s: response.renderId }),
   });
 }

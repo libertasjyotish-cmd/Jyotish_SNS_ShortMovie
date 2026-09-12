@@ -25,11 +25,11 @@ function elapsedMinutes(since: string | undefined, now: Date): number | undefine
 }
 
 function renderState(task: ContentQueue, pattern: Pattern) {
-  return pattern === '20s'
+  return pattern === '30s'
     ? {
-        status: task.render_status_20s,
-        startedAt: task.render_started_at_20s,
-        attempts: task.render_attempts_20s,
+        status: task.render_status_30s,
+        startedAt: task.render_started_at_30s,
+        attempts: task.render_attempts_30s,
       }
     : {
         status: task.render_status_65s,
@@ -49,7 +49,7 @@ export function planRenderRecovery(tasks: ContentQueue[], now: Date): RenderReco
   for (const task of tasks) {
     if (task.script_status !== 'Script_Done') continue;
 
-    for (const pattern of ['20s', '65s'] as Pattern[]) {
+    for (const pattern of ['30s', '65s'] as Pattern[]) {
       const { status, startedAt, attempts } = renderState(task, pattern);
       // A row without a start stamp predates the watchdog, so it is stuck by definition.
       const minutes = elapsedMinutes(startedAt, now);

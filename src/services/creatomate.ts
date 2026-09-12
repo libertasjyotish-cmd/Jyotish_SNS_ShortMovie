@@ -114,7 +114,7 @@ export function parseRenderMetadata(
     const parsed = JSON.parse(raw) as Partial<RenderMetadata>;
     if (
       !parsed.taskId ||
-      (parsed.pattern !== "20s" && parsed.pattern !== "65s")
+      (parsed.pattern !== "30s" && parsed.pattern !== "65s")
     )
       return null;
     return {

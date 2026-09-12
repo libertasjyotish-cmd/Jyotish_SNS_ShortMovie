@@ -19,7 +19,7 @@ Authorization: Bearer <Cloud Run IAM の ID トークン>
 X-Cron-Secret: $CRON_SECRET
 
 {
-  "task_id": "intro-ja-20s",
+  "task_id": "intro-ja-30s",
   "language": "ja",
   "background_url": "https://.../intro-bg.mp4",
   "hook": "あなたの星座、実はズレています",
@@ -28,10 +28,10 @@ X-Cron-Secret: $CRON_SECRET
   "note": "※プロフィール欄のサイトURLをクリック",
   "max_body_segments": 3,
   "tempo": 1.05,
-  "output_path": "renders/intro-ja-20s.mp4",
+  "output_path": "renders/intro-ja-30s.mp4",
   "callback_url": "https://…/api/webhook/renderer",
   "queue_task_id": "2026-W37-ja-aries",
-  "pattern": "20s"
+  "pattern": "30s"
 }
 ```
 

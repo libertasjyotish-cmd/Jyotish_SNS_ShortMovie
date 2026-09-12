@@ -76,8 +76,8 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const pattern = (payload.pattern ?? "20s") as Pattern;
-    if (pattern !== "20s" && pattern !== "65s") {
+    const pattern = (payload.pattern ?? "30s") as Pattern;
+    if (pattern !== "30s" && pattern !== "65s") {
       return NextResponse.json(
         { error: `Unsupported pattern "${pattern}"` },
         { status: 400 },

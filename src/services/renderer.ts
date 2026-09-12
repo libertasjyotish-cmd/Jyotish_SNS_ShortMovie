@@ -23,7 +23,7 @@ export interface RendererResult {
   segments: string[];
 }
 
-/** Cloud Run keeps the whole render synchronous; a 20s clip takes ~2.5 minutes. */
+/** Cloud Run keeps the whole render synchronous; a 30s clip takes ~2.5 minutes. */
 const RENDER_TIMEOUT_MS = 280_000;
 /**
  * The renderer runs the render inside the request so Cloud Run's `--concurrency 1` keeps one

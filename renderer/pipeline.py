@@ -92,7 +92,7 @@ def _fitted_tempo(request: RenderRequest, speech: float, gaps: float, tempo: flo
 
 
 def _segment_count(request: RenderRequest) -> int:
-    """A 65s body holds three times the text of a 20s one, so the chunk count follows it."""
+    """A 65s body holds three times the text of a 30s one, so the chunk count follows it."""
     if request.max_body_segments is not None:
         return request.max_body_segments
     budget = CHARS_PER_SEGMENT.get(request.language, CHARS_PER_SEGMENT["default"])

@@ -26,7 +26,7 @@ export class TextToSpeechService {
 
   /**
    * Synthesizes narration as MP3. `speakingRate` is how the render pipeline
-   * fits the narration into the 20s / 65s slot.
+   * fits the narration into the 30s / 65s slot.
    */
   async synthesize(text: string, language: Language, speakingRate = 1): Promise<Buffer> {
     const fallback = VOICES[language];
