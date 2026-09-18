@@ -9,8 +9,9 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
- * Theme tasks reuse a hand-written script from `Evergreen_Scripts`, so only the 65s
- * version is generated: it is an expansion of the fixed text, never new astrology.
+ * Theme and promotion tasks reuse a hand-written script from `Evergreen_Scripts`, so
+ * only the 65s version is generated: it is an expansion of the fixed text, never new
+ * astrology.
  */
 async function generateThemeScript(
   sheets: GoogleSheetsService,
@@ -65,7 +66,7 @@ export async function GET(request: Request) {
             hashtags: string;
           };
 
-          if (task.target_type === 'Theme') {
+          if (task.target_type === 'Theme' || task.target_type === 'Promo') {
             scriptData = await generateThemeScript(sheetsService, geminiService, task);
           } else {
             if (!transitCache.has(task.week_id)) {

@@ -11,6 +11,19 @@ export type DayOfWeek = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
 
 export const THEME_DAYS: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu'];
 
+/**
+ * Day the Kāl Kundali promotion takes over from the theme video. It only applies while
+ * `PROMO_ENABLED` is on; until then the day carries a theme like the rest of the week.
+ */
+export const PROMO_DAY: DayOfWeek = 'Thu';
+
+/** `Evergreen_Scripts` rows whose `script_id` starts with this hold promotion copy. */
+export const PROMO_SCRIPT_PREFIX = 'promo-';
+
+export function isPromoScriptId(script_id: string): boolean {
+  return script_id.startsWith(PROMO_SCRIPT_PREFIX);
+}
+
 export const ZODIAC_SIGNS = [
   'Aries',
   'Taurus',

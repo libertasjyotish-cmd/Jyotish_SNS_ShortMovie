@@ -5,7 +5,9 @@ import { buildTransitReference } from '@/lib/ephemeris';
 import {
   DayOfWeek,
   isoWeekId,
+  isPromoScriptId,
   nextWeekStart,
+  PROMO_DAY,
   scheduledPostTime,
   THEME_DAYS,
   ZODIAC_DAYS,
@@ -27,11 +29,29 @@ function plannedLanguages(): Language[] {
   );
 }
 
-/** The theme that has waited longest for this day of the week. */
-function pickTheme(scripts: EvergreenScript[], day: DayOfWeek, taken: Set<string>): EvergreenScript | undefined {
+/** The script that has waited longest for this day of the week. */
+function pickScript(
+  scripts: EvergreenScript[],
+  day: DayOfWeek,
+  taken: Set<string>,
+  promo: boolean,
+): EvergreenScript | undefined {
   return scripts
-    .filter((script) => script.day_of_week === day && !taken.has(script.script_id))
+    .filter(
+      (script) =>
+        script.day_of_week === day &&
+        isPromoScriptId(script.script_id) === promo &&
+        !taken.has(script.script_id),
+    )
     .sort((a, b) => a.last_used_week.localeCompare(b.last_used_week))[0];
+}
+
+/**
+ * Whether the promotion takes over `PROMO_DAY` this week. Off by default: the copy is
+ * written and rotated only once the product it points at is open.
+ */
+function promoEnabled(): boolean {
+  return (optionalEnv('PROMO_ENABLED') ?? 'false').toLowerCase() === 'true';
 }
 
 function baseTask(
@@ -91,7 +111,8 @@ export async function GET(request: Request) {
       const taken = new Set<string>();
 
       for (const day of THEME_DAYS) {
-        const theme = pickTheme(themes, day, taken);
+        const promo = promoEnabled() && day === PROMO_DAY;
+        const theme = pickScript(themes, day, taken, promo);
         if (!theme) {
           skippedDays.push(`${lang}/${day}`);
           continue;
@@ -101,7 +122,7 @@ export async function GET(request: Request) {
         const task: ContentQueue = {
           ...baseTask(weekId, day, weekStart, lang),
           task_id: `${weekId}-${lang}-${theme.script_id}`,
-          target_type: 'Theme',
+          target_type: promo ? 'Promo' : 'Theme',
           theme_id: theme.script_id,
         };
         if (existing.has(task.task_id)) continue;
