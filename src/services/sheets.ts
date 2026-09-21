@@ -4,7 +4,7 @@ import { getGoogleCredentials } from '@/lib/google-credentials';
 
 export type Language = 'ja' | 'en' | 'es' | 'pt' | 'id' | 'ar';
 export type Platform = 'YouTube' | 'TikTok' | 'Instagram' | 'Threads' | 'Facebook';
-export type TargetType = 'All_Signs' | 'Zodiac_Sign' | 'Theme';
+export type TargetType = 'All_Signs' | 'Zodiac_Sign' | 'Theme' | 'Promo';
 export type ScriptStatus = 'Pending' | 'Script_Done' | 'Error';
 export type RenderStatus = 'Pending' | 'Rendering' | 'Rendered' | 'Error';
 export type PostStatus = 'Pending' | 'Posted' | 'Error';
@@ -43,7 +43,7 @@ export interface ContentQueue {
   lang_code: Language;
   target_type: TargetType;
   zodiac_sign?: string;
-  /** Set on `Theme` tasks; points at a row of `Evergreen_Scripts`. */
+  /** Set on `Theme` and `Promo` tasks; points at a row of `Evergreen_Scripts`. */
   theme_id?: string;
   script_status: ScriptStatus;
   render_status_30s: RenderStatus;
