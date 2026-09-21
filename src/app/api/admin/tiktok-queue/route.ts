@@ -2,12 +2,41 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminTokenMatches, isAdminAuthorized } from '@/lib/admin-auth';
 import { buildDescription } from '@/lib/cta';
 import { GeneratedScript } from '@/services/gemini';
-import { GoogleSheetsService, Language } from '@/services/sheets';
+import { DayOfWeek } from '@/lib/schedule';
+import { ContentQueue, GoogleSheetsService, Language } from '@/services/sheets';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const DEFAULT_DAYS = 7;
+
+type TikTokAccount = 'ja' | 'global';
+
+/**
+ * TikTok needs one phone number per account, so the eight languages share two accounts: `ja`
+ * carries the Japanese theme videos and `global` carries the rest, English every week and the
+ * other six on alternating ISO weeks, one per day.
+ */
+const GLOBAL_ROTATION: Record<DayOfWeek, [Language, Language]> = {
+  Mon: ['en', 'en'],
+  Tue: ['es', 'de'],
+  Wed: ['pt', 'id'],
+  Thu: ['fr', 'ar'],
+  Fri: ['en', 'en'],
+  Sat: ['en', 'en'],
+  Sun: ['en', 'en'],
+};
+
+function isOddWeek(week_id: string): boolean {
+  return Number(week_id.split('-W')[1]) % 2 === 1;
+}
+
+function belongsToAccount(task: ContentQueue, account: TikTokAccount): boolean {
+  if (account === 'ja') return task.lang_code === 'ja';
+  if (task.lang_code === 'ja') return false;
+  const pair = GLOBAL_ROTATION[task.day_of_week as DayOfWeek];
+  return Boolean(pair) && task.lang_code === pair[isOddWeek(task.week_id) ? 0 : 1];
+}
 
 interface ManualItem {
   task_id: string;
@@ -31,8 +60,13 @@ export async function GET(request: NextRequest) {
 
   const days = Number(params.get('days') ?? DEFAULT_DAYS);
   const lang = params.get('lang');
+  const includeZodiac = params.get('include_zodiac') === '1';
+  const account = params.get('account') as TikTokAccount | null;
   if (!Number.isFinite(days) || days <= 0) {
     return NextResponse.json({ error: 'Invalid days' }, { status: 400 });
+  }
+  if (account && account !== 'ja' && account !== 'global') {
+    return NextResponse.json({ error: 'Invalid account' }, { status: 400 });
   }
 
   try {
@@ -41,6 +75,8 @@ export async function GET(request: NextRequest) {
     const tasks = (await sheets.getAllQueueTasks())
       .filter((task) => task.render_status_65s === 'Rendered')
       .filter((task) => !lang || task.lang_code === lang)
+      .filter((task) => includeZodiac || task.target_type !== 'Zodiac_Sign')
+      .filter((task) => !account || belongsToAccount(task, account))
       .filter((task) => {
         const scheduled = new Date(task.scheduled_post_time).getTime();
         return Number.isFinite(scheduled) && scheduled >= since;
@@ -69,7 +105,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ days, count: items.length, items });
+    return NextResponse.json({
+      days,
+      account: account ?? null,
+      include_zodiac: includeZodiac,
+      count: items.length,
+      items,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('TikTok manual queue failed:', message);
