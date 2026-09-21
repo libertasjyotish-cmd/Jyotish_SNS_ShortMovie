@@ -8,7 +8,11 @@ TikTok Studio へのアップロードだけを人手で行う。
 
 - 投稿する尺: 65s 版（収益化条件の 60 秒超を満たすため）
 - コードの扱い: `daily-dispatch` は TikTok を常にスキップする（`isConnected` が `false` を返す）
-- アカウント: 現在は ja のみ（`@libertas.jyotish`）。他言語は未作成。
+- アカウント: 2 つ
+  - `ja`: `@libertas.jyotish`（日本語のみ）
+  - `global`: `@libertas.jyotish4`（日本語以外の 7 言語。英語を毎日の主軸にし、es/pt/id/ar/fr/de を曜日ごとに 1 本ずつ差し込む）
+- 言語ごとにアカウントを分けない理由: TikTok は 1 アカウントにつき電話番号 1 つを要求するため、
+  8 言語ぶんの番号を用意できない。
 
 ## 週次の手順（所要 5〜10 分 / 1 言語）
 
@@ -48,7 +52,7 @@ https://admin.libertas-jyotish.com/api/admin/tiktok-queue?token=<ADMIN_TOKEN>&da
 
 ### 3. TikTok Studio でアップロード
 
-1. https://www.tiktok.com/tiktokstudio/upload を開く（対象言語のアカウントでログイン）
+1. https://www.tiktok.com/tiktokstudio/upload を開く（`lang=ja` は ja アカウント、それ以外は global アカウント）
 2. mp4 をドラッグ＆ドロップ
 3. キャプション欄に `caption` をそのまま貼り付ける（CTA・免責・ハッシュタグ込み）
 4. 公開設定:
@@ -67,5 +71,9 @@ TikTok 用に触る必要はない。重複投稿を避けるため、投稿済�
 
 - プロフィールのリンクからサイトへ誘導する設計なので、キャプション内の URL はタップできなくてよい。
 - 動画に URL を焼き込まない・ナレーションで読み上げない（PR #37 のルール）。
-- 自動化したくなった場合の選択肢は、Buffer / Later など TikTok 公式連携が承認済みの
-  外部スケジューラへ動画とキャプションを渡す方法のみ。自前アプリの再申請は同じ理由で通らない。
+- 自動化したくなった場合の選択肢は、Publer / Buffer / Later など TikTok 公式連携が承認済みの
+  外部スケジューラへ API 経由で動画とキャプションを渡す方法のみ。自前アプリの再申請は同じ理由で通らない。
+- Web 版 TikTok にはアカウント切替 UI が無い。global と ja を行き来するときは
+  ログアウトするか、通常ウィンドウとシークレットウィンドウで分ける。
+- global アカウントのユーザー名は登録時に `libertas.jyotish4` が割り当てられた。
+  ユーザー名は 30 日間変更できないため、2026-10-21 以降に `libertasjyotish.world` へ変更する。
