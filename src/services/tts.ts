@@ -11,6 +11,8 @@ const VOICES: Record<Language, { languageCode: string; name: string }> = {
   pt: { languageCode: 'pt-BR', name: 'pt-BR-Neural2-A' },
   id: { languageCode: 'id-ID', name: 'id-ID-Standard-A' },
   ar: { languageCode: 'ar-XA', name: 'ar-XA-Wavenet-A' },
+  fr: { languageCode: 'fr-FR', name: 'fr-FR-Chirp3-HD-Enceladus' },
+  de: { languageCode: 'de-DE', name: 'de-DE-Chirp3-HD-Enceladus' },
 };
 
 export class TextToSpeechService {

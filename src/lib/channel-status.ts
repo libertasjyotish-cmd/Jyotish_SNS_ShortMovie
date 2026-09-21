@@ -1,10 +1,9 @@
 import { FacebookService } from '@/services/facebook';
 import { InstagramService } from '@/services/instagram';
-import { GoogleSheetsService, Channel, Language, Platform } from '@/services/sheets';
+import { GoogleSheetsService, Channel, Language, LANGUAGES, Platform } from '@/services/sheets';
 import { ThreadsService } from '@/services/threads';
 import { YouTubeService } from '@/services/youtube';
 
-const LANGUAGES: Language[] = ['ja', 'en', 'es', 'pt', 'id', 'ar'];
 /** TikTok is not dispatched, so its rows are not worth reporting on. */
 const PLATFORMS: Platform[] = ['YouTube', 'Instagram', 'Threads', 'Facebook'];
 

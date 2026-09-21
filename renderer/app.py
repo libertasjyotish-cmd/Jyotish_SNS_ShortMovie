@@ -11,7 +11,7 @@ from pipeline import RenderRequest, render
 
 app = Flask(__name__)
 
-LANGUAGES = {"ja", "en", "es", "pt", "id", "ar"}
+LANGUAGES = {"ja", "en", "es", "pt", "id", "ar", "fr", "de"}
 REQUIRED = ("task_id", "language", "background_url", "hook", "body", "cta")
 
 

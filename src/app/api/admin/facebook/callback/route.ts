@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FACEBOOK_STATE_COOKIE, facebookRedirectUri } from '@/lib/facebook-oauth';
 import { exchangeFacebookCode, fetchFacebookPage } from '@/services/facebook';
-import { GoogleSheetsService, Language } from '@/services/sheets';
+import { GoogleSheetsService, Language, LANGUAGES } from '@/services/sheets';
 
 export const dynamic = 'force-dynamic';
-
-const LANGUAGES: Language[] = ['ja', 'en', 'es', 'pt', 'id', 'ar'];
 
 /**
  * Facebook redirects here after consent; every page token is written onto the Facebook channel

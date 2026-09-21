@@ -101,6 +101,21 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
     body65s: '130-150 كلمة',
     note: 'Right-to-left script. Do not insert Latin punctuation or emoji that break RTL rendering.',
   },
+  fr: {
+    name: 'Français',
+    tradition: "l'astrologie indienne (le Jyotish)",
+    length30s: '65-80 mots au total',
+    length65s: '160-200 mots au total',
+    body65s: '130-160 mots',
+  },
+  de: {
+    name: 'Deutsch',
+    tradition: 'die indische Astrologie (Jyotisch)',
+    length30s: 'insgesamt 60-75 Wörter',
+    length65s: 'insgesamt 145-180 Wörter',
+    body65s: '120-150 Wörter',
+    note: 'German compounds are long; prefer short everyday words over compound nouns so the narration stays inside the time limit.',
+  },
 };
 
 const RESPONSE_SCHEMA = {

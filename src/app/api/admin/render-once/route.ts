@@ -4,13 +4,12 @@ import { buildIntroSource } from "@/lib/layout";
 import { DURATION_BOUNDS, INTRO_SECONDS, synthesizeNarration } from "@/lib/render";
 import { CreatomateService } from "@/services/creatomate";
 import { RendererService, isRendererConfigured } from "@/services/renderer";
-import { Language, Pattern } from "@/services/sheets";
+import { Language, LANGUAGES, Pattern } from "@/services/sheets";
 import { uploadVoiceover } from "@/services/storage";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const LANGUAGES: Language[] = ["ja", "en", "es", "pt", "id", "ar"];
 const OUTRO_SECONDS = 0.8;
 const POLL_INTERVAL_MS = 5000;
 const POLL_TIMEOUT_MS = 240_000;

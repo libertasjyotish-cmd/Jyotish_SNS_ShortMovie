@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
-import { Language } from '@/services/sheets';
+import { Language, LANGUAGES } from '@/services/sheets';
 import { uploadVoiceover } from '@/services/storage';
 import { TextToSpeechService } from '@/services/tts';
 
 export const dynamic = 'force-dynamic';
-
-const LANGUAGES: Language[] = ['ja', 'en', 'es', 'pt', 'id', 'ar'];
 
 /**
  * Synthesizes a one-off narration and returns its Blob URL, so template setup

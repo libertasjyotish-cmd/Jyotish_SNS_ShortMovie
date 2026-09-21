@@ -26,6 +26,8 @@ const FEAR_PATTERNS: Record<Language, RegExp> = {
   pt: /\b(perigo|perigoso|aviso|cuidado|tarde demais|agora mesmo|desgra[çc]a|desastre)\b/i,
   id: /\b(bahaya|peringatan|hati-hati|terlambat|sekarang juga|kesialan|bencana)\b/i,
   ar: /خطر|تحذير|فات الوقت|الآن فورا|نكبة|كارثة/,
+  fr: /(danger|dangereu|avertissement|m[ée]fiez-vous|trop tard|tout de suite|malheur|catastrophe|d[ée]sastre|irr[ée]versible)/i,
+  de: /(gefahr|gef[äa]hrlich|warnung|vorsicht|zu sp[äa]t|sofort handeln|ungl[üu]ck|katastrophe|unumkehrbar)/i,
 };
 
 /** Promises of a fixed outcome; a transit is never a guarantee for an individual chart. */
@@ -36,6 +38,8 @@ const CERTAINTY_PATTERNS: Record<Language, RegExp> = {
   pt: /\b(garantido|com certeza vai|sempre acontece|100%)\b/i,
   id: /\b(dijamin|pasti akan|selalu terjadi|100%)\b/i,
   ar: /مضمون|بالتأكيد سوف|دائما يحدث|100%/,
+  fr: /(garanti|c'est certain|[àa] coup s[ûu]r|toujours le cas|100\s?%)/i,
+  de: /(garantiert|mit sicherheit|hundertprozentig|passiert immer|100\s?%)/i,
 };
 
 /**
@@ -49,6 +53,8 @@ const RECOGNITION_PATTERNS: Record<Language, RegExp> = {
   pt: /\b(a quem chega|talvez tenha notado|percebe|reconhece)\b/i,
   id: /\b(yang terkena|mungkin kamu merasa|memperhatikan|mengenali)\b/i,
   ar: /من يصله|ربما لاحظت|تلاحظ/,
+  fr: /(remarqu|ressent|ressens|reconna|si cela vous parle|ceux que cela touche)/i,
+  de: /(bemerk|sp[üu]r|erkenn|wen es trifft|vielleicht hast du)/i,
 };
 
 /** The CTA has to leave the personal answer to the chart, or the video closes the loop itself. */
@@ -59,6 +65,8 @@ const INDIVIDUAL_DIFFERENCE_PATTERNS: Record<Language, RegExp> = {
   pt: /\b(hora de nascimento|carta natal|hor[óo]scopo|varia|depende)\b/i,
   id: /\b(waktu lahir|bagan lahir|horoskop|berbeda|tergantung)\b/i,
   ar: /وقت الميلاد|خريطة الميلاد|يختلف|يعتمد/,
+  fr: /(heure de naissance|th[èe]me natal|carte du ciel|horoscope|varie|d[ée]pend)/i,
+  de: /(geburtszeit|geburtshoroskop|geburtsbild|horoskop|unterschiedlich|h[äa]ngt|je nach)/i,
 };
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(?:com|net|org|jp|io)\b/i;
@@ -78,6 +86,8 @@ const LENGTH_BOUNDS: Record<Pattern, Record<Language, { min: number; max: number
     pt: { min: 60, max: 95 },
     id: { min: 60, max: 95 },
     ar: { min: 60, max: 95 },
+    fr: { min: 60, max: 95 },
+    de: { min: 55, max: 85 },
   },
   '65s': {
     ja: { min: 350, max: 460 },
@@ -86,6 +96,8 @@ const LENGTH_BOUNDS: Record<Pattern, Record<Language, { min: number; max: number
     pt: { min: 140, max: 200 },
     id: { min: 140, max: 200 },
     ar: { min: 140, max: 200 },
+    fr: { min: 140, max: 200 },
+    de: { min: 130, max: 185 },
   },
 };
 

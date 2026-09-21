@@ -10,6 +10,8 @@ export const CTA_NOTES: Record<Language, string> = {
   pt: 'Toque no link do perfil',
   id: 'Ketuk tautan di profil',
   ar: 'اضغط على الرابط في الملف الشخصي',
+  fr: 'Touchez le lien dans notre profil',
+  de: 'Tippe auf den Link in unserem Profil',
 };
 
 /** Shorts descriptions render URLs as plain text, so the profile link is the only tappable route. */
@@ -20,6 +22,8 @@ export const DESCRIPTION_CTA: Record<Language, string> = {
   pt: `▼ Descubra seu verdadeiro signo sideral\nToque no link do perfil\n${SITE_URL}`,
   id: `▼ Temukan zodiak sideralmu yang sebenarnya\nKetuk tautan di profil\n${SITE_URL}`,
   ar: `▼ اكتشف برجك الحقيقي\nاضغط على الرابط في الملف الشخصي\n${SITE_URL}`,
+  fr: `▼ Découvrez votre véritable signe sidéral\nTouchez le lien dans notre profil\n${SITE_URL}`,
+  de: `▼ Finde dein wahres siderisches Sternzeichen\nTippe auf den Link in unserem Profil\n${SITE_URL}`,
 };
 
 /** Required so astrology content is not read as medical, financial or legal advice. */
@@ -30,6 +34,8 @@ export const DISCLAIMERS: Record<Language, string> = {
   pt: 'Apenas para entretenimento. Consulte um profissional para decisões médicas, financeiras ou jurídicas.',
   id: 'Hanya untuk hiburan. Konsultasikan dengan profesional untuk keputusan medis, keuangan, atau hukum.',
   ar: 'المحتوى لأغراض الترفيه فقط. استشر مختصاً في القرارات الطبية أو المالية أو القانونية.',
+  fr: "À des fins de divertissement uniquement. Consultez un professionnel pour toute décision médicale, financière ou juridique.",
+  de: 'Nur zu Unterhaltungszwecken. Wende dich bei medizinischen, finanziellen oder rechtlichen Entscheidungen an Fachleute.',
 };
 
 /** YouTube treats long hashtag lists as spam, so keep only the leading few. */
