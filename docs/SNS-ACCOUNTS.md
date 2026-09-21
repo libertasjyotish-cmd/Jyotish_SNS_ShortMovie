@@ -7,7 +7,7 @@
 
 | 項目 | 値 |
 | --- | --- |
-| 言語 | ja / en / es / pt / id / ar（6） |
+| 言語 | ja / en / es / pt / id / ar（6）＋ fr / de（追加分・アカウント作成待ち） |
 | プラットフォーム | YouTube / Instagram / TikTok（3） |
 | アカウント数 | 6 × 3 = 18 |
 | 投稿本数 | 12 星座 × 6 言語 = 72 本/週 |
@@ -21,7 +21,7 @@ TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすた�
 ハンドル名は取得できなかった場合に末尾へ数字を足すなど適宜変更してよいが、
 `Channels` シートの `account_handle` は実際に取得したものへ必ず更新する。
 
-### YouTube（6）
+### YouTube（8）
 
 | channel_id | 言語 | チャンネル名（案） | ハンドル（案） |
 | --- | --- | --- | --- |
@@ -31,8 +31,10 @@ TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすた�
 | `yt-pt` | pt | Seu Signo Real \| Astrologia Védica | `@jyotish_pt` |
 | `yt-id` | id | Zodiak Aslimu \| Astrologi Veda | `@jyotish_id` |
 | `yt-ar` | ar | برجك الحقيقي \| علم الفلك الهندي | `@jyotish_ar` |
+| `yt-fr` | fr | Votre Vrai Signe \| Astrologie Védique | `@jyotish_fr` |
+| `yt-de` | de | Dein wahres Sternzeichen \| Vedische Astrologie | `@jyotish_de` |
 
-### Instagram（6）
+### Instagram（8）
 
 | channel_id | 言語 | ユーザー名（案） |
 | --- | --- | --- |
@@ -42,6 +44,8 @@ TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすた�
 | `ig-pt` | pt | `jyotish.pt` |
 | `ig-id` | id | `jyotish.id` |
 | `ig-ar` | ar | `jyotish.ar` |
+| `ig-fr` | fr | `jyotish.fr` |
+| `ig-de` | de | `jyotish.de` |
 
 ### TikTok（6）
 
@@ -61,7 +65,9 @@ TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすた�
 - 各アカウントのプロフィール文とリンク欄にサイト URL を入れる（動画の CTA が
   「プロフィール欄のサイト URL をクリック」のため、ここが導線の終点）。
 - アイコン・ヘッダーは全言語で共通デザインにし、言語名だけ差し替える。
-- 作成順は ja → en → es → pt → id → ar。ja で運用が回ってから他言語を増やすと、
+- fr / de はコード側（言語リスト・ボイス・lint・説明欄）を先に用意済みで、
+  アカウント作成と `Channels` 行の追加、`PLAN_LANGUAGES` への追記だけが残っている。
+- 作成順は ja → en → es → pt → id → ar → fr → de。ja で運用が回ってから他言語を増やすと、
   凍結リスクと手戻りが小さい。
 
 ### YouTube

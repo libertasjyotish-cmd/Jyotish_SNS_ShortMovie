@@ -27,6 +27,8 @@ const FONT_BY_LANGUAGE: Record<Language, string> = {
   pt: "Montserrat",
   id: "Montserrat",
   ar: "Noto Naskh Arabic",
+  fr: "Montserrat",
+  de: "Montserrat",
 };
 
 /** Warm gold on near-black, matching the temple/mandala artwork. */

@@ -13,6 +13,8 @@ VOICES: dict[str, tuple[str, str]] = {
     "pt": ("pt-BR", "pt-BR-Neural2-A"),
     "id": ("id-ID", "id-ID-Standard-A"),
     "ar": ("ar-XA", "ar-XA-Wavenet-A"),
+    "fr": ("fr-FR", "fr-FR-Chirp3-HD-Enceladus"),
+    "de": ("de-DE", "de-DE-Chirp3-HD-Enceladus"),
 }
 
 

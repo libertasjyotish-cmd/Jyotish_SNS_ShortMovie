@@ -12,12 +12,16 @@ import {
   THEME_DAYS,
   ZODIAC_DAYS,
 } from '@/lib/schedule';
-import { ContentQueue, EvergreenScript, GoogleSheetsService, Language } from '@/services/sheets';
+import {
+  ContentQueue,
+  EvergreenScript,
+  GoogleSheetsService,
+  Language,
+  LANGUAGES,
+} from '@/services/sheets';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
-
-const SUPPORTED_LANGUAGES: Language[] = ['ja', 'en', 'es', 'pt', 'id', 'ar'];
 
 function plannedLanguages(): Language[] {
   const configured = (optionalEnv('PLAN_LANGUAGES') ?? 'ja')
@@ -25,7 +29,7 @@ function plannedLanguages(): Language[] {
     .map((code) => code.trim())
     .filter(Boolean);
   return configured.filter((code): code is Language =>
-    SUPPORTED_LANGUAGES.includes(code as Language)
+    LANGUAGES.includes(code as Language)
   );
 }
 

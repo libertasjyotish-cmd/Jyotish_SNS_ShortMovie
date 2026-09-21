@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { LANGUAGES } from '@/lib/languages';
 
 interface Status {
   connected: boolean;
@@ -8,8 +9,6 @@ interface Status {
   account?: string;
   error?: string;
 }
-
-const LANGUAGES = ['ja', 'en', 'es', 'pt', 'id', 'ar'];
 
 export default function ThreadsAdminPage() {
   const [lang, setLang] = useState('ja');

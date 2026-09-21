@@ -1,8 +1,10 @@
 import { google, sheets_v4 } from 'googleapis';
 import { requireEnv } from '@/lib/env';
 import { getGoogleCredentials } from '@/lib/google-credentials';
+import { Language } from '@/lib/languages';
 
-export type Language = 'ja' | 'en' | 'es' | 'pt' | 'id' | 'ar';
+export { LANGUAGES } from '@/lib/languages';
+export type { Language } from '@/lib/languages';
 export type Platform = 'YouTube' | 'TikTok' | 'Instagram' | 'Threads' | 'Facebook';
 export type TargetType = 'All_Signs' | 'Zodiac_Sign' | 'Theme' | 'Promo';
 export type ScriptStatus = 'Pending' | 'Script_Done' | 'Error';
