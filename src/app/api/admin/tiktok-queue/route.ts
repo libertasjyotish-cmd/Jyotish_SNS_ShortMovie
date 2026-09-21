@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
           lang: task.lang_code,
           body: script.hook_text,
           hashtags: scriptOutput.hashtags,
+          platform: 'tiktok',
         }),
       });
     }

@@ -1,6 +1,7 @@
 import { Language } from '@/services/sheets';
 
 export const SITE_URL = 'https://www.libertas-jyotish.com';
+export const SITE_DOMAIN = 'libertas-jyotish.com';
 
 /** Small print under the CTA button; the site link itself lives in the profile. */
 export const CTA_NOTES: Record<Language, string> = {
@@ -24,6 +25,26 @@ export const DESCRIPTION_CTA: Record<Language, string> = {
   ar: `▼ اكتشف برجك الحقيقي\nاضغط على الرابط في الملف الشخصي\n${SITE_URL}`,
   fr: `▼ Découvrez votre véritable signe sidéral\nTouchez le lien dans notre profil\n${SITE_URL}`,
   de: `▼ Finde dein wahres siderisches Sternzeichen\nTippe auf den Link in unserem Profil\n${SITE_URL}`,
+};
+
+/** TikTok profile links need 1,000 followers, so the domain is spelled out instead. */
+export const TIKTOK_DESCRIPTION_CTA: Record<Language, string> = {
+  ja: `▼ あなたの本当の星座を調べる
+検索: ${SITE_DOMAIN}`,
+  en: `▼ Find your true sidereal sign
+Search: ${SITE_DOMAIN}`,
+  es: `▼ Descubre tu verdadero signo sideral
+Busca: ${SITE_DOMAIN}`,
+  pt: `▼ Descubra seu verdadeiro signo sideral
+Busque: ${SITE_DOMAIN}`,
+  id: `▼ Temukan zodiak sideralmu yang sebenarnya
+Cari: ${SITE_DOMAIN}`,
+  ar: `▼ اكتشف برجك الحقيقي
+ابحث عن: ${SITE_DOMAIN}`,
+  fr: `▼ Découvrez votre véritable signe sidéral
+Recherchez : ${SITE_DOMAIN}`,
+  de: `▼ Finde dein wahres siderisches Sternzeichen
+Suche: ${SITE_DOMAIN}`,
 };
 
 /** Required so astrology content is not read as medical, financial or legal advice. */
@@ -51,10 +72,12 @@ export interface DescriptionParams {
   lang: Language;
   body: string;
   hashtags: string;
+  platform?: 'default' | 'tiktok';
 }
 
-export function buildDescription({ lang, body, hashtags }: DescriptionParams): string {
-  return [body, DESCRIPTION_CTA[lang], DISCLAIMERS[lang], limitHashtags(hashtags)]
+export function buildDescription({ lang, body, hashtags, platform }: DescriptionParams): string {
+  const cta = platform === 'tiktok' ? TIKTOK_DESCRIPTION_CTA[lang] : DESCRIPTION_CTA[lang];
+  return [body, cta, DISCLAIMERS[lang], limitHashtags(hashtags)]
     .filter(Boolean)
     .join('\n\n');
 }
