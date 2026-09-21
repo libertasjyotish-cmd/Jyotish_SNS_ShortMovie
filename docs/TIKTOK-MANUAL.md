@@ -11,10 +11,27 @@ TikTok Studio へのアップロードだけを人手で行う。
 - アカウント: 2 つ
   - `ja`: `@libertas.jyotish`（日本語のみ）
   - `global`: `@libertas.jyotish4`（日本語以外の 7 言語。英語を毎日の主軸にし、es/pt/id/ar/fr/de を曜日ごとに 1 本ずつ差し込む）
+- 投稿する内容: テーマ枠（月〜木）と Promo のみ。星座別（`Zodiac_Sign`）は 1 週 12 本 × 言語で
+  手動では回らないため TikTok 対象外。
+
+## 曜日と言語の割り当て
+
+テーマ枠は 1 日 1 本（18:00 JST）、`PROMO_ENABLED=true` の週は木曜が Promo に替わる。
+
+| 曜日 | ja アカウント | global アカウント（奇数週） | global アカウント（偶数週） |
+| --- | --- | --- | --- |
+| 月 | ja | en | en |
+| 火 | ja | es | de |
+| 水 | ja | pt | id |
+| 木 | ja | fr | ar |
+
+- 週は ISO 週番号（`week_id` の `2026-W07` の数字）の偶奇で判定する。
+- en は毎週、他の 6 言語は隔週 1 本。合計は週 8 本（ja 4 + global 4）。
+- 各言語は `Evergreen_Scripts` を独立にローテーションするので、同じ曜日でも言語ごとに別テーマになる。
 - 言語ごとにアカウントを分けない理由: TikTok は 1 アカウントにつき電話番号 1 つを要求するため、
   8 言語ぶんの番号を用意できない。
 
-## 週次の手順（所要 5〜10 分 / 1 言語）
+## 週次の手順（テーマ枠のみ。所要 5〜10 分 / 1 本）
 
 ### 1. 投稿ぶんの一覧を取る
 
@@ -26,6 +43,8 @@ https://admin.libertas-jyotish.com/api/admin/tiktok-queue?token=<ADMIN_TOKEN>&da
 
 - `days`: 何日前までの予定投稿を含めるか（既定 7）
 - `lang`: 省略すると全言語
+- `account`: `ja` または `global`。指定すると上の曜日表どおりの言語だけを返す
+- 星座別は既定で除外される。含めたいときだけ `&include_zodiac=1`
 
 レスポンス:
 
