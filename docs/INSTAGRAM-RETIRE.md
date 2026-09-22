@@ -23,6 +23,7 @@ GET https://admin.libertas-jyotish.com/api/admin/instagram-retire?token=<ADMIN_T
       "week_id": "2026-W40",
       "zodiac_sign": "aries",
       "media_id": "17912345678901234",
+      "account_handle": "libertas.jyotish.en",
       "permalink": "https://www.instagram.com/reel/XXXXXXXXXXX/"
     }
   ]
@@ -31,7 +32,7 @@ GET https://admin.libertas-jyotish.com/api/admin/instagram-retire?token=<ADMIN_T
 
 ## 取り下げ
 
-各 `permalink` を該当言語のアカウントで開き、投稿メニューから「アーカイブ」を選ぶ
+各 `permalink` を `account_handle` のアカウントで開き、投稿メニューから「アーカイブ」を選ぶ
 （削除ではなくアーカイブ。統計が残り、必要なら戻せる）。ログイン情報はDevinのシークレット
 （`IG_JA_PASSWORD` などのIGアカウントパスワード）を使う。
 
@@ -41,8 +42,10 @@ GET https://admin.libertas-jyotish.com/api/admin/instagram-retire?token=<ADMIN_T
 POST https://admin.libertas-jyotish.com/api/admin/instagram-retire?token=<ADMIN_TOKEN>
 Content-Type: application/json
 
-{"task_id": "2026-W40-en-aries"}
+{"task_id": "2026-W40-en-aries", "media_id": "17912345678901234"}
 ```
+
+`media_id` を省くとそのタスクのInstagram refをすべて完了扱いにする。
 
 Instagram を含む全プラットフォームの取り下げが終わった行は `expired_at` が入り、以降の
 worklistには出てこない。

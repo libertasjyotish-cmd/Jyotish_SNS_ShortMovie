@@ -27,6 +27,8 @@ interface PendingReel {
   week_id: string;
   zodiac_sign?: string;
   media_id: string;
+  /** Instagram username of the account holding the Reel, so the job logs into the right one. */
+  account_handle?: string;
   permalink?: string;
   error?: string;
 }
@@ -60,6 +62,7 @@ export async function GET(request: NextRequest) {
         try {
           const channel = await sheets.getChannelConfig(post.task.lang_code, 'Instagram');
           if (!channel) throw new Error(`no Instagram channel for ${post.task.lang_code}`);
+          item.account_handle = channel.account_handle;
           item.permalink = await instagram.permalink(channel, ref.post_id);
         } catch (error) {
           item.error = error instanceof Error ? error.message : 'Unknown error';
@@ -82,7 +85,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => null)) as { task_id?: string } | null;
+  const body = (await request.json().catch(() => null)) as {
+    task_id?: string;
+    media_id?: string;
+  } | null;
   if (!body?.task_id) {
     return NextResponse.json({ error: 'task_id is required' }, { status: 400 });
   }
@@ -96,9 +102,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `No pending post ${body.task_id}` }, { status: 404 });
     }
 
-    for (const ref of post.refs) {
-      if (ref.platform === 'Instagram') ref.retired = true;
+    const done = post.refs.filter(
+      (ref) => ref.platform === 'Instagram' && (!body.media_id || ref.post_id === body.media_id),
+    );
+    if (done.length === 0) {
+      return NextResponse.json(
+        { error: `No pending Instagram post ${body.media_id ?? body.task_id}` },
+        { status: 404 },
+      );
     }
+    for (const ref of done) ref.retired = true;
     await sheets.saveRetirement(post.task.task_id, post.refs, 'Instagram:done');
 
     return NextResponse.json({
