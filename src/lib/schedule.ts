@@ -114,6 +114,16 @@ export function isoWeekId(date: Date): string {
   return `${thursday.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
+/** Monday 00:00 UTC of `2026-W40`, or undefined when the id is not an ISO week. */
+export function weekStartFromId(weekId: string): Date | undefined {
+  const parsed = /^(\d{4})-W(\d{2})$/.exec(weekId);
+  if (!parsed) return undefined;
+  const [, year, week] = parsed;
+  // January 4th always falls in ISO week 1.
+  const firstMonday = startOfIsoWeek(new Date(Date.UTC(Number(year), 0, 4)));
+  return new Date(firstMonday.getTime() + (Number(week) - 1) * 7 * MS_PER_DAY);
+}
+
 /**
  * ISO timestamp of the posting slot for `day` of the week starting at `weekStart`.
  * `slot` picks one of `ZODIAC_SLOTS_JST` for the sign readings; theme videos omit it and

@@ -11,6 +11,8 @@ export interface RendererRequest {
   script: GeneratedScript;
   backgroundUrl: string;
   note?: string;
+  /** Dated week a sign reading covers, drawn above the hook; omitted for evergreen themes. */
+  period?: string;
   /** Duration window the renderer fits the speaking rate to. */
   target: { min: number; max: number };
   /** When set, the renderer answers immediately and posts the result here when done. */
@@ -99,6 +101,7 @@ export class RendererService {
           body: request.script.body_script,
           cta: request.script.cta_text,
           note: request.note,
+          period: request.period,
           output_path: `renders/${request.taskId}-${request.pattern}.mp4`,
           queue_task_id: request.taskId,
           pattern: request.pattern,

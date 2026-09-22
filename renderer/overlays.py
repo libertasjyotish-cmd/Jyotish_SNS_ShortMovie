@@ -18,6 +18,7 @@ INK = (18, 13, 6, 255)
 CREAM = (253, 246, 231, 255)
 PANEL = (10, 7, 18, 150)
 
+PERIOD_CENTER_Y = 158
 HOOK_CENTER_Y = 330
 BODY_CENTER_Y = 960
 CTA_CENTER_Y = 1520
@@ -121,6 +122,29 @@ def scrim(path: str) -> tuple[str, int, int]:
         draw.line([(0, y), (WIDTH, y)], fill=(6, 4, 12, min(alpha, 210)))
     img.save(path)
     return path, 0, 0
+
+
+def period(path: str, text: str, language: str) -> tuple[str, int, int]:
+    """Dates the reading above the hook, so an older post still says which week it covers."""
+    img = _blank()
+    draw = ImageDraw.Draw(img)
+    font, lines = _fit_font(draw, text, language, "button", 46, WIDTH * 0.70, 1)
+    text_width = draw.textlength(lines[0], font=font)
+    width = min(WIDTH * 0.84, text_width + 96)
+    draw.rounded_rectangle(
+        [(WIDTH - width) / 2, PERIOD_CENTER_Y - 46, (WIDTH + width) / 2, PERIOD_CENTER_Y + 46],
+        radius=46,
+        fill=PANEL,
+    )
+    _draw_text(
+        draw,
+        ((WIDTH - text_width) / 2, PERIOD_CENTER_Y - font.size * 0.70),
+        lines[0],
+        font,
+        GOLD,
+        language,
+    )
+    return _save_cropped(img, path)
 
 
 def hook(path: str, text: str, language: str) -> tuple[str, int, int]:

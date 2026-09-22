@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { buildDescription } from '@/lib/cta';
 import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
+import { weekPeriodLabel } from '@/lib/period';
 import { runWatchdog } from '@/lib/watchdog-run';
 import { FacebookService } from '@/services/facebook';
 import { GeneratedScript } from '@/services/gemini';
@@ -44,9 +45,17 @@ function isConnected(channel: Channel | null): channel is Channel {
   }
 }
 
-function buildTitle(task: ContentQueue, script: GeneratedScript): string {
+/** The week a sign reading covers; a theme is evergreen and carries no dates. */
+function postPeriod(task: ContentQueue): string | undefined {
+  return task.target_type === 'Zodiac_Sign'
+    ? weekPeriodLabel(task.week_id, task.lang_code)
+    : undefined;
+}
+
+function buildTitle(task: ContentQueue, script: GeneratedScript, period?: string): string {
   const subject = task.zodiac_sign || task.target_type.replace('_', ' ');
-  return `${script.hook_text || subject} | Libertas Jyotish`.slice(0, 100);
+  const prefix = period ? `${subject} ${period}: ` : '';
+  return `${prefix}${script.hook_text || subject} | Libertas Jyotish`.slice(0, 100);
 }
 
 export async function GET(request: Request) {
@@ -80,6 +89,7 @@ export async function GET(request: Request) {
         if (!scriptOutput) throw new Error(`No script output for ${post.task_id}`);
 
         const script30s: GeneratedScript = JSON.parse(scriptOutput.script_30s_json);
+        const period = postPeriod(post);
         const [youtubeChannel, instagramChannel, threadsChannel, facebookChannel] =
           await Promise.all(
             (['YouTube', 'Instagram', 'Threads', 'Facebook'] as Platform[]).map((platform) =>
@@ -93,11 +103,12 @@ export async function GET(request: Request) {
           uploads.push(() =>
             youtubeService.uploadVideo({
               channel: youtubeChannel,
-              title: buildTitle(post, script30s),
+              title: buildTitle(post, script30s, period),
               description: buildDescription({
                 lang: post.lang_code,
                 body: script30s.body_script,
                 hashtags: scriptOutput.hashtags,
+                period,
               }),
               videoUrl,
             }),
@@ -112,6 +123,7 @@ export async function GET(request: Request) {
                 lang: post.lang_code,
                 body: script30s.hook_text,
                 hashtags: scriptOutput.hashtags,
+                period,
               }),
               videoUrl,
             }),
@@ -127,6 +139,7 @@ export async function GET(request: Request) {
                 lang: post.lang_code,
                 body: script30s.hook_text,
                 hashtags: scriptOutput.hashtags,
+                period,
               }),
               videoUrl,
             }),
@@ -142,6 +155,7 @@ export async function GET(request: Request) {
                 lang: post.lang_code,
                 body: script30s.hook_text,
                 hashtags: scriptOutput.hashtags,
+                period,
               }),
               videoUrl,
             }),

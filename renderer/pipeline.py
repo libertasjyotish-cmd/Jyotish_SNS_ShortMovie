@@ -40,6 +40,8 @@ class RenderRequest:
     body: str
     cta: str
     note: str | None = None
+    """Dated week a sign reading covers; empty for evergreen themes."""
+    period: str | None = None
     max_body_segments: int | None = None
     tempo: float = TEMPO
     output_path: str | None = None
@@ -134,6 +136,16 @@ def render(request: RenderRequest) -> RenderResult:
                 total,
             ),
         ]
+        if request.period:
+            layers.append(
+                (
+                    *overlays.period(
+                        os.path.join(work, "period.png"), request.period, request.language
+                    ),
+                    0.0,
+                    total,
+                )
+            )
         for index, text in enumerate(segments):
             name = f"body{index}"
             duration = next(clip[2] for clip in clips if clip[0] == name)
