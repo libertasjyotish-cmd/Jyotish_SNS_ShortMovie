@@ -12,12 +12,12 @@ import { TextToSpeechService } from '@/services/tts';
 
 /** Duration the finished video must fall within; TikTok monetization needs >60s. */
 export const DURATION_BOUNDS: Record<Pattern, { min: number; max: number }> = {
-  '30s': { min: 26, max: 32 },
+  '30s': { min: 26, max: 40 },
   '65s': { min: 61, max: 68 },
 };
 
 /** Narration length aimed for; the rest of the pattern budget is visual tail. */
-const TARGET_NARRATION: Record<Pattern, number> = { '30s': 27.5, '65s': 61 };
+const TARGET_NARRATION: Record<Pattern, number> = { '30s': 33, '65s': 61 };
 
 /** Free TTS passes used to land the narration on its target length. */
 export const MAX_TTS_ATTEMPTS = 3;

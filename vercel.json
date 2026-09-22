@@ -17,6 +17,7 @@
     { "path": "/api/cron/daily-dispatch", "schedule": "0 9 * * *" },
     { "path": "/api/cron/daily-dispatch", "schedule": "0 12 * * *" },
     { "path": "/api/cron/watchdog", "schedule": "20 3 * * *" },
-    { "path": "/api/cron/health-check", "schedule": "40 3 * * *" }
+    { "path": "/api/cron/health-check", "schedule": "40 3 * * *" },
+    { "path": "/api/cron/expire-weekly", "schedule": "0 16 * * 1" }
   ]
 }

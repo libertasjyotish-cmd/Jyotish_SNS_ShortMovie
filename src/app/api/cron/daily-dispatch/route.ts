@@ -7,7 +7,7 @@ import { runWatchdog } from '@/lib/watchdog-run';
 import { FacebookService } from '@/services/facebook';
 import { GeneratedScript } from '@/services/gemini';
 import { InstagramService } from '@/services/instagram';
-import { Channel, ContentQueue, GoogleSheetsService, Platform } from '@/services/sheets';
+import { Channel, ContentQueue, GoogleSheetsService, Platform, PostedRef } from '@/services/sheets';
 import { ThreadsService } from '@/services/threads';
 import { YouTubeService } from '@/services/youtube';
 
@@ -97,69 +97,77 @@ export async function GET(request: Request) {
             ),
           );
 
-        const uploads: (() => Promise<unknown>)[] = [];
+        const uploads: { platform: Platform; run: () => Promise<string> }[] = [];
         if (isConnected(youtubeChannel) && renderOutput?.video_url_30s) {
           const videoUrl = renderOutput.video_url_30s;
-          uploads.push(() =>
-            youtubeService.uploadVideo({
-              channel: youtubeChannel,
-              title: buildTitle(post, script30s, period),
-              description: buildDescription({
-                lang: post.lang_code,
-                body: script30s.body_script,
-                hashtags: scriptOutput.hashtags,
-                period,
+          uploads.push({
+            platform: 'YouTube',
+            run: () =>
+              youtubeService.uploadVideo({
+                channel: youtubeChannel,
+                title: buildTitle(post, script30s, period),
+                description: buildDescription({
+                  lang: post.lang_code,
+                  body: script30s.body_script,
+                  hashtags: scriptOutput.hashtags,
+                  period,
+                }),
+                videoUrl,
               }),
-              videoUrl,
-            }),
-          );
+          });
         }
         if (isConnected(instagramChannel) && renderOutput?.video_url_30s) {
           const videoUrl = renderOutput.video_url_30s;
-          uploads.push(() =>
-            instagramService.uploadVideo({
-              channel: instagramChannel,
-              caption: buildDescription({
-                lang: post.lang_code,
-                body: script30s.hook_text,
-                hashtags: scriptOutput.hashtags,
-                period,
+          uploads.push({
+            platform: 'Instagram',
+            run: () =>
+              instagramService.uploadVideo({
+                channel: instagramChannel,
+                caption: buildDescription({
+                  lang: post.lang_code,
+                  body: script30s.hook_text,
+                  hashtags: scriptOutput.hashtags,
+                  period,
+                }),
+                videoUrl,
               }),
-              videoUrl,
-            }),
-          );
+          });
         }
 
         if (isConnected(threadsChannel) && renderOutput?.video_url_30s) {
           const videoUrl = renderOutput.video_url_30s;
-          uploads.push(() =>
-            threadsService.uploadVideo({
-              channel: threadsChannel,
-              text: buildDescription({
-                lang: post.lang_code,
-                body: script30s.hook_text,
-                hashtags: scriptOutput.hashtags,
-                period,
+          uploads.push({
+            platform: 'Threads',
+            run: () =>
+              threadsService.uploadVideo({
+                channel: threadsChannel,
+                text: buildDescription({
+                  lang: post.lang_code,
+                  body: script30s.hook_text,
+                  hashtags: scriptOutput.hashtags,
+                  period,
+                }),
+                videoUrl,
               }),
-              videoUrl,
-            }),
-          );
+          });
         }
 
         if (isConnected(facebookChannel) && renderOutput?.video_url_30s) {
           const videoUrl = renderOutput.video_url_30s;
-          uploads.push(() =>
-            facebookService.uploadVideo({
-              channel: facebookChannel,
-              description: buildDescription({
-                lang: post.lang_code,
-                body: script30s.hook_text,
-                hashtags: scriptOutput.hashtags,
-                period,
+          uploads.push({
+            platform: 'Facebook',
+            run: () =>
+              facebookService.uploadVideo({
+                channel: facebookChannel,
+                description: buildDescription({
+                  lang: post.lang_code,
+                  body: script30s.hook_text,
+                  hashtags: scriptOutput.hashtags,
+                  period,
+                }),
+                videoUrl,
               }),
-              videoUrl,
-            }),
-          );
+          });
         }
 
         if (uploads.length === 0) {
@@ -172,9 +180,12 @@ export async function GET(request: Request) {
           continue;
         }
 
-        for (const upload of uploads) await upload();
+        const refs: PostedRef[] = [];
+        for (const upload of uploads) {
+          refs.push({ platform: upload.platform, post_id: await upload.run() });
+        }
 
-        await sheetsService.updatePostStatus(post.task_id, 'Posted');
+        await sheetsService.markPosted(post.task_id, refs);
         posted += 1;
       } catch (taskError) {
         failed += 1;

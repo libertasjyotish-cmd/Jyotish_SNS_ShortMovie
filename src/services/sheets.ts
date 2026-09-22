@@ -59,6 +59,21 @@ export interface ContentQueue {
   scheduled_post_time: string;
 }
 
+/** A live post, kept so the reading can be taken down once its week is over. */
+export interface PostedRef {
+  platform: Platform;
+  post_id: string;
+}
+
+/** A posted sign reading with the references needed to retire it. */
+export interface ExpirablePost {
+  task: ContentQueue;
+  refs: PostedRef[];
+}
+
+const POSTED_REFS_COLUMN = 'posted_refs';
+const EXPIRED_AT_COLUMN = 'expired_at';
+
 /** Per-pattern column names of `Content_Queue`, so callers never build them by hand. */
 export const RENDER_COLUMNS: Record<
   Pattern,
@@ -298,7 +313,9 @@ export class GoogleSheetsService {
         range: `${sheet}!A:${columnLetter(headers.length - 1)}`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: [headers.map((header) => record[header] ?? '')] },
+        requestBody: {
+          values: [headers.map((header) => record[header] ?? '')],
+        },
       }),
     );
     this.invalidate(sheet);
@@ -325,7 +342,10 @@ export class GoogleSheetsService {
         if (columnIndex === -1) {
           throw new Error(`Column "${header}" not found in sheet "${sheet}"`);
         }
-        return { range: `${sheet}!${columnLetter(columnIndex)}${rowNumber}`, values: [[value]] };
+        return {
+          range: `${sheet}!${columnLetter(columnIndex)}${rowNumber}`,
+          values: [[value]],
+        };
       }),
     );
 
@@ -407,7 +427,7 @@ export class GoogleSheetsService {
           asset.enabled &&
           (!asset.lang_code || asset.lang_code === filter.lang_code) &&
           (!asset.pattern || asset.pattern === filter.pattern) &&
-          (!asset.day_of_week || !filter.day_of_week || asset.day_of_week === filter.day_of_week)
+          (!asset.day_of_week || !filter.day_of_week || asset.day_of_week === filter.day_of_week),
       );
   }
 
@@ -436,9 +456,13 @@ export class GoogleSheetsService {
         candidate.values.script_id === scriptId && candidate.values.lang_code === lang_code,
     );
     if (!row) {
-      throw new Error(`script_id "${scriptId}" (${lang_code}) not found in ${SHEET_NAMES.evergreenScripts}`);
+      throw new Error(
+        `script_id "${scriptId}" (${lang_code}) not found in ${SHEET_NAMES.evergreenScripts}`,
+      );
     }
-    await this.patchRow(SHEET_NAMES.evergreenScripts, row.rowNumber, { last_used_week: weekId });
+    await this.patchRow(SHEET_NAMES.evergreenScripts, row.rowNumber, {
+      last_used_week: weekId,
+    });
   }
 
   async getQueueTasks(weekId: string): Promise<ContentQueue[]> {
@@ -469,7 +493,10 @@ export class GoogleSheetsService {
     const { rows } = await this.loadTable(SHEET_NAMES.weeklyTransits);
     const row = rows.find((candidate) => candidate.values.week_id === weekId);
     if (!row) return null;
-    return { week_id: row.values.week_id, transit_data: row.values.transit_data };
+    return {
+      week_id: row.values.week_id,
+      transit_data: row.values.transit_data,
+    };
   }
 
   async saveWeeklyTransits(transit: WeeklyTransit): Promise<void> {
@@ -496,7 +523,9 @@ export class GoogleSheetsService {
 
   async updateScriptStatus(taskId: string, status: ScriptStatus): Promise<void> {
     const row = await this.findQueueRow(taskId);
-    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, { script_status: status });
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      script_status: status,
+    });
   }
 
   async saveScriptOutput(output: ScriptOutput): Promise<void> {
@@ -644,14 +673,53 @@ export class GoogleSheetsService {
       .filter((row) => row.values.task_id && (row.values.post_status || 'Pending') === 'Pending')
       .filter(
         (row) =>
-          row.values.render_status_30s === 'Rendered' && row.values.render_status_65s === 'Rendered',
+          row.values.render_status_30s === 'Rendered' &&
+          row.values.render_status_65s === 'Rendered',
       )
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
 
   async updatePostStatus(taskId: string, status: PostStatus): Promise<void> {
     const row = await this.findQueueRow(taskId);
-    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, { post_status: status });
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      post_status: status,
+    });
+  }
+
+  /** Stores where the reading went live, so it can be retired when its week is over. */
+  async markPosted(taskId: string, refs: PostedRef[]): Promise<void> {
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [POSTED_REFS_COLUMN, EXPIRED_AT_COLUMN]);
+    const row = await this.findQueueRow(taskId);
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      post_status: 'Posted',
+      [POSTED_REFS_COLUMN]: JSON.stringify(refs),
+    });
+  }
+
+  /** Sign readings that are live, dated before `weekEndedBefore`, and not retired yet. */
+  async getExpirablePosts(weekEndedBefore: (weekId: string) => boolean): Promise<ExpirablePost[]> {
+    const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
+    return rows
+      .filter(
+        (row) =>
+          row.values.target_type === 'Zodiac_Sign' &&
+          row.values.post_status === 'Posted' &&
+          !row.values[EXPIRED_AT_COLUMN] &&
+          row.values[POSTED_REFS_COLUMN] &&
+          weekEndedBefore(row.values.week_id),
+      )
+      .map((row) => ({
+        task: GoogleSheetsService.toContentQueue(row.values),
+        refs: JSON.parse(row.values[POSTED_REFS_COLUMN]) as PostedRef[],
+      }));
+  }
+
+  async markExpired(taskId: string, note: string): Promise<void> {
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [EXPIRED_AT_COLUMN]);
+    const row = await this.findQueueRow(taskId);
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      [EXPIRED_AT_COLUMN]: `${new Date().toISOString()} ${note}`.trim(),
+    });
   }
 
   /** Persists rotated OAuth tokens back onto the channel's row. */

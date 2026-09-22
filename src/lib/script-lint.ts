@@ -1,3 +1,4 @@
+import { normalizeDigits } from '@/lib/period';
 import { GeneratedScript } from '@/services/gemini';
 import { Language, Pattern } from '@/services/sheets';
 
@@ -12,6 +13,7 @@ export interface ScriptIssue {
     | 'discouraged_wording'
     | 'weak_cta'
     | 'contains_url'
+    | 'missing_period'
     | 'too_short'
     | 'too_long';
   detail: string;
@@ -145,6 +147,22 @@ const URL_PATTERN = /(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(?:com|net|org|jp|io
 const CHARACTER_COUNTED: Language[] = ['ja'];
 
 /**
+ * Room a sign reading needs on top of a theme script, in the unit that language counts: the
+ * spoken week at the start, and the clause telling the viewer the sign meant here is the
+ * sidereal Moon sign they can look up.
+ */
+const SIGN_ALLOWANCE: Record<Language, number> = {
+  ja: 55,
+  en: 24,
+  es: 28,
+  pt: 28,
+  id: 24,
+  ar: 24,
+  fr: 28,
+  de: 24,
+};
+
+/**
  * Length the narration has to land in to fit its pattern. Derived from measured Google Cloud
  * TTS output at the default speaking rate, with the margin the re-synthesis loop can absorb.
  */
@@ -187,6 +205,8 @@ export function lintScript(
   script: GeneratedScript,
   language: Language,
   pattern: Pattern,
+  /** Spoken week the reading covers; sign readings must say it out loud. */
+  period?: string,
 ): ScriptIssue[] {
   const issues: ScriptIssue[] = [];
   const fields: { field: ScriptIssue['field']; text: string }[] = [
@@ -253,8 +273,23 @@ export function lintScript(
     });
   }
 
+  if (period) {
+    const spoken = normalizeDigits(`${script.hook_text} ${script.body_script}`);
+    const days = normalizeDigits(period).match(/\d+/g) ?? [];
+    if (!days.every((day) => new RegExp(`(?:^|\\D)${day}(?:\\D|$)`).test(spoken))) {
+      issues.push({
+        field: 'body_script',
+        code: 'missing_period',
+        detail: `the narration never says the week it covers (${period})`,
+      });
+    }
+  }
+
   const total = fields.reduce((sum, { text }) => sum + scriptLength(text, language), 0);
-  const { min, max } = LENGTH_BOUNDS[pattern][language];
+  const bounds = LENGTH_BOUNDS[pattern][language];
+  const allowance = period ? SIGN_ALLOWANCE[language] : 0;
+  const min = bounds.min + allowance;
+  const max = bounds.max + allowance;
   if (total < min) {
     issues.push({ field: 'script', code: 'too_short', detail: `${total} < ${min}` });
   } else if (total > max) {

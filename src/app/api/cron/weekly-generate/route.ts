@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { numberEnv, runWithinBudget, triggerNextBatch } from '@/lib/batch';
+import { weekPeriodSpoken } from '@/lib/period';
 import { describeIssues, lintScript } from '@/lib/script-lint';
 import { GeminiService, GeneratedScript, isTransientGeminiError } from '@/services/gemini';
 import { ContentQueue, GoogleSheetsService, WeeklyTransit } from '@/services/sheets';
@@ -86,6 +87,11 @@ export async function GET(request: Request) {
             });
           }
 
+          const spokenPeriod =
+            task.target_type === 'Zodiac_Sign'
+              ? weekPeriodSpoken(task.week_id, task.lang_code)
+              : undefined;
+
           const lint = (data: typeof scriptData) =>
             (
               [
@@ -93,7 +99,7 @@ export async function GET(request: Request) {
                 ['65s', data.script_65s],
               ] as const
             ).flatMap(([pattern, script]) =>
-              lintScript(script, task.lang_code, pattern).map(
+              lintScript(script, task.lang_code, pattern, spokenPeriod).map(
                 (issue) => `(${pattern}) ${describeIssues([issue])}`,
               ),
             );
