@@ -47,6 +47,22 @@ export class InstagramService {
   }
 
   /**
+   * The public URL of a published Reel. Instagram has no delete endpoint, so retiring one is
+   * done on this page in the account UI.
+   */
+  async permalink(channel: Channel, mediaId: string): Promise<string> {
+    const accessToken = channel.ig_access_token;
+    if (!accessToken) {
+      throw new Error(`Missing ig_access_token for channel "${channel.channel_id}"`);
+    }
+    const media = await graphRequest<{ permalink?: string }>(
+      `${GRAPH_BASE}/${mediaId}?fields=permalink&access_token=${encodeURIComponent(accessToken)}`,
+    );
+    if (!media.permalink) throw new Error(`Instagram media ${mediaId} has no permalink`);
+    return media.permalink;
+  }
+
+  /**
    * Reels are published in two steps: create a media container from the video
    * URL, wait until Instagram finishes downloading it, then publish it.
    */
