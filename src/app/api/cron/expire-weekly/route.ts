@@ -17,9 +17,9 @@ const GRACE_DAYS = 1;
 const MAX_TASKS_PER_RUN = 40;
 
 /**
- * Instagram's Graph API publishes Reels but cannot delete them, so an expired Instagram post is
- * reported instead of retired. Its caption and the badge burned into the video still name the
- * week, so an old post never reads as current.
+ * Instagram's Graph API publishes Reels but cannot delete them, so an Instagram reference stays
+ * open here and is archived through the account UI by the weekly Instagram retirement job, which
+ * reads its worklist from `/api/admin/instagram-retire`.
  */
 function isRetirable(platform: Platform): boolean {
   return platform === 'YouTube' || platform === 'Threads' || platform === 'Facebook';
@@ -64,30 +64,30 @@ export async function GET(request: Request) {
     const due = expirable.slice(0, MAX_TASKS_PER_RUN);
     const failures: string[] = [];
     let retired = 0;
-    let manual = 0;
+    let pendingInstagram = 0;
 
     for (const post of due) {
       const notes: string[] = [];
-      let allDone = true;
       for (const ref of post.refs) {
+        if (ref.retired) continue;
         if (!isRetirable(ref.platform)) {
-          notes.push(`${ref.platform}:manual(${ref.post_id})`);
-          manual += 1;
+          notes.push(`${ref.platform}:pending(${ref.post_id})`);
+          pendingInstagram += 1;
           continue;
         }
         try {
           await retire(post, ref);
+          ref.retired = true;
           notes.push(`${ref.platform}:done`);
           retired += 1;
         } catch (error) {
-          allDone = false;
           const message = error instanceof Error ? error.message : 'Unknown error';
           notes.push(`${ref.platform}:failed`);
           failures.push(`${post.task.task_id} ${ref.platform}: ${message}`);
         }
       }
-      // A partially retired task keeps its row open so the next run tries the rest again.
-      if (allDone) await sheetsService.markExpired(post.task.task_id, notes.join(' '));
+      // Platforms already taken down are remembered, so the next run only tries what is left.
+      await sheetsService.saveRetirement(post.task.task_id, post.refs, notes.join(' '));
     }
 
     if (failures.length > 0) {
@@ -102,7 +102,7 @@ export async function GET(request: Request) {
       expirable: expirable.length,
       processed: due.length,
       retired,
-      manual,
+      pending_instagram: pendingInstagram,
       failed: failures.length,
     });
   } catch (error) {

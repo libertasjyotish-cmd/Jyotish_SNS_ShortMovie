@@ -63,6 +63,8 @@ export interface ContentQueue {
 export interface PostedRef {
   platform: Platform;
   post_id: string;
+  /** Set once the post is private or deleted, so a later run skips it. */
+  retired?: boolean;
 }
 
 /** A posted sign reading with the references needed to retire it. */
@@ -714,12 +716,19 @@ export class GoogleSheetsService {
       }));
   }
 
-  async markExpired(taskId: string, note: string): Promise<void> {
-    await this.ensureColumns(SHEET_NAMES.contentQueue, [EXPIRED_AT_COLUMN]);
+  /**
+   * Records which platforms are already taken down. The row only counts as expired once every
+   * platform is, so a run that retires three of four leaves the fourth for the next one without
+   * touching what it already did.
+   */
+  async saveRetirement(taskId: string, refs: PostedRef[], note: string): Promise<void> {
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [POSTED_REFS_COLUMN, EXPIRED_AT_COLUMN]);
     const row = await this.findQueueRow(taskId);
-    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
-      [EXPIRED_AT_COLUMN]: `${new Date().toISOString()} ${note}`.trim(),
-    });
+    const patch: Record<string, string> = { [POSTED_REFS_COLUMN]: JSON.stringify(refs) };
+    if (refs.every((ref) => ref.retired)) {
+      patch[EXPIRED_AT_COLUMN] = `${new Date().toISOString()} ${note}`.trim();
+    }
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, patch);
   }
 
   /** Persists rotated OAuth tokens back onto the channel's row. */
