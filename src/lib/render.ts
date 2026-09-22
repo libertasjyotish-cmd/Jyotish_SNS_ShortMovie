@@ -2,6 +2,7 @@ import { CTA_NOTES } from '@/lib/cta';
 import { optionalEnv } from '@/lib/env';
 import { mp3DurationSeconds } from '@/lib/mp3';
 import { applyReadingHints } from '@/lib/reading';
+import { DAY_OFFSET, DayOfWeek } from '@/lib/schedule';
 import { CreatomateService } from '@/services/creatomate';
 import { GeneratedScript } from '@/services/gemini';
 import { RendererService, isRendererConfigured } from '@/services/renderer';
@@ -96,14 +97,34 @@ export function narrationText(script: GeneratedScript): string {
   return [script.hook_text, script.body_script, script.cta_text].join('\n');
 }
 
-/** Spreads tasks over the available background videos without needing shared state. */
-export function pickBackground(taskId: string, urls: string[]): string | undefined {
-  if (urls.length === 0) return undefined;
+function stableHash(value: string): number {
   let hash = 0;
-  for (const char of taskId) {
+  for (const char of value) {
     hash = (hash * 31 + char.charCodeAt(0)) % 1_000_003;
   }
-  return urls[hash % urls.length];
+  return hash;
+}
+
+/**
+ * Walks the background videos in order of the slot each task is posted in, so a channel never
+ * shows the same background two days running: the week and the day advance the index by one
+ * step per day, and the four zodiac slots of a day sit a quarter of the list apart.
+ */
+export function pickBackground(
+  taskId: string,
+  urls: string[],
+  dayOfWeek?: string,
+): string | undefined {
+  if (urls.length === 0) return undefined;
+
+  const week = /-W(\d{2})/.exec(taskId);
+  const day = dayOfWeek ? DAY_OFFSET[dayOfWeek as DayOfWeek] : undefined;
+  if (!week || day === undefined) return urls[stableHash(taskId) % urls.length];
+
+  const slot = stableHash(taskId.split('-').pop() ?? '') % 4;
+  const step = Math.max(1, Math.floor(urls.length / 4));
+  const ordinal = (Number(week[1]) * 7 + day) * 4;
+  return urls[(ordinal + slot * step) % urls.length];
 }
 
 /** Where the renderer reports a finished video; empty when the base URL is unknown. */
@@ -135,6 +156,7 @@ async function renderOnCloudRun(
   const backgroundUrl = pickBackground(
     params.taskId,
     assets.map((asset) => asset.video_url),
+    params.dayOfWeek,
   );
   if (!backgroundUrl) {
     throw new Error(`No background asset available for "${params.language}"`);
@@ -210,7 +232,11 @@ export async function startRender(
     language: params.language,
     scriptData: params.script,
     voiceoverUrl,
-    backgroundUrl: pickBackground(params.taskId, assets.map((asset) => asset.video_url)),
+    backgroundUrl: pickBackground(
+      params.taskId,
+      assets.map((asset) => asset.video_url),
+      params.dayOfWeek,
+    ),
     durationSeconds:
       duration > 0 ? Number((INTRO_SECONDS + duration + OUTRO_SECONDS).toFixed(2)) : undefined,
     voiceoverStart: INTRO_SECONDS,
