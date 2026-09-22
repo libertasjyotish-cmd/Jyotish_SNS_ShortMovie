@@ -75,7 +75,7 @@ export const ZODIAC_SLOTS_JST: [number, number][] = [
   [21, 0],
 ];
 
-const DAY_OFFSET: Record<DayOfWeek, number> = {
+export const DAY_OFFSET: Record<DayOfWeek, number> = {
   Mon: 0,
   Tue: 1,
   Wed: 2,

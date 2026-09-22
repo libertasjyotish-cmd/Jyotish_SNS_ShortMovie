@@ -52,10 +52,10 @@ const CERTAINTY_PATTERNS: Record<Language, RegExp> = {
 const RECOGNITION_PATTERNS: Record<Language, RegExp> = {
   ja: /効い|効く|届い|届く|当てはま|出ている人|感じ|心当た|覚え|思い当た|気づ/,
   en: /\b(the ones it reaches|if it reaches you|you may have noticed|notice|recognise|recognize)\b/i,
-  es: /\b(a quienes les llega|puede que hayas notado|notas|reconoces)\b/i,
+  es: /\b(a quienes les llega|puede que hayas notado|has notado|te das cuenta|notas|percibes|sientes|experimentas|reconoces)\b/i,
   pt: /\b(a quem chega|talvez tenha notado|percebe|reconhece)\b/i,
-  id: /\b(yang terkena|mungkin kamu merasa|memperhatikan|mengenali)\b/i,
-  ar: /من يصله|ربما لاحظت|تلاحظ/,
+  id: /\b(yang terkena|mungkin kamu merasa|memperhatikan|perhatikan|menyadari|sadar|terasa|kamu rasakan|mengenali)\b/i,
+  ar: /من يصله|ربما لاحظت|تلاحظ|لاحظت|تشعر|تجد|يتكرر/,
   fr: /(remarqu|ressent|ressens|reconna|si cela vous parle|ceux que cela touche)/i,
   de: /(bemerk|sp[üu]r|erkenn|wen es trifft|vielleicht hast du)/i,
 };
@@ -64,8 +64,8 @@ const RECOGNITION_PATTERNS: Record<Language, RegExp> = {
 const INDIVIDUAL_DIFFERENCE_PATTERNS: Record<Language, RegExp> = {
   ja: /出生時刻|生まれた時|ホロスコープ|108の区分|ダシャー|あなた|人によって|強さ|変わります/,
   en: /\b(birth time|birth chart|horoscope|varies|depends on|108|dasha)\b/i,
-  es: /\b(hora de nacimiento|carta natal|hor[óo]scopo|var[íi]a|depende|108|dasha)\b/i,
-  pt: /\b(hora de nascimento|carta natal|hor[óo]scopo|varia|depende|108|dasha)\b/i,
+  es: /(?:^|[^a-z\u00c0-\u024f])(hora de nacimiento|carta natal|hor[óo]scopo|var[íi]a|depende|108|dasha)(?![a-z\u00c0-\u024f])/i,
+  pt: /(?:^|[^a-z\u00c0-\u024f])(hora de nascimento|carta natal|hor[óo]scopo|varia|depende|108|dasha)(?![a-z\u00c0-\u024f])/i,
   id: /\b(waktu lahir|bagan lahir|horoskop|berbeda|tergantung|108|dasha)\b/i,
   ar: /وقت الميلاد|خريطة الميلاد|يختلف|يعتمد|108|داشا/,
   fr: /(heure de naissance|th[èe]me natal|carte du ciel|horoscope|varie|d[ée]pend|108|dasha)/i,
@@ -79,12 +79,17 @@ const INDIVIDUAL_DIFFERENCE_PATTERNS: Record<Language, RegExp> = {
 const HOOK_ADDRESSED_PATTERNS: Record<Language, RegExp> = {
   ja: /[?？]|ますか|ませんか|ですか|でしょうか|あなた|自分|なら|ではありません|ではなく|違います|人へ|人は|人、|か。/,
   en: /\?|\byou(r|rs)?\b|\bis not\b|\bisn't\b|\bnot because\b/i,
-  es: /[?¿]|\b(tu|tus|t[úu]|te|ti)\b|\bno es\b/i,
-  pt: /\?|\b(voc[êe]|teu|tua|seu|sua|te)\b|\bn[ãa]o [ée]\b/i,
-  id: /\?|\b(kamu|kamumu|mu|anda)\b|\bbukan\b/i,
-  ar: /[?؟]|أنت|لديك|عندك|ليس/,
-  fr: /\?|\b(vous|votre|vos|tu|ton|ta|tes)\b|\bn'est pas\b/i,
-  de: /\?|\b(du|dich|dein|deine|deinem|sie|ihr|ihre)\b|\bnicht\b/i,
+  /**
+   * Spanish drops the pronoun, so the second person often shows only in the verb ending;
+   * the forms listed are the ones the hooks are written with.
+   */
+  es: /[?¿]|(?:^|[^a-z\u00c0-\u024f])(tu|tus|t[úu]|te|ti|contigo|est[áa]s|llevas|eliges|sigues|sientes|notas|vuelves|ganas|puedes|tienes|quieres|haces|dices|crees|piensas|acabas|terminas)(?![a-z\u00c0-\u024f])|\bno es\b/i,
+  pt: /\?|(?:^|[^a-z\u00c0-\u024f])(voc[êe]|teu|tua|seu|sua|te|n[ãa]o [ée])(?![a-z\u00c0-\u024f])/i,
+  id: /\?|\b(kamu|anda)\b|\b\w+mu\b|\bbukan\b/i,
+  /** The trailing kaf is the second-person possessive, which is how Arabic addresses the viewer. */
+  ar: /[?؟]|أنت|لديك|عندك|ليس|تجد|تشعر|تلاحظ|كل مرة|تكرر|[ء-ي]ك(?![ء-ي])/,
+  fr: /\?|(?:^|[^a-z\u00c0-\u024f])(vous|votre|vos|tu|ton|ta|tes)(?![a-z\u00c0-\u024f])|\bn'est pas\b/i,
+  de: /\?|\b(du|dich|dir|dein|deine|deinem|deinen|deiner|euch|sie|ihr|ihre)\b|\bnicht\b/i,
 };
 
 /** Openings that announce the video instead of naming something the viewer lives with. */
