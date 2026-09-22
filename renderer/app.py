@@ -85,6 +85,7 @@ def render_video():
         body=payload["body"],
         cta=payload["cta"],
         note=payload.get("note"),
+        period=payload.get("period"),
         max_body_segments=_optional_int(payload.get("max_body_segments")),
         tempo=float(payload.get("tempo", 1.05)),
         output_path=payload.get("output_path"),

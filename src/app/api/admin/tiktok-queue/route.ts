@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminTokenMatches, isAdminAuthorized } from '@/lib/admin-auth';
 import { buildDescription } from '@/lib/cta';
+import { weekPeriodLabel } from '@/lib/period';
 import { GeneratedScript } from '@/services/gemini';
 import { DayOfWeek } from '@/lib/schedule';
 import { ContentQueue, GoogleSheetsService, Language } from '@/services/sheets';
@@ -102,6 +103,10 @@ export async function GET(request: NextRequest) {
           body: script.hook_text,
           hashtags: scriptOutput.hashtags,
           platform: 'tiktok',
+          period:
+            task.target_type === 'Zodiac_Sign'
+              ? weekPeriodLabel(task.week_id, task.lang_code)
+              : undefined,
         }),
       });
     }

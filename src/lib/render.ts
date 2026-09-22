@@ -146,6 +146,7 @@ async function renderOnCloudRun(
     pattern: Pattern;
     script: GeneratedScript;
     dayOfWeek?: string;
+    period?: string;
   },
 ): Promise<void> {
   const assets = await sheets.getBackgroundAssets({
@@ -169,6 +170,7 @@ async function renderOnCloudRun(
     script: params.script,
     backgroundUrl,
     note: CTA_NOTES[params.language],
+    period: params.period,
     target: DURATION_BOUNDS[params.pattern],
   };
 
@@ -201,6 +203,8 @@ export async function startRender(
     pattern: Pattern;
     script: GeneratedScript;
     dayOfWeek?: string;
+    /** Dated week a sign reading covers; the renderer draws it on the video. */
+    period?: string;
   },
 ): Promise<void> {
   if (isRendererConfigured()) {

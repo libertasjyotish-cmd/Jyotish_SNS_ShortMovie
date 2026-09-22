@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { optionalEnv, requireEnv } from '@/lib/env';
+import { weekPeriodLabel } from '@/lib/period';
 import { Language, TargetType } from './sheets';
 
 const DEFAULT_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
@@ -231,6 +232,7 @@ function buildPrompt(request: GenerationRequest): string {
     request.target_type === 'Zodiac_Sign'
       ? `people whose sidereal Moon sign is ${request.zodiac_sign}`
       : 'viewers of every Moon sign';
+  const period = weekPeriodLabel(request.week_id, request.lang_code);
 
   return [
     'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
@@ -261,7 +263,7 @@ function buildPrompt(request: GenerationRequest): string {
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
     profile.note ?? '',
     '',
-    `Week: ${request.week_id}`,
+    `Week: ${request.week_id}${period ? ` (${period})` : ''}`,
     `Audience: ${audience}`,
     `Transit reference (the only allowed factual source):\n${request.transit_reference}`,
     '',

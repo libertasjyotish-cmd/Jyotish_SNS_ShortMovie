@@ -73,11 +73,19 @@ export interface DescriptionParams {
   body: string;
   hashtags: string;
   platform?: 'default' | 'tiktok';
+  /** Dated week a sign reading covers; it opens the caption so older posts date themselves. */
+  period?: string;
 }
 
-export function buildDescription({ lang, body, hashtags, platform }: DescriptionParams): string {
+export function buildDescription({
+  lang,
+  body,
+  hashtags,
+  platform,
+  period,
+}: DescriptionParams): string {
   const cta = platform === 'tiktok' ? TIKTOK_DESCRIPTION_CTA[lang] : DESCRIPTION_CTA[lang];
-  return [body, cta, DISCLAIMERS[lang], limitHashtags(hashtags)]
+  return [period, body, cta, DISCLAIMERS[lang], limitHashtags(hashtags)]
     .filter(Boolean)
     .join('\n\n');
 }
