@@ -157,6 +157,15 @@ export class FacebookService {
     return session.video_id;
   }
 
+  /** Takes down a reading whose week has passed; the video node is deleted with the page token. */
+  async deleteVideo(channel: Channel, videoId: string): Promise<void> {
+    const { accessToken } = credentials(channel);
+    await graphRequest<{ success?: boolean }>(
+      `${GRAPH_BASE}/${videoId}?access_token=${encodeURIComponent(accessToken)}`,
+      { method: 'DELETE' },
+    );
+  }
+
   private async waitUntilFinished(videoId: string, accessToken: string): Promise<void> {
     for (let attempt = 0; attempt < STATUS_POLL_ATTEMPTS; attempt += 1) {
       const status = await graphRequest<{

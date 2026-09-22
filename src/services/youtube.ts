@@ -71,4 +71,16 @@ export class YouTubeService {
     if (!videoId) throw new Error('YouTube upload returned no video id');
     return videoId;
   }
+
+  /**
+   * Hides a reading whose week has passed. The video is made private rather than deleted, so
+   * the channel keeps its watch history and the file can be brought back if needed.
+   */
+  async unlistVideo(channel: Channel, videoId: string): Promise<void> {
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    await youtube.videos.update({
+      part: ['status'],
+      requestBody: { id: videoId, status: { privacyStatus: 'private' } },
+    });
+  }
 }

@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { optionalEnv, requireEnv } from '@/lib/env';
-import { weekPeriodLabel } from '@/lib/period';
+import { weekPeriodLabel, weekPeriodSpoken } from '@/lib/period';
 import { Language, TargetType } from './sheets';
 
 const DEFAULT_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
@@ -233,6 +233,10 @@ function buildPrompt(request: GenerationRequest): string {
       ? `people whose sidereal Moon sign is ${request.zodiac_sign}`
       : 'viewers of every Moon sign';
   const period = weekPeriodLabel(request.week_id, request.lang_code);
+  const spokenPeriod =
+    request.target_type === 'Zodiac_Sign'
+      ? weekPeriodSpoken(request.week_id, request.lang_code)
+      : undefined;
 
   return [
     'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
@@ -258,7 +262,13 @@ function buildPrompt(request: GenerationRequest): string {
     '12. cta_text has three parts in this order: (a) "to find out <the one thing this video left unanswered about the viewer>"; (b) the reason the generic twelve sun signs cannot settle it, because Jyotish combines finer divisions — the 108 subdivisions (27 lunar mansions x 4 padas) and the dasha periods — to reach one person\'s answer; (c) an invitation to check it free through the link. Never require the viewer to know their birth time, never disparage Western astrology, never write a URL, and never close on a definitive statement about the individual viewer.',
     '13. Never create urgency through fear. Do not use danger, warning, running out of time, misfortune, or "if you do not do this" framings, and never promise that something will certainly happen.',
     '14. Never let the video close its own loop: state the general principle and the individual variation, and stop before the viewer could conclude what their own case is. The unanswered question is what takes them to the site.',
-    '15. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
+    spokenPeriod
+      ? `15. The reading covers one week and stays on the feed long afterwards, so body_script opens by saying the dates out loud, exactly as "${spokenPeriod}", in the same sentence that names the tradition. Write them as they are read, never as a week number, and say them in both scripts.`
+      : '15. This video is not tied to a week, so never state dates or a period in any field.',
+    request.target_type === 'Zodiac_Sign'
+      ? `16. This reading is for the sidereal Moon sign ${request.zodiac_sign}, which is usually not the sign the viewer knows from Western astrology, so cta_text says in one clause that the sign meant here is the Moon sign of Indian astrology and that the viewer can check their own free through the link, before or inside part (c) of rule 12.`
+      : '16. This video is for every Moon sign, so never tell the viewer to look up which sign they are.',
+    '17. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
     profile.note ?? '',
@@ -268,7 +278,7 @@ function buildPrompt(request: GenerationRequest): string {
     `Transit reference (the only allowed factual source):\n${request.transit_reference}`,
     '',
     'Produce two narration scripts for the same content:',
-    `- script_30s: spoken in about 28 seconds, ${profile.length30s} (hook_text + body_script + cta_text combined). Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence naming Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them; (d) the CTA of rule 12. Do not add a fourth body sentence: the total would break the limit.`,
+    `- script_30s: spoken in about 30 seconds, ${profile.length30s}${spokenPeriod ? ` plus the dates of rule 15` : ''} (hook_text + body_script + cta_text combined). Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence that opens on ${spokenPeriod ? 'the dates, then names' : 'naming'} Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them; (d) the CTA of rule 12. Do not add a fourth body sentence: the total would break the limit.`,
     `- script_65s: spoken in 61-68 seconds, ${profile.length65s} (hook_text + body_script + cta_text combined). This one is long: body_script alone carries ${profile.body65s} and needs five or six sentences. Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution, app CTA.`,
     '',
     '',

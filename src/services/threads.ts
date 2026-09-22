@@ -9,8 +9,12 @@ const STATUS_POLL_ATTEMPTS = 30;
 /** Refresh well before expiry, so a few failed daily checks still leave room to recover. */
 const EXPIRY_MARGIN_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** `threads_content_publish` is what allows posting to the profile. */
-export const THREADS_SCOPES = ['threads_basic', 'threads_content_publish'];
+/**
+ * `threads_content_publish` is what allows posting to the profile, `threads_delete` what allows
+ * taking a reading down once its week is over. A token minted before the delete scope existed
+ * keeps working for posting and fails only on deletion, so it has to be re-authorized.
+ */
+export const THREADS_SCOPES = ['threads_basic', 'threads_content_publish', 'threads_delete'];
 
 export interface ThreadsTokens {
   accessToken: string;
@@ -147,6 +151,15 @@ export class ThreadsService {
     });
 
     return published.id;
+  }
+
+  /** Removes a reading whose week has passed; Threads allows 100 deletions a day per profile. */
+  async deletePost(channel: Channel, mediaId: string): Promise<void> {
+    const accessToken = await this.accessTokenFor(channel);
+    await request<{ success?: boolean }>(
+      `${API_BASE}/${mediaId}?access_token=${encodeURIComponent(accessToken)}`,
+      { method: 'DELETE' },
+    );
   }
 
   /**
