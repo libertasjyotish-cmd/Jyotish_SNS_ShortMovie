@@ -77,7 +77,7 @@ export function planRenderRecovery(tasks: ContentQueue[], now: Date): RenderReco
 export function findBlockedTasks(
   tasks: ContentQueue[],
   now: Date,
-  options: { dispatchEnabled: boolean },
+  options: { isDispatchEnabledFor: (lang: string) => boolean },
 ): string[] {
   const blocked: string[] = [];
 
@@ -90,7 +90,7 @@ export function findBlockedTasks(
     }
     const overdue = elapsedMinutes(task.scheduled_post_time, now);
     if (
-      options.dispatchEnabled &&
+      options.isDispatchEnabledFor(task.lang_code) &&
       task.post_status === 'Pending' &&
       overdue !== undefined &&
       overdue >= POST_OVERDUE_MINUTES

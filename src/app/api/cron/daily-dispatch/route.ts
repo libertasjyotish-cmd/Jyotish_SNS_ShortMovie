@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { buildDescription } from '@/lib/cta';
-import { optionalEnv } from '@/lib/env';
+import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { runWatchdog } from '@/lib/watchdog-run';
 import { FacebookService } from '@/services/facebook';
 import { GeneratedScript } from '@/services/gemini';
@@ -44,14 +44,6 @@ function isConnected(channel: Channel | null): channel is Channel {
   }
 }
 
-/**
- * Posting stays off until the launch is approved, so a dry run walks the whole dispatch —
- * due rows, connected channels, rendered videos — and stops short of the upload.
- */
-function isDispatchEnabled(): boolean {
-  return optionalEnv('DISPATCH_ENABLED') === 'true';
-}
-
 function buildTitle(task: ContentQueue, script: GeneratedScript): string {
   const subject = task.zodiac_sign || task.target_type.replace('_', ' ');
   return `${script.hook_text || subject} | Libertas Jyotish`.slice(0, 100);
@@ -75,7 +67,6 @@ export async function GET(request: Request) {
     const watchdog = await runWatchdog(sheetsService, now);
     const pendingPosts = await sheetsService.getPendingPosts();
     const duePosts = pendingPosts.filter((post) => isDue(post.scheduled_post_time, now));
-    const dispatchEnabled = isDispatchEnabled();
     let posted = 0;
     let failed = 0;
     let skipped = 0;
@@ -161,7 +152,7 @@ export async function GET(request: Request) {
           throw new Error(`No connected platform with a rendered video for ${post.task_id}`);
         }
 
-        if (!dispatchEnabled) {
+        if (!isDispatchEnabledFor(post.lang_code)) {
           console.log(`Dry run: ${post.task_id} ready for ${uploads.length} upload(s)`);
           skipped += 1;
           continue;
@@ -181,7 +172,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       status: 'Dispatch completed',
-      dispatch_enabled: dispatchEnabled,
+      dispatch_enabled: isDispatchEnabled(),
+      dispatch_languages: dispatchLanguages(),
       due: duePosts.length,
       posted,
       failed,
