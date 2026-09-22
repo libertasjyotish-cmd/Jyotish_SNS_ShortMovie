@@ -25,6 +25,8 @@ export interface GenerationRequest {
   target_type: TargetType;
   zodiac_sign?: string;
   transit_reference: string;
+  /** Lint issues from a rejected attempt, fed back so the retry fixes them. */
+  lint_feedback?: string;
 }
 
 export interface GeneratedScript {
@@ -60,9 +62,10 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   ja: {
     name: '日本語',
     tradition: 'インド占星術（ジョーティシュ）',
-    length30s: '合計145〜165文字',
+    length30s: '合計165〜183文字',
     length65s: '合計390〜420文字',
     body65s: '320〜350文字',
+    note: 'Japanese wording: call the chart 「ホロスコープ」. Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. End cta_text with exactly: 「を調べるには、12の太陽星座ではなく、108の区分とダシャー期を組み合わせた鑑定が必要です。リンクから無料で確認できます。」, preceded only by the one thing this video left unanswered (for example 「あなたの木星がどの部屋を通るか」). That CTA is about 80 characters on its own, so in script_30s hook_text must stay under 40 characters and body_script must be a single sentence under 70 characters; count the characters of all three fields before answering.',
   },
   en: {
     name: 'English',
@@ -195,6 +198,8 @@ function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language)
   return [
     'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
     'You are given a finished 30-second script. Rewrite it as a longer version of the same video.',
+    'The video exists to make the viewer need their own chart and go to the Libertas Jyotish site, so',
+    'spend the extra seconds on what the principle looks like in ordinary life, not on more sky facts.',
     '',
     'Absolute rules:',
     '1. Do not introduce any fact, number, degree, year, planet, nakshatra, tradition or proper noun that is absent from the source script.',
@@ -231,21 +236,27 @@ function buildPrompt(request: GenerationRequest): string {
     'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
     'Sidereal system, Moon-sign (Chandra Lagna) based readings.',
     '',
+    'What the video is for: it is not a lesson about planets. It exists to make the viewer unable to',
+    'leave the question alone and go to the Libertas Jyotish site, work out their own chart, and',
+    'subscribe for their timing and reading. Judge every sentence by one test: does it make the',
+    'viewer need their own chart? A sentence that only describes the sky fails and must be rewritten.',
+    '',
     'Absolute rules:',
     '1. Never write vague, unfounded fortunes such as "You are lucky this week!".',
     '2. Base every statement solely on the supplied transit reference and its house relationship to the target Moon sign. Never invent transits, dates, planetary positions, proper nouns, or numbers that are not present in the reference.',
     '3. Never add original interpretations that contradict classical Jyotish (dasha, nakshatra, planetary rulership).',
-    '4. Explain exactly one planetary movement, plainly.',
+    '4. Explain exactly one planetary movement, plainly. Orbital periods, degrees and cycle lengths may appear once as evidence, never as the subject of the video; the subject is what the viewer experiences in work, money, relationships, mood, home or timing.',
     '5. The CTA invites viewers to the Libertas Jyotish site for their personal reading. Never write a URL, a domain name or an email address in any field; the link lives in the profile and the description.',
     '6. Never give definitive medical, mental-health, financial, investment or legal advice, and never predict illness, death, pregnancy, accidents, lawsuits, or specific gains and losses of money. Phrase practical suggestions as everyday actions (rest, planning, communication), not as diagnoses or instructions.',
     '7. Keep the tone calm and specific. Vary the opening sentence and the concrete example between zodiac signs so the twelve scripts of a week never read as one template.',
     `8. Name the tradition in the first sentence of body_script, exactly as "${profile.tradition}". Viewers do not know what a nakshatra or a sidereal Moon sign is, so never open on a technical term without saying which system it comes from.`,
-    '9. hook_text is one short line that stops the scroll by naming something the viewer may already be noticing in daily life, addressed to their Moon sign, and asking whether it is happening to them. Never announce the video ("here is this week\'s movement of the stars").',
-    '10. The length limits are hard limits; count before answering and cut adjectives rather than overrun.',
+    '9. hook_text is one short line that either names something the viewer already lives with and asks whether it is happening to them, or contradicts what they believe ("that is not your fault", "you are looking at the wrong planet"). Never announce the video or the topic ("here is this week\'s movement of the stars"), and never answer the hook in the hook itself.',
+    '10. In script_30s the fixed CTA already spends about a third of the budget, so hook_text is one short line and body_script is at most two sentences. The length limits are hard limits. Count before answering — characters excluding spaces for Japanese, words for the other languages — and cut adjectives or add a concrete everyday detail until the total is inside the range.',
     '11. body_script contains one sentence that lets the viewer decide for themselves whether the transit is acting on them, phrased as what it looks like in the people it reaches ("the ones it reaches find that ..."). Describe everyday actions, never symptoms, luck or loss.',
-    '12. cta_text says that it does not land equally on everyone and that how strongly it lands follows from the birth chart, then invites them to work theirs out on the site. Never close on a definitive statement about the individual viewer.',
+    '12. cta_text has three parts in this order: (a) "to find out <the one thing this video left unanswered about the viewer>"; (b) the reason the generic twelve sun signs cannot settle it, because Jyotish combines finer divisions — the 108 subdivisions (27 lunar mansions x 4 padas) and the dasha periods — to reach one person\'s answer; (c) an invitation to check it free through the link. Never require the viewer to know their birth time, never disparage Western astrology, never write a URL, and never close on a definitive statement about the individual viewer.',
     '13. Never create urgency through fear. Do not use danger, warning, running out of time, misfortune, or "if you do not do this" framings, and never promise that something will certainly happen.',
-    '14. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
+    '14. Never let the video close its own loop: state the general principle and the individual variation, and stop before the viewer could conclude what their own case is. The unanswered question is what takes them to the site.',
+    '15. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
     profile.note ?? '',
@@ -255,10 +266,19 @@ function buildPrompt(request: GenerationRequest): string {
     `Transit reference (the only allowed factual source):\n${request.transit_reference}`,
     '',
     'Produce two narration scripts for the same content:',
-    `- script_30s: spoken in about 28 seconds, ${profile.length30s} (hook_text + body_script + cta_text combined). Structure: hook naming a feeling the viewer may already be having, one sentence naming Jyotish and the planetary movement with the house it falls in, one sentence telling the viewer how to recognise whether it is acting on them, then the CTA saying how strongly it lands depends on the birth time.`,
+    `- script_30s: spoken in about 28 seconds, ${profile.length30s} (hook_text + body_script + cta_text combined). Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence naming Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them; (d) the CTA of rule 12. Do not add a fourth body sentence: the total would break the limit.`,
     `- script_65s: spoken in 61-68 seconds, ${profile.length65s} (hook_text + body_script + cta_text combined). This one is long: body_script alone carries ${profile.body65s} and needs five or six sentences. Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution, app CTA.`,
     '',
+    '',
+    'Worked example of the structure (English, different topic; copy the shape, not the words):',
+    'hook_text: "Told this was a good year for you and nothing happened? You were not looking at the right place."',
+    'body_script: "In Jyotish, a transit is read by the house it passes through in your own chart, not by the sign it sits in. The same year lands on work for one person and on the home for another, which is why a shared forecast fits almost no one. If the year felt flat to you, the movement was simply expanding somewhere you were not watching."',
+    'cta_text: "To find out which house it passes through for you, twelve sun signs are not enough: Jyotish combines the 108 subdivisions with your dasha periods to reach one answer. Check yours free through the link."',
+    '',
     'hashtags: 4-6 space-separated hashtags suitable for the target language, always including #LibertasJyotish.',
+    request.lint_feedback
+      ? `Your previous attempt was rejected by the automatic check for: ${request.lint_feedback}. Fix exactly these points and keep every other rule.`
+      : '',
     'Return only the JSON object; no markdown fences, no commentary.',
   ]
     .filter(Boolean)

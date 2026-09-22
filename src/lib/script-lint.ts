@@ -8,6 +8,9 @@ export interface ScriptIssue {
     | 'certainty_wording'
     | 'missing_recognition'
     | 'missing_individual_difference'
+    | 'hook_not_addressed'
+    | 'discouraged_wording'
+    | 'weak_cta'
     | 'contains_url'
     | 'too_short'
     | 'too_long';
@@ -47,7 +50,7 @@ const CERTAINTY_PATTERNS: Record<Language, RegExp> = {
  * Without it the script states a fact about the sky and gives the viewer nothing to check.
  */
 const RECOGNITION_PATTERNS: Record<Language, RegExp> = {
-  ja: /効いて|届いて|当てはま|増えていません|出ている人|感じて/,
+  ja: /効い|効く|届い|届く|当てはま|出ている人|感じ|心当た|覚え|思い当た|気づ/,
   en: /\b(the ones it reaches|if it reaches you|you may have noticed|notice|recognise|recognize)\b/i,
   es: /\b(a quienes les llega|puede que hayas notado|notas|reconoces)\b/i,
   pt: /\b(a quem chega|talvez tenha notado|percebe|reconhece)\b/i,
@@ -59,14 +62,76 @@ const RECOGNITION_PATTERNS: Record<Language, RegExp> = {
 
 /** The CTA has to leave the personal answer to the chart, or the video closes the loop itself. */
 const INDIVIDUAL_DIFFERENCE_PATTERNS: Record<Language, RegExp> = {
-  ja: /出生時刻|出生図|ホロスコープ|人によって|強さ|変わります/,
-  en: /\b(birth time|birth chart|horoscope|varies|depends on)\b/i,
-  es: /\b(hora de nacimiento|carta natal|hor[óo]scopo|var[íi]a|depende)\b/i,
-  pt: /\b(hora de nascimento|carta natal|hor[óo]scopo|varia|depende)\b/i,
-  id: /\b(waktu lahir|bagan lahir|horoskop|berbeda|tergantung)\b/i,
-  ar: /وقت الميلاد|خريطة الميلاد|يختلف|يعتمد/,
-  fr: /(heure de naissance|th[èe]me natal|carte du ciel|horoscope|varie|d[ée]pend)/i,
-  de: /(geburtszeit|geburtshoroskop|geburtsbild|horoskop|unterschiedlich|h[äa]ngt|je nach)/i,
+  ja: /出生時刻|生まれた時|ホロスコープ|108の区分|ダシャー|あなた|人によって|強さ|変わります/,
+  en: /\b(birth time|birth chart|horoscope|varies|depends on|108|dasha)\b/i,
+  es: /\b(hora de nacimiento|carta natal|hor[óo]scopo|var[íi]a|depende|108|dasha)\b/i,
+  pt: /\b(hora de nascimento|carta natal|hor[óo]scopo|varia|depende|108|dasha)\b/i,
+  id: /\b(waktu lahir|bagan lahir|horoskop|berbeda|tergantung|108|dasha)\b/i,
+  ar: /وقت الميلاد|خريطة الميلاد|يختلف|يعتمد|108|داشا/,
+  fr: /(heure de naissance|th[èe]me natal|carte du ciel|horoscope|varie|d[ée]pend|108|dasha)/i,
+  de: /(geburtszeit|geburtshoroskop|geburtsbild|horoskop|unterschiedlich|h[äa]ngt|je nach|108|dasha)/i,
+};
+
+/**
+ * The hook either asks the viewer about their own life or contradicts what they believe, since
+ * a video only earns a visit to the site when the viewer cannot settle the question alone.
+ */
+const HOOK_ADDRESSED_PATTERNS: Record<Language, RegExp> = {
+  ja: /[?？]|ますか|ませんか|ですか|でしょうか|あなた|自分|なら|ではありません|ではなく|違います|人へ|人は|人、|か。/,
+  en: /\?|\byou(r|rs)?\b|\bis not\b|\bisn't\b|\bnot because\b/i,
+  es: /[?¿]|\b(tu|tus|t[úu]|te|ti)\b|\bno es\b/i,
+  pt: /\?|\b(voc[êe]|teu|tua|seu|sua|te)\b|\bn[ãa]o [ée]\b/i,
+  id: /\?|\b(kamu|kamumu|mu|anda)\b|\bbukan\b/i,
+  ar: /[?؟]|أنت|لديك|عندك|ليس/,
+  fr: /\?|\b(vous|votre|vos|tu|ton|ta|tes)\b|\bn'est pas\b/i,
+  de: /\?|\b(du|dich|dein|deine|deinem|sie|ihr|ihre)\b|\bnicht\b/i,
+};
+
+/** Openings that announce the video instead of naming something the viewer lives with. */
+const HOOK_LECTURE_PATTERNS: Record<Language, RegExp> = {
+  ja: /^(?:今週|今日|今回|この動画)|について解説|を解説|とは何か/,
+  en: /^(?:this week|today|in this video|let's talk|here is)/i,
+  es: /^(?:esta semana|hoy|en este video)/i,
+  pt: /^(?:esta semana|hoje|neste v[íe]deo)/i,
+  id: /^(?:pekan ini|minggu ini|hari ini|di video ini)/i,
+  ar: /^(?:هذا الأسبوع|اليوم|في هذا الفيديو)/,
+  fr: /^(?:cette semaine|aujourd'hui|dans cette vid[ée]o)/i,
+  de: /^(?:diese woche|heute|in diesem video)/i,
+};
+
+/**
+ * Terms the narration never uses because they read as jargon to the viewer the videos are
+ * written for; the chart is named in the words the site itself uses.
+ */
+const DISCOURAGED_PATTERNS: Partial<Record<Language, RegExp>> = {
+  ja: /出生図|出生時間|チャート|ネイタル/,
+};
+
+/**
+ * The CTA earns the visit by naming what the twelve sun signs cannot settle and the finer
+ * divisions Jyotish reads instead; without that contrast it reads as a generic forecast.
+ */
+const CTA_DIFFERENTIATION_PATTERNS: Record<Language, RegExp> = {
+  ja: /12の太陽星座|12星座|108の区分|27の宿|ダシャー/,
+  en: /\b(twelve sun signs|12 sun signs|108 divisions|27 lunar mansions|dasha)\b/i,
+  es: /\b(doce signos solares|12 signos|108 divisiones|27 mansiones|dasha)\b/i,
+  pt: /\b(doze signos solares|12 signos|108 divis[õo]es|27 mans[õo]es|dasha)\b/i,
+  id: /\b(dua belas zodiak|12 zodiak|108 pembagian|27 rasi bulan|dasha)\b/i,
+  ar: /الأبراج الشمسية الاثني عشر|١٢ برجا|108 قسم|27 منزلا|داشا/,
+  fr: /(douze signes solaires|12 signes|108 divisions|27 demeures|dasha)/i,
+  de: /(zw[öo]lf sonnenzeichen|12 sternzeichen|108 abschnitte|27 mondh[äa]user|dasha)/i,
+};
+
+/** The CTA has to send the viewer somewhere; naming the difference alone converts nobody. */
+const CTA_ACTION_PATTERNS: Record<Language, RegExp> = {
+  ja: /調べるには|確認できます|リンク|プロフィール|概要欄/,
+  en: /\b(link|profile|bio|find out|check yours)\b/i,
+  es: /\b(enlace|perfil|bio|averigua|consulta)\b/i,
+  pt: /\b(link|perfil|bio|descubra|consulte)\b/i,
+  id: /\b(tautan|link|profil|bio|cek|periksa)\b/i,
+  ar: /الرابط|الملف الشخصي|تحقق|اكتشف/,
+  fr: /(lien|profil|bio|d[ée]couvrez|v[ée]rifiez)/i,
+  de: /(link|profil|bio|finde heraus|pr[üu]fe)/i,
 };
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(?:com|net|org|jp|io)\b/i;
@@ -134,6 +199,10 @@ export function lintScript(
     if (certainty) {
       issues.push({ field, code: 'certainty_wording', detail: certainty[0] });
     }
+    const discouraged = text.match(DISCOURAGED_PATTERNS[language] ?? /(?!)/);
+    if (discouraged) {
+      issues.push({ field, code: 'discouraged_wording', detail: discouraged[0] });
+    }
     const url = text.match(URL_PATTERN);
     if (url) {
       issues.push({ field, code: 'contains_url', detail: url[0] });
@@ -148,11 +217,34 @@ export function lintScript(
     });
   }
 
+  const hook = script.hook_text.trim();
+  if (
+    !HOOK_ADDRESSED_PATTERNS[language].test(hook) ||
+    HOOK_LECTURE_PATTERNS[language].test(hook)
+  ) {
+    issues.push({
+      field: 'hook_text',
+      code: 'hook_not_addressed',
+      detail: 'the hook announces a topic instead of naming what the viewer lives with',
+    });
+  }
+
   if (!INDIVIDUAL_DIFFERENCE_PATTERNS[language].test(script.cta_text)) {
     issues.push({
       field: 'cta_text',
       code: 'missing_individual_difference',
       detail: 'the CTA does not leave the personal answer to the birth chart',
+    });
+  }
+
+  if (
+    !CTA_DIFFERENTIATION_PATTERNS[language].test(script.cta_text) ||
+    !CTA_ACTION_PATTERNS[language].test(script.cta_text)
+  ) {
+    issues.push({
+      field: 'cta_text',
+      code: 'weak_cta',
+      detail: 'the CTA does not contrast the twelve sun signs and send the viewer to look it up',
     });
   }
 

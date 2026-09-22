@@ -86,16 +86,41 @@ export async function GET(request: Request) {
             });
           }
 
-          for (const [pattern, script] of [
-            ['30s', scriptData.script_30s],
-            ['65s', scriptData.script_65s],
-          ] as const) {
-            const issues = lintScript(script, task.lang_code, pattern);
-            if (issues.length > 0) {
-              const warning = `${task.task_id} (${pattern}): ${describeIssues(issues)}`;
-              console.warn(`Script lint: ${warning}`);
-              lintWarnings.push(warning);
+          const lint = (data: typeof scriptData) =>
+            (
+              [
+                ['30s', data.script_30s],
+                ['65s', data.script_65s],
+              ] as const
+            ).flatMap(([pattern, script]) =>
+              lintScript(script, task.lang_code, pattern).map(
+                (issue) => `(${pattern}) ${describeIssues([issue])}`,
+              ),
+            );
+
+          let issues = lint(scriptData);
+          // A script that fails the check is a script that will not send anyone to the site, so
+          // the issues are fed back once rather than stored as a warning nobody reads.
+          if (issues.length > 0 && task.target_type === 'Zodiac_Sign') {
+            const retried = await geminiService.generateScript({
+              week_id: task.week_id,
+              lang_code: task.lang_code,
+              target_type: task.target_type,
+              zodiac_sign: task.zodiac_sign,
+              transit_reference: transitReference,
+              lint_feedback: issues.join('; '),
+            });
+            const retriedIssues = lint(retried);
+            if (retriedIssues.length < issues.length) {
+              scriptData = retried;
+              issues = retriedIssues;
             }
+          }
+
+          for (const issue of issues) {
+            const warning = `${task.task_id} ${issue}`;
+            console.warn(`Script lint: ${warning}`);
+            lintWarnings.push(warning);
           }
 
           await sheetsService.saveScriptOutput({
