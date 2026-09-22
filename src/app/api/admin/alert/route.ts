@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAdminAuthorized } from '@/lib/admin-auth';
 import { sendAlert } from '@/lib/alert';
+import { isCronAuthorized } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 /** Lets the daily monitoring job deliver its findings through the configured alert channels. */
 export async function POST(request: NextRequest) {
-  if (!isAdminAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
