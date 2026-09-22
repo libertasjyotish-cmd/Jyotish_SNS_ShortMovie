@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminTokenMatches, isAdminAuthorized } from '@/lib/admin-auth';
+import { isCronAuthorized } from '@/lib/auth';
 import { weekStartFromId } from '@/lib/schedule';
 import { InstagramService } from '@/services/instagram';
 import { GoogleSheetsService, Language } from '@/services/sheets';
@@ -17,8 +18,9 @@ function weekEnded(weekId: string): boolean {
   return start.getTime() + (7 + GRACE_DAYS) * MS_PER_DAY <= Date.now();
 }
 
+/** The retirement job runs unattended, so CRON_SECRET works here as well as the admin token. */
 function authorized(request: NextRequest, token: string | null): boolean {
-  return isAdminAuthorized(request) || adminTokenMatches(token ?? '');
+  return isAdminAuthorized(request) || adminTokenMatches(token ?? '') || isCronAuthorized(request);
 }
 
 interface PendingReel {

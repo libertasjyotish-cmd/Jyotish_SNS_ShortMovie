@@ -8,7 +8,8 @@ Facebook（削除）から自動で取り下げる。Instagram の Graph API に
 ## 対象の取得
 
 ```
-GET https://admin.libertas-jyotish.com/api/admin/instagram-retire?token=<ADMIN_TOKEN>
+GET https://admin.libertas-jyotish.com/api/admin/instagram-retire
+Authorization: Bearer <CRON_SECRET または ADMIN_TOKEN>
 ```
 
 週が終わった（最終日+1日以降）Reelsのうち、まだ取り下げていないものを返す。
@@ -39,7 +40,8 @@ GET https://admin.libertas-jyotish.com/api/admin/instagram-retire?token=<ADMIN_T
 ## 完了報告
 
 ```
-POST https://admin.libertas-jyotish.com/api/admin/instagram-retire?token=<ADMIN_TOKEN>
+POST https://admin.libertas-jyotish.com/api/admin/instagram-retire
+Authorization: Bearer <CRON_SECRET または ADMIN_TOKEN>
 Content-Type: application/json
 
 {"task_id": "2026-W40-en-aries", "media_id": "17912345678901234"}
