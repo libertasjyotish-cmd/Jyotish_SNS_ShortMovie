@@ -1,5 +1,5 @@
 import { sendAlert } from '@/lib/alert';
-import { optionalEnv } from '@/lib/env';
+import { isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { runRenderBatch } from '@/lib/render-batch';
 import { MAX_RENDER_ATTEMPTS, findBlockedTasks, planRenderRecovery } from '@/lib/watchdog';
 import { CreatomateService } from '@/services/creatomate';
@@ -45,7 +45,7 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
 
   alerts.push(
     ...findBlockedTasks(tasks, now, {
-      dispatchEnabled: optionalEnv('DISPATCH_ENABLED') === 'true',
+      isDispatchEnabledFor,
     }),
   );
   const alerted = await sendAlert(
