@@ -2,16 +2,20 @@ import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { buildDescription } from '@/lib/cta';
 import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
+import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
 import { weekPeriodLabel } from '@/lib/period';
 import { runWatchdog } from '@/lib/watchdog-run';
 import { FacebookService } from '@/services/facebook';
 import { GeneratedScript } from '@/services/gemini';
+import { InstagramService } from '@/services/instagram';
 import {
-  ContainerFailedError,
-  InstagramService,
-  PendingTranscodeError,
-} from '@/services/instagram';
-import { Channel, ContentQueue, GoogleSheetsService, Platform, PostedRef } from '@/services/sheets';
+  Channel,
+  ContainerPlatform,
+  ContentQueue,
+  GoogleSheetsService,
+  Platform,
+  PostedRef,
+} from '@/services/sheets';
 import { ThreadsService } from '@/services/threads';
 import { YouTubeService } from '@/services/youtube';
 
@@ -62,50 +66,51 @@ function buildTitle(task: ContentQueue, script: GeneratedScript, period?: string
   return `${prefix}${script.hook_text || subject} | Libertas Jyotish`.slice(0, 100);
 }
 
+/** The two-step upload Instagram and Threads share: hand over the video, then publish it. */
+interface ContainerUploader {
+  createContainer(): Promise<string>;
+  waitUntilFinished(containerId: string): Promise<boolean>;
+  publishContainer(containerId: string): Promise<string>;
+}
+
 /**
- * Instagram downloads and transcodes the Reel on its own servers, which regularly outlasts a
- * posting run. The container id is stored before waiting, so a run that gives up costs nothing:
- * the next one publishes that same container instead of handing the video over again.
+ * Instagram and Threads download and transcode the video on their own servers, which regularly
+ * outlasts a posting run. The container id is stored before waiting, so a run that gives up costs
+ * nothing: the next one publishes that same container instead of handing the video over again.
  */
-async function postInstagramReel(args: {
+async function postViaContainer(args: {
   sheetsService: GoogleSheetsService;
-  instagramService: InstagramService;
   task: ContentQueue;
-  channel: Channel;
-  caption: string;
-  videoUrl: string;
+  platform: ContainerPlatform;
+  uploader: ContainerUploader;
 }): Promise<string> {
-  const { sheetsService, instagramService, task, channel } = args;
-  let containerId = task.ig_container_id;
+  const { sheetsService, task, platform, uploader } = args;
+  let containerId = task.container_ids?.[platform];
 
   if (!containerId) {
-    containerId = await instagramService.createContainer({
-      channel,
-      caption: args.caption,
-      videoUrl: args.videoUrl,
-    });
-    await sheetsService.setInstagramContainer(task.task_id, containerId);
+    containerId = await uploader.createContainer();
+    await sheetsService.setPlatformContainer(task.task_id, platform, containerId);
   }
 
   let ready: boolean;
   try {
-    ready = await instagramService.waitUntilFinished(channel, containerId);
+    ready = await uploader.waitUntilFinished(containerId);
   } catch (error) {
     if (error instanceof ContainerFailedError) {
-      await sheetsService.setInstagramContainer(task.task_id, '');
+      await sheetsService.setPlatformContainer(task.task_id, platform, '');
     }
     throw error;
   }
 
   if (!ready) {
     throw new PendingTranscodeError(
-      `Instagram is still transcoding container ${containerId}; a later run publishes it`,
+      `${platform} is still transcoding container ${containerId}; a later run publishes it`,
     );
   }
 
-  const mediaId = await instagramService.publishContainer(channel, containerId);
-  await sheetsService.setInstagramContainer(task.task_id, '');
-  return mediaId;
+  const postId = await uploader.publishContainer(containerId);
+  await sheetsService.setPlatformContainer(task.task_id, platform, '');
+  return postId;
 }
 
 export async function GET(request: Request) {
@@ -172,18 +177,27 @@ export async function GET(request: Request) {
           uploads.push({
             platform: 'Instagram',
             run: () =>
-              postInstagramReel({
+              postViaContainer({
                 sheetsService,
-                instagramService,
                 task: post,
-                channel: instagramChannel,
-                caption: buildDescription({
-                  lang: post.lang_code,
-                  body: script30s.hook_text,
-                  hashtags: scriptOutput.hashtags,
-                  period,
-                }),
-                videoUrl,
+                platform: 'Instagram',
+                uploader: {
+                  createContainer: () =>
+                    instagramService.createContainer({
+                      channel: instagramChannel,
+                      caption: buildDescription({
+                        lang: post.lang_code,
+                        body: script30s.hook_text,
+                        hashtags: scriptOutput.hashtags,
+                        period,
+                      }),
+                      videoUrl,
+                    }),
+                  waitUntilFinished: (containerId) =>
+                    instagramService.waitUntilFinished(instagramChannel, containerId),
+                  publishContainer: (containerId) =>
+                    instagramService.publishContainer(instagramChannel, containerId),
+                },
               }),
           });
         }
@@ -193,15 +207,27 @@ export async function GET(request: Request) {
           uploads.push({
             platform: 'Threads',
             run: () =>
-              threadsService.uploadVideo({
-                channel: threadsChannel,
-                text: buildDescription({
-                  lang: post.lang_code,
-                  body: script30s.hook_text,
-                  hashtags: scriptOutput.hashtags,
-                  period,
-                }),
-                videoUrl,
+              postViaContainer({
+                sheetsService,
+                task: post,
+                platform: 'Threads',
+                uploader: {
+                  createContainer: () =>
+                    threadsService.createContainer({
+                      channel: threadsChannel,
+                      text: buildDescription({
+                        lang: post.lang_code,
+                        body: script30s.hook_text,
+                        hashtags: scriptOutput.hashtags,
+                        period,
+                      }),
+                      videoUrl,
+                    }),
+                  waitUntilFinished: (containerId) =>
+                    threadsService.waitUntilFinished(threadsChannel, containerId),
+                  publishContainer: (containerId) =>
+                    threadsService.publishContainer(threadsChannel, containerId),
+                },
               }),
           });
         }
