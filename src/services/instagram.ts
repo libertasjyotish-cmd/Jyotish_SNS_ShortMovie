@@ -4,7 +4,8 @@ import { Channel } from './sheets';
 const GRAPH_VERSION = 'v21.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const STATUS_POLL_INTERVAL_MS = 5000;
-const STATUS_POLL_ATTEMPTS = 24;
+/** Instagram transcodes a 30s Reel in about two minutes, and longer for a 65s one. */
+const STATUS_POLL_ATTEMPTS = 36;
 
 export interface InstagramUploadParams {
   channel: Channel;
@@ -99,7 +100,8 @@ export class InstagramService {
   }
 
   private async waitUntilFinished(containerId: string, accessToken: string): Promise<void> {
-    for (let attempt = 0; attempt < STATUS_POLL_ATTEMPTS; attempt += 1) {
+    const attempts = Number(optionalEnv('INSTAGRAM_STATUS_POLL_ATTEMPTS')) || STATUS_POLL_ATTEMPTS;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
       const status = await graphRequest<{ status_code?: string; status?: string }>(
         `${GRAPH_BASE}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`,
       );
@@ -111,6 +113,8 @@ export class InstagramService {
       await sleep(STATUS_POLL_INTERVAL_MS);
     }
 
-    throw new Error(`Instagram media container ${containerId} was not ready in time`);
+    throw new Error(
+      `Instagram media container ${containerId} was not ready in ${(attempts * STATUS_POLL_INTERVAL_MS) / 1000}s`,
+    );
   }
 }
