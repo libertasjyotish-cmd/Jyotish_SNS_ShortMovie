@@ -1,4 +1,5 @@
 import { optionalEnv } from '@/lib/env';
+import { ContainerFailedError } from '@/lib/media-container';
 import { Channel } from './sheets';
 
 const GRAPH_VERSION = 'v21.0';
@@ -31,12 +32,6 @@ async function graphRequest<T>(url: string, init?: RequestInit): Promise<T> {
   }
   return payload;
 }
-
-/** A container Instagram will never finish; the video has to be handed over again. */
-export class ContainerFailedError extends Error {}
-
-/** Instagram is still transcoding; the Reel goes live on a later run, nothing is lost. */
-export class PendingTranscodeError extends Error {}
 
 function credentials(channel: Channel): { accessToken: string; igUserId: string } {
   const accessToken = channel.ig_access_token;

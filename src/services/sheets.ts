@@ -59,8 +59,8 @@ export interface ContentQueue {
   scheduled_post_time: string;
   /** Platforms this task already went live on; a retry skips them. */
   posted_refs?: PostedRef[];
-  /** An Instagram container still transcoding; a later run publishes it instead of re-uploading. */
-  ig_container_id?: string;
+  /** Containers still transcoding; a later run publishes them instead of re-uploading. */
+  container_ids?: Partial<Record<Platform, string>>;
 }
 
 /** A live post, kept so the reading can be taken down once its week is over. */
@@ -79,7 +79,13 @@ export interface ExpirablePost {
 
 const POSTED_REFS_COLUMN = 'posted_refs';
 const EXPIRED_AT_COLUMN = 'expired_at';
-const IG_CONTAINER_COLUMN = 'ig_container_id';
+/** Platforms that take the video asynchronously, and where their pending container is kept. */
+const CONTAINER_COLUMNS = {
+  Instagram: 'ig_container_id',
+  Threads: 'threads_container_id',
+} as const;
+
+export type ContainerPlatform = keyof typeof CONTAINER_COLUMNS;
 
 /** Per-pattern column names of `Content_Queue`, so callers never build them by hand. */
 export const RENDER_COLUMNS: Record<
@@ -420,7 +426,10 @@ export class GoogleSheetsService {
       post_status: (values.post_status || 'Pending') as PostStatus,
       scheduled_post_time: values.scheduled_post_time,
       posted_refs: parsePostedRefs(values[POSTED_REFS_COLUMN]),
-      ig_container_id: values[IG_CONTAINER_COLUMN] || undefined,
+      container_ids: {
+        Instagram: values[CONTAINER_COLUMNS.Instagram] || undefined,
+        Threads: values[CONTAINER_COLUMNS.Threads] || undefined,
+      },
     };
   }
 
@@ -728,12 +737,15 @@ export class GoogleSheetsService {
   }
 
   /** Pass an empty id once the container has been published or has to be recreated. */
-  async setInstagramContainer(taskId: string, containerId: string): Promise<void> {
-    await this.ensureColumns(SHEET_NAMES.contentQueue, [IG_CONTAINER_COLUMN]);
+  async setPlatformContainer(
+    taskId: string,
+    platform: ContainerPlatform,
+    containerId: string,
+  ): Promise<void> {
+    const column = CONTAINER_COLUMNS[platform];
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [column]);
     const row = await this.findQueueRow(taskId);
-    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
-      [IG_CONTAINER_COLUMN]: containerId,
-    });
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, { [column]: containerId });
   }
 
   /** Sign readings that are live, dated before `weekEndedBefore`, and not retired yet. */

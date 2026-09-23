@@ -1,11 +1,13 @@
 import { threadsCredentials } from '@/lib/threads-oauth';
+import { ContainerFailedError } from '@/lib/media-container';
 import { Channel, GoogleSheetsService } from './sheets';
 
 const AUTHORIZE_ENDPOINT = 'https://threads.com/oauth/authorize';
 const GRAPH_BASE = 'https://graph.threads.net';
 const API_BASE = `${GRAPH_BASE}/v1.0`;
-const STATUS_POLL_INTERVAL_MS = 10000;
-const STATUS_POLL_ATTEMPTS = 30;
+const STATUS_POLL_INTERVAL_MS = 5000;
+/** Only a grace period: a container still being downloaded is published by a later run. */
+const STATUS_POLL_ATTEMPTS = 12;
 /** Refresh well before expiry, so a few failed daily checks still leave room to recover. */
 const EXPIRY_MARGIN_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -97,9 +99,15 @@ export async function exchangeThreadsCode(code: string, redirectUri: string): Pr
     }).toString()}`,
   );
 
+  // The token response carries the profile id as a JSON number, which is past the range JavaScript
+  // can represent exactly, so it is read back from /me where it comes as a string.
+  const me = await request<{ id: string }>(
+    `${API_BASE}/me?fields=id&access_token=${encodeURIComponent(long.access_token)}`,
+  );
+
   return {
     accessToken: long.access_token,
-    userId: String(short.user_id),
+    userId: me.id,
     expiresAt: expiresAt(long.expires_in),
   };
 }
@@ -110,18 +118,24 @@ export class ThreadsService {
   /** Reads the profile back, so a stale 60-day token is found before a posting window. */
   async verifyChannel(channel: Channel): Promise<string> {
     const accessToken = await this.accessTokenFor(channel);
-    const me = await request<{ username?: string }>(
+    const me = await request<{ id?: string; username?: string }>(
       `${API_BASE}/me?fields=id,username&access_token=${encodeURIComponent(accessToken)}`,
     );
     if (!me.username) throw new Error('Threads returned no username');
+    if (me.id && channel.threads_user_id && me.id !== channel.threads_user_id) {
+      throw new Error(
+        `Threads profile id is ${me.id} but the channel row holds ${channel.threads_user_id}`,
+      );
+    }
     return `@${me.username}`;
   }
 
   /**
-   * Videos are published in two steps: create a container from the video URL,
-   * wait until Threads finishes downloading it, then publish it.
+   * Hands the rendered video to Threads, which downloads it on its own servers. That can
+   * outlast a posting run, so the container id is returned instead of waited on: the caller
+   * stores it and publishes once {@link containerStatus} reports FINISHED.
    */
-  async uploadVideo(params: ThreadsUploadParams): Promise<string> {
+  async createContainer(params: ThreadsUploadParams): Promise<string> {
     const accessToken = await this.accessTokenFor(params.channel);
     const userId = params.channel.threads_user_id;
     if (!userId) {
@@ -139,13 +153,46 @@ export class ThreadsService {
       }).toString(),
     });
 
-    await this.waitUntilFinished(container.id, accessToken);
+    return container.id;
+  }
+
+  /** Throws when Threads gave up on the container, so the caller creates a new one. */
+  async containerStatus(channel: Channel, containerId: string): Promise<'FINISHED' | 'PENDING'> {
+    const accessToken = await this.accessTokenFor(channel);
+    const status = await request<{ status?: string; error_message?: string }>(
+      `${API_BASE}/${containerId}?fields=status,error_message&access_token=${encodeURIComponent(accessToken)}`,
+    );
+
+    if (status.status === 'FINISHED' || status.status === 'PUBLISHED') return 'FINISHED';
+    if (status.status === 'ERROR' || status.status === 'EXPIRED') {
+      throw new ContainerFailedError(
+        `Threads media container ${containerId} failed: ${status.error_message ?? status.status}`,
+      );
+    }
+    return 'PENDING';
+  }
+
+  /** Polls for the short grace period a posting run can afford before it has to move on. */
+  async waitUntilFinished(channel: Channel, containerId: string): Promise<boolean> {
+    for (let attempt = 0; attempt < STATUS_POLL_ATTEMPTS; attempt += 1) {
+      if ((await this.containerStatus(channel, containerId)) === 'FINISHED') return true;
+      await sleep(STATUS_POLL_INTERVAL_MS);
+    }
+    return false;
+  }
+
+  async publishContainer(channel: Channel, containerId: string): Promise<string> {
+    const accessToken = await this.accessTokenFor(channel);
+    const userId = channel.threads_user_id;
+    if (!userId) {
+      throw new Error(`Missing threads_user_id for channel "${channel.channel_id}"`);
+    }
 
     const published = await request<{ id: string }>(`${API_BASE}/${userId}/threads_publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        creation_id: container.id,
+        creation_id: containerId,
         access_token: accessToken,
       }).toString(),
     });
@@ -190,21 +237,4 @@ export class ThreadsService {
     return refreshed.access_token;
   }
 
-  private async waitUntilFinished(containerId: string, accessToken: string): Promise<void> {
-    for (let attempt = 0; attempt < STATUS_POLL_ATTEMPTS; attempt += 1) {
-      const status = await request<{ status?: string; error_message?: string }>(
-        `${API_BASE}/${containerId}?fields=status,error_message&access_token=${encodeURIComponent(accessToken)}`,
-      );
-
-      if (status.status === 'FINISHED' || status.status === 'PUBLISHED') return;
-      if (status.status === 'ERROR' || status.status === 'EXPIRED') {
-        throw new Error(
-          `Threads media container ${containerId} failed: ${status.error_message ?? status.status}`,
-        );
-      }
-      await sleep(STATUS_POLL_INTERVAL_MS);
-    }
-
-    throw new Error(`Threads media container ${containerId} was not ready in time`);
-  }
 }
