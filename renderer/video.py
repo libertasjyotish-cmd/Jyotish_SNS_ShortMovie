@@ -13,6 +13,28 @@ def probe_duration(path: str) -> float:
     return float(output.strip())
 
 
+TRIM_THRESHOLD = "-45dB"
+
+
+def trim_silence(path: str) -> str:
+    """Strips the silence the synthesizer leaves at both ends of a clip.
+
+    Timing is built from clip durations, so that padding would otherwise widen the pause
+    between sentences unpredictably. WAV keeps the trimmed length exact.
+    """
+    trimmed = f"{path}.trimmed.wav"
+    strip = (
+        f"silenceremove=start_periods=1:start_duration=0:"
+        f"start_threshold={TRIM_THRESHOLD}:detection=peak"
+    )
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-i", path, "-af", f"{strip},areverse,{strip},areverse",
+         trimmed],
+        check=True,
+    )
+    return trimmed
+
+
 FADE_IN = 0.3
 FADE_OUT = 0.3
 
