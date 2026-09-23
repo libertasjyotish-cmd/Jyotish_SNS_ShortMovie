@@ -97,9 +97,15 @@ export async function exchangeThreadsCode(code: string, redirectUri: string): Pr
     }).toString()}`,
   );
 
+  // The token response carries the profile id as a JSON number, which is past the range JavaScript
+  // can represent exactly, so it is read back from /me where it comes as a string.
+  const me = await request<{ id: string }>(
+    `${API_BASE}/me?fields=id&access_token=${encodeURIComponent(long.access_token)}`,
+  );
+
   return {
     accessToken: long.access_token,
-    userId: String(short.user_id),
+    userId: me.id,
     expiresAt: expiresAt(long.expires_in),
   };
 }
@@ -110,10 +116,15 @@ export class ThreadsService {
   /** Reads the profile back, so a stale 60-day token is found before a posting window. */
   async verifyChannel(channel: Channel): Promise<string> {
     const accessToken = await this.accessTokenFor(channel);
-    const me = await request<{ username?: string }>(
+    const me = await request<{ id?: string; username?: string }>(
       `${API_BASE}/me?fields=id,username&access_token=${encodeURIComponent(accessToken)}`,
     );
     if (!me.username) throw new Error('Threads returned no username');
+    if (me.id && channel.threads_user_id && me.id !== channel.threads_user_id) {
+      throw new Error(
+        `Threads profile id is ${me.id} but the channel row holds ${channel.threads_user_id}`,
+      );
+    }
     return `@${me.username}`;
   }
 

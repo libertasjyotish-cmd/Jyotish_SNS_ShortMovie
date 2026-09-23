@@ -246,25 +246,33 @@ export async function GET(request: Request) {
 
         // Each post id is written as soon as it exists, so a platform failing halfway through -
         // or the function running out of time - still leaves the earlier ones on the row and the
-        // retry posts only what is missing, instead of publishing the same video twice.
+        // retry posts only what is missing, instead of publishing the same video twice. One
+        // platform rejecting the video says nothing about the others, so all of them are attempted.
         const refs: PostedRef[] = [...done];
-        let pending: string | undefined;
+        let errored = false;
+        let waiting = false;
         for (const upload of remaining) {
           try {
             refs.push({ platform: upload.platform, post_id: await upload.run() });
           } catch (uploadError) {
-            if (!(uploadError instanceof PendingTranscodeError)) throw uploadError;
-            pending = uploadError.message;
+            const message = uploadError instanceof Error ? uploadError.message : 'Unknown error';
+            if (uploadError instanceof PendingTranscodeError) {
+              waiting = true;
+              console.log(`${post.task_id} ${upload.platform}: ${message}`);
+            } else {
+              errored = true;
+              console.error(`${post.task_id} ${upload.platform} failed:`, message);
+            }
             continue;
           }
           const complete = refs.length === uploads.length;
           await sheetsService.markPosted(post.task_id, refs, complete ? 'Posted' : 'Error');
         }
 
-        if (pending) {
-          console.log(`${post.task_id}: ${pending}`);
+        if (errored || waiting) {
           await sheetsService.markPosted(post.task_id, refs, 'Error');
-          skipped += 1;
+          if (errored) failed += 1;
+          else skipped += 1;
           continue;
         }
         posted += 1;
