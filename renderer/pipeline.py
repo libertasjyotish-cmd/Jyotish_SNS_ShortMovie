@@ -20,15 +20,15 @@ CHARS_PER_SEGMENT = {"ja": 70, "default": 150}
 MAX_BODY_SEGMENTS = 6
 MIN_BODY_SEGMENTS = 2
 """Lead-in before the narration, so the opening word is never clipped."""
-LEAD_SECONDS = 1.5
+LEAD_SECONDS = 1.0
 """Silence between spoken segments; also the window each body caption swaps in."""
 GAP_SECONDS = 0.5
 """Silent tail after the narration ends."""
 TAIL_SECONDS = 1.6
 """Slightly faster than the synthesized rate; keeps the delivery from dragging."""
 TEMPO = 1.05
-"""How far the speaking rate may be pushed to land inside the target duration."""
-TEMPO_BOUNDS = (0.85, 1.3)
+"""How far the speaking rate may be pushed up to land inside the target duration."""
+TEMPO_BOUNDS = (1.0, 1.3)
 
 
 @dataclass
@@ -70,6 +70,9 @@ def _synthesize(
         path = narrator.synthesize(
             text, request.language, os.path.join(work, f"{name}.mp3"), tempo
         )
+        # The synthesizer pads each clip with silence of its own, which would otherwise
+        # stack on top of GAP_SECONDS and make the delivery drag between sentences.
+        path = video.trim_silence(path)
         clips.append((name, path, video.probe_duration(path)))
     return clips
 
@@ -77,20 +80,20 @@ def _synthesize(
 def _fitted_tempo(request: RenderRequest, speech: float, gaps: float, tempo: float) -> float | None:
     """Speaking rate that lands the video inside its target, or None when it already does.
 
-    Script length varies by 30% between signs, so the rate — not the writer — is what keeps
-    a 65s video above the 60s TikTok monetization threshold.
+    Only ever faster: a short script is stretched by holding the closing frame instead of
+    slowing the voice down, which sounds unnatural well before it reaches the target.
     """
     if request.target_min is None or request.target_max is None:
         return None
     overhead = LEAD_SECONDS + TAIL_SECONDS + gaps
     total = speech + overhead
-    if request.target_min <= total <= request.target_max:
+    if total <= request.target_max:
         return None
     wanted = (request.target_min + request.target_max) / 2 - overhead
     if wanted <= 0:
         return None
     fitted = round(tempo * speech / wanted, 3)
-    return min(max(fitted, TEMPO_BOUNDS[0]), TEMPO_BOUNDS[1])
+    return min(max(fitted, tempo), TEMPO_BOUNDS[1])
 
 
 def _segment_count(request: RenderRequest) -> int:
