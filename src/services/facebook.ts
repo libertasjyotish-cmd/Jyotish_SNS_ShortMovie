@@ -1,4 +1,5 @@
 import { facebookCredentials } from '@/lib/facebook-oauth';
+import { ContainerFailedError } from '@/lib/media-container';
 import { Channel } from './sheets';
 
 const GRAPH_VERSION = 'v21.0';
@@ -6,7 +7,7 @@ const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const RUPLOAD_BASE = `https://rupload.facebook.com/video-upload/${GRAPH_VERSION}`;
 const AUTHORIZE_ENDPOINT = 'https://www.facebook.com/v21.0/dialog/oauth';
 const STATUS_POLL_INTERVAL_MS = 5000;
-const STATUS_POLL_ATTEMPTS = 24;
+const STATUS_POLL_ATTEMPTS = 12;
 
 /** `pages_manage_posts` is what allows publishing a Reel to a page. */
 export const FACEBOOK_SCOPES = [
@@ -118,10 +119,10 @@ export class FacebookService {
   }
 
   /**
-   * Reels use the resumable upload flow: start a session, hand the public video URL to the
-   * upload host, then finish it as PUBLISHED once processing succeeds.
+   * Reels use the resumable upload flow: start a session and hand the public video URL to the
+   * upload host. Facebook then fetches the file on its own, which can outlast a posting run.
    */
-  async uploadVideo(params: FacebookUploadParams): Promise<string> {
+  async createUploadSession(params: FacebookUploadParams): Promise<string> {
     const { pageId, accessToken } = credentials(params.channel);
 
     const session = await graphRequest<{ video_id: string }>(
@@ -141,20 +142,36 @@ export class FacebookService {
       },
     });
 
-    await this.waitUntilFinished(session.video_id, accessToken);
+    return session.video_id;
+  }
 
+  /** Publishing is what starts transcoding, so only the upload phase is awaited here. */
+  async waitUntilUploaded(channel: Channel, videoId: string): Promise<boolean> {
+    const { accessToken } = credentials(channel);
+    for (let attempt = 0; attempt < STATUS_POLL_ATTEMPTS; attempt += 1) {
+      if (await this.isUploaded(videoId, accessToken)) return true;
+      await sleep(STATUS_POLL_INTERVAL_MS);
+    }
+    return false;
+  }
+
+  async publishVideo(
+    channel: Channel,
+    videoId: string,
+    description: string,
+  ): Promise<string> {
+    const { pageId, accessToken } = credentials(channel);
     await graphRequest<{ success?: boolean }>(
       `${GRAPH_BASE}/${pageId}/video_reels?${new URLSearchParams({
         upload_phase: 'finish',
-        video_id: session.video_id,
+        video_id: videoId,
         video_state: 'PUBLISHED',
-        description: params.description.slice(0, 2200),
+        description: description.slice(0, 2200),
         access_token: accessToken,
       }).toString()}`,
       { method: 'POST' },
     );
-
-    return session.video_id;
+    return videoId;
   }
 
   /** Takes down a reading whose week has passed; the video node is deleted with the page token. */
@@ -166,24 +183,15 @@ export class FacebookService {
     );
   }
 
-  private async waitUntilFinished(videoId: string, accessToken: string): Promise<void> {
-    for (let attempt = 0; attempt < STATUS_POLL_ATTEMPTS; attempt += 1) {
-      const status = await graphRequest<{
-        status?: {
-          uploading_phase?: { status?: string };
-          processing_phase?: { status?: string };
-        };
-      }>(`${GRAPH_BASE}/${videoId}?fields=status&access_token=${encodeURIComponent(accessToken)}`);
+  private async isUploaded(videoId: string, accessToken: string): Promise<boolean> {
+    const status = await graphRequest<{
+      status?: { uploading_phase?: { status?: string } };
+    }>(`${GRAPH_BASE}/${videoId}?fields=status&access_token=${encodeURIComponent(accessToken)}`);
 
-      const uploading = status.status?.uploading_phase?.status;
-      const processing = status.status?.processing_phase?.status;
-      if (uploading === 'error' || processing === 'error') {
-        throw new Error(`Facebook Reel ${videoId} failed during upload or processing`);
-      }
-      if (uploading === 'complete' && processing === 'complete') return;
-      await sleep(STATUS_POLL_INTERVAL_MS);
+    const uploading = status.status?.uploading_phase?.status;
+    if (uploading === 'error') {
+      throw new ContainerFailedError(`Facebook Reel ${videoId} failed during upload`);
     }
-
-    throw new Error(`Facebook Reel ${videoId} was not ready in time`);
+    return uploading === 'complete';
   }
 }
