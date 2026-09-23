@@ -234,18 +234,31 @@ export async function GET(request: Request) {
 
         if (isConnected(facebookChannel) && renderOutput?.video_url_30s) {
           const videoUrl = renderOutput.video_url_30s;
+          const description = buildDescription({
+            lang: post.lang_code,
+            body: script30s.hook_text,
+            hashtags: scriptOutput.hashtags,
+            period,
+          });
           uploads.push({
             platform: 'Facebook',
             run: () =>
-              facebookService.uploadVideo({
-                channel: facebookChannel,
-                description: buildDescription({
-                  lang: post.lang_code,
-                  body: script30s.hook_text,
-                  hashtags: scriptOutput.hashtags,
-                  period,
-                }),
-                videoUrl,
+              postViaContainer({
+                sheetsService,
+                task: post,
+                platform: 'Facebook',
+                uploader: {
+                  createContainer: () =>
+                    facebookService.createUploadSession({
+                      channel: facebookChannel,
+                      description,
+                      videoUrl,
+                    }),
+                  waitUntilFinished: (videoId) =>
+                    facebookService.waitUntilUploaded(facebookChannel, videoId),
+                  publishContainer: (videoId) =>
+                    facebookService.publishVideo(facebookChannel, videoId, description),
+                },
               }),
           });
         }

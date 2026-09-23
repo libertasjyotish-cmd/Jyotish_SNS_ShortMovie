@@ -83,6 +83,7 @@ const EXPIRED_AT_COLUMN = 'expired_at';
 const CONTAINER_COLUMNS = {
   Instagram: 'ig_container_id',
   Threads: 'threads_container_id',
+  Facebook: 'fb_video_id',
 } as const;
 
 export type ContainerPlatform = keyof typeof CONTAINER_COLUMNS;
@@ -429,6 +430,7 @@ export class GoogleSheetsService {
       container_ids: {
         Instagram: values[CONTAINER_COLUMNS.Instagram] || undefined,
         Threads: values[CONTAINER_COLUMNS.Threads] || undefined,
+        Facebook: values[CONTAINER_COLUMNS.Facebook] || undefined,
       },
     };
   }
