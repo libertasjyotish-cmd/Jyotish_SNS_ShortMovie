@@ -4,8 +4,8 @@ import { Channel } from './sheets';
 const GRAPH_VERSION = 'v21.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const STATUS_POLL_INTERVAL_MS = 5000;
-/** Instagram transcodes a 30s Reel in about two minutes, and longer for a 65s one. */
-const STATUS_POLL_ATTEMPTS = 36;
+/** Only a grace period: a container that is still transcoding is published by a later run. */
+const STATUS_POLL_ATTEMPTS = 12;
 
 export interface InstagramUploadParams {
   channel: Channel;
@@ -30,6 +30,21 @@ async function graphRequest<T>(url: string, init?: RequestInit): Promise<T> {
     );
   }
   return payload;
+}
+
+/** A container Instagram will never finish; the video has to be handed over again. */
+export class ContainerFailedError extends Error {}
+
+/** Instagram is still transcoding; the Reel goes live on a later run, nothing is lost. */
+export class PendingTranscodeError extends Error {}
+
+function credentials(channel: Channel): { accessToken: string; igUserId: string } {
+  const accessToken = channel.ig_access_token;
+  const igUserId = channel.ig_user_id;
+  if (!accessToken || !igUserId) {
+    throw new Error(`Missing ig_access_token / ig_user_id for channel "${channel.channel_id}"`);
+  }
+  return { accessToken, igUserId };
 }
 
 export class InstagramService {
@@ -64,17 +79,12 @@ export class InstagramService {
   }
 
   /**
-   * Reels are published in two steps: create a media container from the video
-   * URL, wait until Instagram finishes downloading it, then publish it.
+   * Hands the rendered video to Instagram, which downloads and transcodes it on its own
+   * servers. That can take several minutes, so the container id is returned instead of waited
+   * on: the caller stores it and publishes once {@link containerStatus} reports FINISHED.
    */
-  async uploadVideo(params: InstagramUploadParams): Promise<string> {
-    const accessToken = params.channel.ig_access_token;
-    const igUserId = params.channel.ig_user_id;
-    if (!accessToken || !igUserId) {
-      throw new Error(
-        `Missing ig_access_token / ig_user_id for channel "${params.channel.channel_id}"`,
-      );
-    }
+  async createContainer(params: InstagramUploadParams): Promise<string> {
+    const { accessToken, igUserId } = credentials(params.channel);
 
     const container = await graphRequest<{ id: string }>(`${GRAPH_BASE}/${igUserId}/media`, {
       method: 'POST',
@@ -88,33 +98,43 @@ export class InstagramService {
       }),
     });
 
-    await this.waitUntilFinished(container.id, accessToken);
+    return container.id;
+  }
 
+  /** Throws when Instagram gave up on the container, so the caller creates a new one. */
+  async containerStatus(channel: Channel, containerId: string): Promise<'FINISHED' | 'PENDING'> {
+    const { accessToken } = credentials(channel);
+    const status = await graphRequest<{ status_code?: string; status?: string }>(
+      `${GRAPH_BASE}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`,
+    );
+
+    if (status.status_code === 'FINISHED') return 'FINISHED';
+    if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') {
+      throw new ContainerFailedError(
+        `Instagram media container ${containerId} failed: ${status.status}`,
+      );
+    }
+    return 'PENDING';
+  }
+
+  /** Polls for the short grace period a posting run can afford before it has to move on. */
+  async waitUntilFinished(channel: Channel, containerId: string): Promise<boolean> {
+    const attempts = Number(optionalEnv('INSTAGRAM_STATUS_POLL_ATTEMPTS')) || STATUS_POLL_ATTEMPTS;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if ((await this.containerStatus(channel, containerId)) === 'FINISHED') return true;
+      await sleep(STATUS_POLL_INTERVAL_MS);
+    }
+    return false;
+  }
+
+  async publishContainer(channel: Channel, containerId: string): Promise<string> {
+    const { accessToken, igUserId } = credentials(channel);
     const published = await graphRequest<{ id: string }>(`${GRAPH_BASE}/${igUserId}/media_publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ creation_id: container.id, access_token: accessToken }),
+      body: JSON.stringify({ creation_id: containerId, access_token: accessToken }),
     });
 
     return published.id;
-  }
-
-  private async waitUntilFinished(containerId: string, accessToken: string): Promise<void> {
-    const attempts = Number(optionalEnv('INSTAGRAM_STATUS_POLL_ATTEMPTS')) || STATUS_POLL_ATTEMPTS;
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      const status = await graphRequest<{ status_code?: string; status?: string }>(
-        `${GRAPH_BASE}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`,
-      );
-
-      if (status.status_code === 'FINISHED') return;
-      if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') {
-        throw new Error(`Instagram media container ${containerId} failed: ${status.status}`);
-      }
-      await sleep(STATUS_POLL_INTERVAL_MS);
-    }
-
-    throw new Error(
-      `Instagram media container ${containerId} was not ready in ${(attempts * STATUS_POLL_INTERVAL_MS) / 1000}s`,
-    );
   }
 }
