@@ -97,6 +97,7 @@ export async function GET(request: Request) {
             ),
           );
 
+        const done: PostedRef[] = post.posted_refs ?? [];
         const uploads: { platform: Platform; run: () => Promise<string> }[] = [];
         if (isConnected(youtubeChannel) && renderOutput?.video_url_30s) {
           const videoUrl = renderOutput.video_url_30s;
@@ -170,8 +171,18 @@ export async function GET(request: Request) {
           });
         }
 
+        const remaining = uploads.filter(
+          (upload) => !done.some((ref) => ref.platform === upload.platform),
+        );
+
         if (uploads.length === 0) {
           throw new Error(`No connected platform with a rendered video for ${post.task_id}`);
+        }
+
+        if (remaining.length === 0) {
+          await sheetsService.markPosted(post.task_id, done);
+          posted += 1;
+          continue;
         }
 
         if (!isDispatchEnabledFor(post.lang_code)) {
@@ -180,12 +191,15 @@ export async function GET(request: Request) {
           continue;
         }
 
-        const refs: PostedRef[] = [];
-        for (const upload of uploads) {
+        // Each post id is written as soon as it exists, so a platform failing halfway through -
+        // or the function running out of time - still leaves the earlier ones on the row and the
+        // retry posts only what is missing, instead of publishing the same video twice.
+        const refs: PostedRef[] = [...done];
+        for (const upload of remaining) {
           refs.push({ platform: upload.platform, post_id: await upload.run() });
+          const complete = refs.length === uploads.length;
+          await sheetsService.markPosted(post.task_id, refs, complete ? 'Posted' : 'Error');
         }
-
-        await sheetsService.markPosted(post.task_id, refs);
         posted += 1;
       } catch (taskError) {
         failed += 1;

@@ -57,6 +57,8 @@ export interface ContentQueue {
   render_attempts_65s: number;
   post_status: PostStatus;
   scheduled_post_time: string;
+  /** Platforms this task already went live on; a retry skips them. */
+  posted_refs?: PostedRef[];
 }
 
 /** A live post, kept so the reading can be taken down once its week is over. */
@@ -200,6 +202,16 @@ function toNumber(value: string | undefined): number | undefined {
   if (value === undefined || value === '') return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parsePostedRefs(value: string | undefined): PostedRef[] | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as PostedRef[];
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export class GoogleSheetsService {
@@ -404,6 +416,7 @@ export class GoogleSheetsService {
       render_attempts_65s: toNumber(values.render_attempts_65s) ?? 0,
       post_status: (values.post_status || 'Pending') as PostStatus,
       scheduled_post_time: values.scheduled_post_time,
+      posted_refs: parsePostedRefs(values[POSTED_REFS_COLUMN]),
     };
   }
 
@@ -669,10 +682,18 @@ export class GoogleSheetsService {
     };
   }
 
+  /**
+   * Tasks still owed a post. `Error` rows come back too: a run that posted to some platforms and
+   * then failed stores what it did in `posted_refs`, so the next run finishes the rest.
+   */
   async getPendingPosts(): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows
-      .filter((row) => row.values.task_id && (row.values.post_status || 'Pending') === 'Pending')
+      .filter(
+        (row) =>
+          row.values.task_id &&
+          ['Pending', 'Error'].includes(row.values.post_status || 'Pending'),
+      )
       .filter(
         (row) =>
           row.values.render_status_30s === 'Rendered' &&
@@ -688,12 +709,16 @@ export class GoogleSheetsService {
     });
   }
 
-  /** Stores where the reading went live, so it can be retired when its week is over. */
-  async markPosted(taskId: string, refs: PostedRef[]): Promise<void> {
+  /**
+   * Stores where the reading went live, so it can be retired when its week is over. A partial set
+   * of refs is saved with status `Error`, which keeps the platforms already posted to out of the
+   * retry instead of publishing them twice.
+   */
+  async markPosted(taskId: string, refs: PostedRef[], status: PostStatus = 'Posted'): Promise<void> {
     await this.ensureColumns(SHEET_NAMES.contentQueue, [POSTED_REFS_COLUMN, EXPIRED_AT_COLUMN]);
     const row = await this.findQueueRow(taskId);
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
-      post_status: 'Posted',
+      post_status: status,
       [POSTED_REFS_COLUMN]: JSON.stringify(refs),
     });
   }
