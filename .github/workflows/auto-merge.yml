@@ -35,11 +35,12 @@ jobs:
             if [ "$state" = "BLOCKED" ] || [ "$state" = "DIRTY" ] || [ "$state" = "BEHIND" ]; then
               continue
             fi
-            if ! gh pr checks "$pr" --required 2>/dev/null; then
-              if ! gh pr checks "$pr"; then
-                echo "PR #$pr: checks not green yet"
-                continue
-              fi
+            # This job is itself a pending check on the PR, so it is left out of the verdict.
+            pending=$(gh pr checks "$pr" --json name,state \
+              --jq '[.[] | select(.name != "merge") | select(.state != "SUCCESS" and .state != "SKIPPED" and .state != "NEUTRAL")] | length')
+            if [ "$pending" != "0" ]; then
+              echo "PR #$pr: checks not green yet"
+              continue
             fi
             gh pr merge "$pr" --squash --delete-branch
           done

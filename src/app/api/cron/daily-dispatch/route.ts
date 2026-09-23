@@ -6,7 +6,11 @@ import { weekPeriodLabel } from '@/lib/period';
 import { runWatchdog } from '@/lib/watchdog-run';
 import { FacebookService } from '@/services/facebook';
 import { GeneratedScript } from '@/services/gemini';
-import { InstagramService } from '@/services/instagram';
+import {
+  ContainerFailedError,
+  InstagramService,
+  PendingTranscodeError,
+} from '@/services/instagram';
 import { Channel, ContentQueue, GoogleSheetsService, Platform, PostedRef } from '@/services/sheets';
 import { ThreadsService } from '@/services/threads';
 import { YouTubeService } from '@/services/youtube';
@@ -56,6 +60,52 @@ function buildTitle(task: ContentQueue, script: GeneratedScript, period?: string
   const subject = task.zodiac_sign || task.target_type.replace('_', ' ');
   const prefix = period ? `${subject} ${period}: ` : '';
   return `${prefix}${script.hook_text || subject} | Libertas Jyotish`.slice(0, 100);
+}
+
+/**
+ * Instagram downloads and transcodes the Reel on its own servers, which regularly outlasts a
+ * posting run. The container id is stored before waiting, so a run that gives up costs nothing:
+ * the next one publishes that same container instead of handing the video over again.
+ */
+async function postInstagramReel(args: {
+  sheetsService: GoogleSheetsService;
+  instagramService: InstagramService;
+  task: ContentQueue;
+  channel: Channel;
+  caption: string;
+  videoUrl: string;
+}): Promise<string> {
+  const { sheetsService, instagramService, task, channel } = args;
+  let containerId = task.ig_container_id;
+
+  if (!containerId) {
+    containerId = await instagramService.createContainer({
+      channel,
+      caption: args.caption,
+      videoUrl: args.videoUrl,
+    });
+    await sheetsService.setInstagramContainer(task.task_id, containerId);
+  }
+
+  let ready: boolean;
+  try {
+    ready = await instagramService.waitUntilFinished(channel, containerId);
+  } catch (error) {
+    if (error instanceof ContainerFailedError) {
+      await sheetsService.setInstagramContainer(task.task_id, '');
+    }
+    throw error;
+  }
+
+  if (!ready) {
+    throw new PendingTranscodeError(
+      `Instagram is still transcoding container ${containerId}; a later run publishes it`,
+    );
+  }
+
+  const mediaId = await instagramService.publishContainer(channel, containerId);
+  await sheetsService.setInstagramContainer(task.task_id, '');
+  return mediaId;
 }
 
 export async function GET(request: Request) {
@@ -122,7 +172,10 @@ export async function GET(request: Request) {
           uploads.push({
             platform: 'Instagram',
             run: () =>
-              instagramService.uploadVideo({
+              postInstagramReel({
+                sheetsService,
+                instagramService,
+                task: post,
                 channel: instagramChannel,
                 caption: buildDescription({
                   lang: post.lang_code,
@@ -195,10 +248,24 @@ export async function GET(request: Request) {
         // or the function running out of time - still leaves the earlier ones on the row and the
         // retry posts only what is missing, instead of publishing the same video twice.
         const refs: PostedRef[] = [...done];
+        let pending: string | undefined;
         for (const upload of remaining) {
-          refs.push({ platform: upload.platform, post_id: await upload.run() });
+          try {
+            refs.push({ platform: upload.platform, post_id: await upload.run() });
+          } catch (uploadError) {
+            if (!(uploadError instanceof PendingTranscodeError)) throw uploadError;
+            pending = uploadError.message;
+            continue;
+          }
           const complete = refs.length === uploads.length;
           await sheetsService.markPosted(post.task_id, refs, complete ? 'Posted' : 'Error');
+        }
+
+        if (pending) {
+          console.log(`${post.task_id}: ${pending}`);
+          await sheetsService.markPosted(post.task_id, refs, 'Error');
+          skipped += 1;
+          continue;
         }
         posted += 1;
       } catch (taskError) {
