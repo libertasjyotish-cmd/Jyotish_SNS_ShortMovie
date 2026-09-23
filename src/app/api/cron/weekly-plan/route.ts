@@ -95,7 +95,15 @@ export async function GET(request: Request) {
     const sheets = new GoogleSheetsService();
     const weekStart = nextWeekStart(new Date());
     const weekId = isoWeekId(weekStart);
-    const existing = new Set((await sheets.getQueueTasks(weekId)).map((task) => task.task_id));
+    const plannedTasks = await sheets.getQueueTasks(weekId);
+    const existing = new Set(plannedTasks.map((task) => task.task_id));
+    // A theme slot carries a rotating script id, so its task id differs on every run;
+    // the slot itself is what must stay unique.
+    const filledThemeSlots = new Set(
+      plannedTasks
+        .filter((task) => task.target_type === 'Theme' || task.target_type === 'Promo')
+        .map((task) => `${task.lang_code}/${task.day_of_week}`),
+    );
 
     const recompute = new URL(request.url).searchParams.get('recompute') === '1';
     const storedTransit = await sheets.getWeeklyTransits(weekId);
@@ -115,6 +123,8 @@ export async function GET(request: Request) {
       const taken = new Set<string>();
 
       for (const day of THEME_DAYS) {
+        if (filledThemeSlots.has(`${lang}/${day}`)) continue;
+
         const promo = promoEnabled() && day === PROMO_DAY;
         const theme = pickScript(themes, day, taken, promo);
         if (!theme) {
