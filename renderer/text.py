@@ -42,6 +42,29 @@ def split_sentences(text: str) -> list[str]:
     return [part.strip() for part in SENTENCE_END.split(text) if part.strip()]
 
 
+def split_for_speech(text: str, limit: int) -> list[str]:
+    """Pieces short enough for the speech API, which rejects an over-long sentence.
+
+    Text within the limit is left whole, since each piece is synthesized on its own and
+    carries its own padding. Commas are preferred cut points, so the pause the pieces leave
+    behind falls where the voice would have paused anyway.
+    """
+    if len(text) <= limit:
+        return [text]
+
+    pieces: list[str] = []
+    for sentence in split_sentences(text) or [text]:
+        queue = [sentence]
+        while queue:
+            part = queue.pop(0)
+            if len(part) <= limit:
+                pieces.append(part)
+                continue
+            split = _split_at_comma(part)
+            queue[:0] = list(split) if split else [part[:limit], part[limit:]]
+    return [piece for piece in pieces if piece]
+
+
 def _split_at_comma(sentence: str) -> tuple[str, str] | None:
     positions = [i for i, ch in enumerate(sentence) if ch in COMMAS]
     if not positions:
