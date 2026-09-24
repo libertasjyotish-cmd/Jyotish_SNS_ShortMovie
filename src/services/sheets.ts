@@ -21,6 +21,10 @@ export interface Channel {
   /** Per-language OAuth client, so each language gets its own YouTube API quota. */
   youtube_client_id?: string;
   youtube_client_secret?: string;
+  /** Playlist that collects the weekly sign readings of this channel. */
+  youtube_playlist_weekly?: string;
+  /** Playlist that collects the evergreen theme videos of this channel. */
+  youtube_playlist_theme?: string;
   tiktok_access_token?: string;
   tiktok_refresh_token?: string;
   /** ISO timestamp at which `tiktok_access_token` expires. */
@@ -810,6 +814,8 @@ export class GoogleSheetsService {
       youtube_refresh_token: row.values.youtube_refresh_token || undefined,
       youtube_client_id: row.values.youtube_client_id || undefined,
       youtube_client_secret: row.values.youtube_client_secret || undefined,
+      youtube_playlist_weekly: row.values.youtube_playlist_weekly || undefined,
+      youtube_playlist_theme: row.values.youtube_playlist_theme || undefined,
       tiktok_access_token: row.values.tiktok_access_token || undefined,
       tiktok_refresh_token: row.values.tiktok_refresh_token || undefined,
       tiktok_token_expires_at: row.values.tiktok_token_expires_at || undefined,
