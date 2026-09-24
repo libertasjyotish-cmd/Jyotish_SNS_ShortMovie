@@ -36,8 +36,9 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** `no-store` keeps Next from serving a cached upload status, which never leaves processing. */
 async function graphRequest<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await fetch(url, { cache: 'no-store', ...init });
   const payload = (await response.json()) as T & GraphError;
   if (!response.ok || payload.error) {
     throw new Error(
