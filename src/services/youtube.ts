@@ -1,10 +1,12 @@
 import { Readable } from 'stream';
 import { google } from 'googleapis';
 import { optionalEnv, requireEnv } from '@/lib/env';
-import { Channel } from './sheets';
+import { VIDEO_TAGS } from '@/lib/youtube-seo';
+import { Channel, Language } from './sheets';
 
 export interface YouTubeUploadParams {
   channel: Channel;
+  lang: Language;
   title: string;
   description: string;
   videoUrl: string;
@@ -55,10 +57,17 @@ export class YouTubeService {
           title: params.title,
           description: params.description,
           categoryId: '22',
+          tags: VIDEO_TAGS[params.lang],
+          // Without both, YouTube treats the upload as English and offers no translated metadata.
+          defaultLanguage: params.lang,
+          defaultAudioLanguage: params.lang,
         },
         status: {
           privacyStatus: privacyStatus(),
           selfDeclaredMadeForKids: false,
+          embeddable: true,
+          publicStatsViewable: true,
+          license: 'youtube',
         },
       },
       media: {
