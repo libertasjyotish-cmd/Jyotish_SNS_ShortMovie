@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
-import { buildDescription } from '@/lib/cta';
+import { buildDescription, YOUTUBE_COMMENT } from '@/lib/cta';
 import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
 import { weekPeriodLabel } from '@/lib/period';
@@ -64,6 +64,38 @@ function buildTitle(task: ContentQueue, script: GeneratedScript, period?: string
   const subject = task.zodiac_sign || task.target_type.replace('_', ' ');
   const prefix = period ? `${subject} ${period}: ` : '';
   return `${prefix}${script.hook_text || subject} | Libertas Jyotish`.slice(0, 100);
+}
+
+/**
+ * In-channel follow-ups that must never cost the post itself: the upload joins the playlist of
+ * its slot so viewers can walk the rest of the channel, and the site link is repeated as a
+ * comment because Shorts hide the description. Either failing leaves the video published.
+ */
+async function addChannelSurfaces(args: {
+  youtubeService: YouTubeService;
+  channel: Channel;
+  task: ContentQueue;
+  videoId: string;
+}): Promise<void> {
+  const { youtubeService, channel, task, videoId } = args;
+  const playlistId =
+    task.target_type === 'Zodiac_Sign'
+      ? channel.youtube_playlist_weekly
+      : channel.youtube_playlist_theme;
+  if (playlistId) {
+    try {
+      await youtubeService.addToPlaylist(channel, playlistId, videoId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`${task.task_id} playlist ${playlistId} failed:`, message);
+    }
+  }
+  try {
+    await youtubeService.postComment(channel, videoId, YOUTUBE_COMMENT[task.lang_code]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`${task.task_id} comment failed:`, message);
+  }
 }
 
 /** The two-step upload Instagram and Threads share: hand over the video, then publish it. */
@@ -158,8 +190,8 @@ export async function GET(request: Request) {
           const videoUrl = renderOutput.video_url_30s;
           uploads.push({
             platform: 'YouTube',
-            run: () =>
-              youtubeService.uploadVideo({
+            run: async () => {
+              const videoId = await youtubeService.uploadVideo({
                 channel: youtubeChannel,
                 title: buildTitle(post, script30s, period),
                 description: buildDescription({
@@ -169,7 +201,15 @@ export async function GET(request: Request) {
                   period,
                 }),
                 videoUrl,
-              }),
+              });
+              await addChannelSurfaces({
+                youtubeService,
+                channel: youtubeChannel,
+                task: post,
+                videoId,
+              });
+              return videoId;
+            },
           });
         }
         if (isConnected(instagramChannel) && renderOutput?.video_url_30s) {

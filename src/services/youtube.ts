@@ -72,6 +72,34 @@ export class YouTubeService {
     return videoId;
   }
 
+  /** Playlists are the only in-channel navigation Shorts support, so every upload joins one. */
+  async addToPlaylist(channel: Channel, playlistId: string, videoId: string): Promise<void> {
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    await youtube.playlistItems.insert({
+      part: ['snippet'],
+      requestBody: {
+        snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } },
+      },
+    });
+  }
+
+  /**
+   * Shorts hide the description, so the site link is repeated as a comment. Pinning it needs
+   * YouTube Studio: the API exposes no pin, and the channel owner's comment sorts to the top.
+   */
+  async postComment(channel: Channel, videoId: string, text: string): Promise<string> {
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    const result = await youtube.commentThreads.insert({
+      part: ['snippet'],
+      requestBody: {
+        snippet: { videoId, topLevelComment: { snippet: { textOriginal: text } } },
+      },
+    });
+    const commentId = result.data.id;
+    if (!commentId) throw new Error('YouTube comment returned no id');
+    return commentId;
+  }
+
   /**
    * Hides a reading whose week has passed. The video is made private rather than deleted, so
    * the channel keeps its watch history and the file can be brought back if needed.

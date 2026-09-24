@@ -143,6 +143,20 @@ TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすた�
 | `lang_code` | `ja` |
 | `account_handle` | `@jyotish_ja` |
 
+## 3.1 YouTube チャンネル側の設定
+
+投稿以外のチャンネル設定は API で行う。必要なスコープは
+`youtube.upload` / `youtube.readonly` / `youtube` / `youtube.force-ssl` の 4 つで、
+`youtube` が無いと再生リスト作成、`youtube.force-ssl` が無いとコメント投稿が
+403 `insufficientPermissions` になる。
+
+| 項目 | 状態 |
+| --- | --- |
+| 子供向け設定 | アップロード時に `selfDeclaredMadeForKids: false` を送信。チャンネル側も指定なし |
+| チャンネルキーワード | 言語別に設定済み |
+| 再生リスト | 言語ごとに「週次の月星座」「基礎解説」の 2 本。ID は `Channels` シートの `youtube_playlist_weekly` / `youtube_playlist_theme` |
+| 固定コメント | 投稿直後に `commentThreads.insert` でサイト URL 付きのコメントを投稿する。ピン留めは API に無く、YouTube Studio の操作が必要 |
+
 ## 4. 進め方の目安
 
 18 アカウントを一度に作ると、同一 IP・同一端末からの連続作成で凍結されやすい。
