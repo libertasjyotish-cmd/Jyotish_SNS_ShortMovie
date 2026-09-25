@@ -5,6 +5,7 @@ import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/li
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
 import { weekPeriodLabel } from '@/lib/period';
 import { runWatchdog } from '@/lib/watchdog-run';
+import { buildYouTubeTitle } from '@/lib/youtube-seo';
 import { FacebookService } from '@/services/facebook';
 import { GeneratedScript } from '@/services/gemini';
 import { InstagramService } from '@/services/instagram';
@@ -58,12 +59,6 @@ function postPeriod(task: ContentQueue): string | undefined {
   return task.target_type === 'Zodiac_Sign'
     ? weekPeriodLabel(task.week_id, task.lang_code)
     : undefined;
-}
-
-function buildTitle(task: ContentQueue, script: GeneratedScript, period?: string): string {
-  const subject = task.zodiac_sign || task.target_type.replace('_', ' ');
-  const prefix = period ? `${subject} ${period}: ` : '';
-  return `${prefix}${script.hook_text || subject} | Libertas Jyotish`.slice(0, 100);
 }
 
 /**
@@ -193,7 +188,13 @@ export async function GET(request: Request) {
             run: async () => {
               const videoId = await youtubeService.uploadVideo({
                 channel: youtubeChannel,
-                title: buildTitle(post, script30s, period),
+                lang: post.lang_code,
+                title: buildYouTubeTitle({
+                  lang: post.lang_code,
+                  zodiacSign: post.zodiac_sign,
+                  hook: script30s.hook_text,
+                  period,
+                }),
                 description: buildDescription({
                   lang: post.lang_code,
                   body: script30s.body_script,

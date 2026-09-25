@@ -156,6 +156,9 @@ TikTok だけ 65s 版なのは、収益化条件（60 秒超）を満たすた�
 | チャンネルキーワード | 言語別に設定済み |
 | 再生リスト | 言語ごとに「週次の月星座」「基礎解説」の 2 本。ID は `Channels` シートの `youtube_playlist_weekly` / `youtube_playlist_theme` |
 | 固定コメント | 投稿直後に `commentThreads.insert` でサイト URL 付きのコメントを投稿する。ピン留めは API に無く、YouTube Studio の操作が必要 |
+| 詳細設定 | `brandingSettings.channel` の `country`（ja=JP / en=US / es=MX / pt=BR / id=ID / ar=AE / fr=FR / de=DE）と `defaultLanguage` を言語別に設定済み |
+| 動画メタデータ | アップロード時に `tags`・`defaultLanguage`・`defaultAudioLanguage`・`embeddable`・`publicStatsViewable` を送信（`src/lib/youtube-seo.ts`） |
+| タイトル | 検索語を先頭に置く（星座別は「星座＋週間の検索語＋期間」、テーマは言語別の「インド占星術」相当）。ブランド名は 100 文字に収まる場合だけ末尾に付く |
 
 ## 4. 進め方の目安
 
