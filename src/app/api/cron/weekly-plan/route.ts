@@ -11,6 +11,7 @@ import {
   scheduledPostTime,
   THEME_DAYS,
   ZODIAC_DAYS,
+  zodiacPostWeekStart,
 } from '@/lib/schedule';
 import {
   ContentQueue,
@@ -80,8 +81,8 @@ function baseTask(
 }
 
 /**
- * Fills next week's `Content_Queue`: evergreen themes Monday to Thursday, then the
- * twelve Moon-sign readings spread over Friday to Sunday, and computes the week's
+ * Fills next week's `Content_Queue`: evergreen themes Monday to Thursday of that week, then
+ * the twelve Moon-sign readings spread over the Friday to Sunday before it, and computes the week's
  * transit reference the readings are written from. Re-running is safe; tasks that
  * already exist for the week are skipped and an existing transit row is kept, so a
  * manually corrected reference survives. `?recompute=1` overwrites it.
@@ -150,7 +151,7 @@ export async function GET(request: Request) {
         for (let slot = 0; slot < signs.length; slot += 1) {
           const sign = signs[slot];
           const task: ContentQueue = {
-            ...baseTask(weekId, day, weekStart, lang, slot),
+            ...baseTask(weekId, day, zodiacPostWeekStart(weekStart), lang, slot),
             task_id: `${weekId}-${lang}-${sign.toLowerCase()}`,
             target_type: 'Zodiac_Sign',
             zodiac_sign: sign,

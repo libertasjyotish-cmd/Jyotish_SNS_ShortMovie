@@ -9,13 +9,12 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 const MS_PER_DAY = 86_400_000;
-/** Same grace as `/api/cron/expire-weekly`, so both jobs consider the same posts expired. */
-const GRACE_DAYS = 1;
 
+/** Same cutoff as `/api/cron/expire-weekly`, so both jobs consider the same posts expired. */
 function weekEnded(weekId: string): boolean {
   const start = weekStartFromId(weekId);
   if (!start) return false;
-  return start.getTime() + (7 + GRACE_DAYS) * MS_PER_DAY <= Date.now();
+  return start.getTime() + 7 * MS_PER_DAY <= Date.now();
 }
 
 /** The retirement job runs unattended, so CRON_SECRET works here as well as the admin token. */
