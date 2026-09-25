@@ -33,7 +33,8 @@ function isDue(scheduledPostTime: string, now: Date): boolean {
 }
 
 /**
- * Platforms are onboarded one at a time, so a channel row without credentials is skipped.
+ * Platforms are onboarded one at a time, so a channel row without credentials is skipped, and a
+ * row held back by `posting_paused_until` keeps its credentials but publishes nothing until then.
  *
  * TikTok is never dispatched: the Content Posting API app was rejected because TikTok does not
  * grant production access to apps that only publish to their own account, so its videos are
@@ -41,6 +42,9 @@ function isDue(scheduledPostTime: string, now: Date): boolean {
  */
 function isConnected(channel: Channel | null): channel is Channel {
   if (!channel) return false;
+  if (channel.posting_paused_until && Date.now() < Date.parse(channel.posting_paused_until)) {
+    return false;
+  }
   switch (channel.platform) {
     case 'YouTube':
       return Boolean(channel.youtube_refresh_token);
