@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { optionalEnv, requireEnv } from '@/lib/env';
 import { weekPeriodLabel, weekPeriodSpoken } from '@/lib/period';
+import { zodiacName } from '@/lib/zodiac-names';
 import { Language, TargetType } from './sheets';
 
 const DEFAULT_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
@@ -233,6 +234,10 @@ function buildPrompt(request: GenerationRequest): string {
       ? `people whose sidereal Moon sign is ${request.zodiac_sign}`
       : 'viewers of every Moon sign';
   const period = weekPeriodLabel(request.week_id, request.lang_code);
+  const localSign =
+    request.target_type === 'Zodiac_Sign'
+      ? zodiacName(request.zodiac_sign, request.lang_code)
+      : undefined;
   const spokenPeriod =
     request.target_type === 'Zodiac_Sign'
       ? weekPeriodSpoken(request.week_id, request.lang_code)
@@ -268,7 +273,10 @@ function buildPrompt(request: GenerationRequest): string {
     request.target_type === 'Zodiac_Sign'
       ? `16. This reading is for the sidereal Moon sign ${request.zodiac_sign}, which is usually not the sign the viewer knows from Western astrology, so cta_text says in one clause that the sign meant here is the Moon sign of Indian astrology and that the viewer can check their own free through the link, before or inside part (c) of rule 12.`
       : '16. This video is for every Moon sign, so never tell the viewer to look up which sign they are.',
-    '17. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
+    localSign
+      ? `17. Twelve readings are published the same week and a viewer scrolling past has seconds to tell whether this one is theirs, so the sign is said out loud, written exactly as "${localSign}", in hook_text or in the first sentence of body_script.`
+      : '17. This video belongs to no single sign, so never name one.',
+    '18. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
     profile.note ?? '',
