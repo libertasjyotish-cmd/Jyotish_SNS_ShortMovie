@@ -88,6 +88,9 @@ def build(
     chain.append(
         "".join(f"[a{index}]" for index in range(len(audio)))
         + f"amix=inputs={len(audio)}:normalize=0:duration=longest,"
+        # Cloud TTS output sits around -24 LUFS, far below the -14 LUFS social platforms
+        # play back at, so the narration sounds silent next to other posts.
+        "loudnorm=I=-14:TP=-1.5:LRA=11,"
         # `apad` needs an explicit length: with ffmpeg 7 an unbounded pad followed by
         # `atrim` yields a stream that ends at the first delay instead of `total`.
         f"apad=whole_dur={total},atrim=duration={total},aresample=48000[aout]"
