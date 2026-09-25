@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminTokenMatches, isAdminAuthorized } from '@/lib/admin-auth';
+import { isCronAuthorized } from '@/lib/auth';
 import { THREADS_STATE_COOKIE, threadsRedirectUri } from '@/lib/threads-oauth';
 import { GoogleSheetsService, Language } from '@/services/sheets';
 import { threadsAuthorizeUrl } from '@/services/threads';
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   /** Consent must run in a browser profile per Threads account, where signing in first is fragile. */
   const token = req.nextUrl.searchParams.get('token') ?? '';
-  if (!isAdminAuthorized(req) && !adminTokenMatches(token)) {
+  if (!isAdminAuthorized(req) && !adminTokenMatches(token) && !isCronAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
