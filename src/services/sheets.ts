@@ -174,6 +174,8 @@ export const SHEET_NAMES = {
 
 type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
 
+export const THREADS_OAUTH_STATE_COLUMN = 'threads_oauth_state';
+
 /** A sheet row keyed by header name, plus its 1-based row number in the sheet. */
 interface SheetRow {
   rowNumber: number;
@@ -785,6 +787,21 @@ export class GoogleSheetsService {
       patch[EXPIRED_AT_COLUMN] = `${new Date().toISOString()} ${note}`.trim();
     }
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, patch);
+  }
+
+  /**
+   * Remembers the OAuth state of a consent flow that is finished on another device, where the
+   * state cookie of the browser that started it is not available.
+   */
+  async setThreadsOauthState(channelId: string, state: string): Promise<void> {
+    await this.ensureColumns(SHEET_NAMES.channels, [THREADS_OAUTH_STATE_COLUMN]);
+    await this.updateChannelTokens(channelId, { [THREADS_OAUTH_STATE_COLUMN]: state });
+  }
+
+  async getThreadsOauthState(channelId: string): Promise<string> {
+    const { rows } = await this.loadTable(SHEET_NAMES.channels);
+    const row = rows.find((candidate) => candidate.values.channel_id === channelId);
+    return row?.values[THREADS_OAUTH_STATE_COLUMN] ?? '';
   }
 
   /** Persists rotated OAuth tokens back onto the channel's row. */

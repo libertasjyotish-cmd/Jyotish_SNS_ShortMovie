@@ -21,8 +21,8 @@ export async function GET(req: NextRequest) {
 
   const code = params.get('code');
   const state = params.get('state');
-  const expectedState = req.cookies.get(THREADS_STATE_COOKIE)?.value;
-  if (!code || !state || !expectedState || state !== expectedState) {
+  const cookieState = req.cookies.get(THREADS_STATE_COOKIE)?.value;
+  if (!code || !state) {
     admin.searchParams.set('error', 'Invalid OAuth state');
     return NextResponse.redirect(admin);
   }
@@ -33,6 +33,13 @@ export async function GET(req: NextRequest) {
     const channel = await sheets.getChannelConfig(lang, 'Threads');
     if (!channel) throw new Error(`No Threads channel configured for "${lang}"`);
 
+    /** Consent finished elsewhere carries no cookie, so the state is matched against the sheet. */
+    const storedState = await sheets.getThreadsOauthState(channel.channel_id);
+    if (state !== cookieState && (!storedState || state !== storedState)) {
+      admin.searchParams.set('error', 'Invalid OAuth state');
+      return NextResponse.redirect(admin);
+    }
+
     // Threads appends "#_" to the redirect, and a fragment never reaches the server,
     // but a proxy that turns it into a query value would break the exchange.
     const tokens = await exchangeThreadsCode(code.replace(/#_$/, ''), threadsRedirectUri());
@@ -41,6 +48,7 @@ export async function GET(req: NextRequest) {
       threads_user_id: tokens.userId,
       threads_token_expires_at: tokens.expiresAt,
     });
+    if (storedState) await sheets.setThreadsOauthState(channel.channel_id, '');
 
     admin.searchParams.set('connected', channel.channel_id);
     const response = NextResponse.redirect(admin);
