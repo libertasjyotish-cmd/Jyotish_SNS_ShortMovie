@@ -11,8 +11,6 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 const MS_PER_DAY = 86_400_000;
-/** Grace after the last day of the week, so a Sunday evening post keeps a full day of reach. */
-const GRACE_DAYS = 1;
 /** Threads allows 100 deletions per profile per 24h; one run stays far below it. */
 const MAX_TASKS_PER_RUN = 40;
 
@@ -25,11 +23,15 @@ function isRetirable(platform: Platform): boolean {
   return platform === 'YouTube' || platform === 'Threads' || platform === 'Facebook';
 }
 
+/**
+ * A reading is posted in the week before the one it covers, so it has had a full run by the
+ * Monday the covered week ends on and is retired on the first run after it.
+ */
 function weekEndedBefore(now: Date): (weekId: string) => boolean {
   return (weekId: string) => {
     const start = weekStartFromId(weekId);
     if (!start) return false;
-    return start.getTime() + (7 + GRACE_DAYS) * MS_PER_DAY <= now.getTime();
+    return start.getTime() + 7 * MS_PER_DAY <= now.getTime();
   };
 }
 

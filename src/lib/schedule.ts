@@ -104,6 +104,14 @@ export function nextWeekStart(date: Date): Date {
   return new Date(startOfIsoWeek(date).getTime() + 7 * MS_PER_DAY);
 }
 
+/**
+ * Monday of the week the sign readings of `weekStart` are posted in: they go out on the
+ * Friday to Sunday before the week they cover, so the reading is still ahead of the viewer.
+ */
+export function zodiacPostWeekStart(weekStart: Date): Date {
+  return new Date(weekStart.getTime() - 7 * MS_PER_DAY);
+}
+
 /** `2026-W36` for the ISO week containing `date`. */
 export function isoWeekId(date: Date): string {
   const monday = startOfIsoWeek(date);
