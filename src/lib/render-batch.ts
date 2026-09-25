@@ -1,4 +1,5 @@
 import { weekPeriodLabel } from '@/lib/period';
+import { zodiacName } from '@/lib/zodiac-names';
 import { startRender } from '@/lib/render';
 import { CreatomateService } from '@/services/creatomate';
 import { GoogleSheetsService, Pattern } from '@/services/sheets';
@@ -67,10 +68,16 @@ export async function runRenderBatch(
           language: task.lang_code,
           pattern,
           dayOfWeek: task.day_of_week,
-          // Only the sign readings are tied to a week; a theme applies whenever it is watched.
+          // Only the sign readings are tied to a sign and a week; a theme applies whenever it
+          // is watched.
           period:
             task.target_type === 'Zodiac_Sign'
-              ? weekPeriodLabel(task.week_id, task.lang_code)
+              ? [
+                  zodiacName(task.zodiac_sign, task.lang_code),
+                  weekPeriodLabel(task.week_id, task.lang_code),
+                ]
+                  .filter(Boolean)
+                  .join('\n') || undefined
               : undefined,
           script: JSON.parse(
             pattern === '30s' ? scriptOutput.script_30s_json : scriptOutput.script_65s_json,

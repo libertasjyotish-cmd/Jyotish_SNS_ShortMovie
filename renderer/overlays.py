@@ -125,25 +125,43 @@ def scrim(path: str) -> tuple[str, int, int]:
 
 
 def period(path: str, text: str, language: str) -> tuple[str, int, int]:
-    """Dates the reading above the hook, so an older post still says which week it covers."""
+    """
+    Labels the reading above the hook with the sign it is for and the week it covers, so a
+    viewer scrolling past knows whose reading it is and an older post still dates itself.
+
+    Newlines in the text are kept as written, so the sign and the dates stay on their own lines
+    instead of the date range wrapping wherever it happens to run out of room.
+    """
     img = _blank()
     draw = ImageDraw.Draw(img)
-    font, lines = _fit_font(draw, text, language, "button", 46, WIDTH * 0.70, 1)
-    text_width = draw.textlength(lines[0], font=font)
-    width = min(WIDTH * 0.84, text_width + 96)
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    font, _ = _fit_font(
+        draw, max(lines, key=len), language, "button", 46, WIDTH * 0.70, 1
+    )
+    widths = [draw.textlength(line, font=font) for line in lines]
+    line_height = font.size * 1.25
+    half_height = line_height * len(lines) / 2 + 22
+    width = min(WIDTH * 0.84, max(widths) + 96)
     draw.rounded_rectangle(
-        [(WIDTH - width) / 2, PERIOD_CENTER_Y - 46, (WIDTH + width) / 2, PERIOD_CENTER_Y + 46],
-        radius=46,
+        [
+            (WIDTH - width) / 2,
+            PERIOD_CENTER_Y - half_height,
+            (WIDTH + width) / 2,
+            PERIOD_CENTER_Y + half_height,
+        ],
+        radius=min(46, half_height),
         fill=PANEL,
     )
-    _draw_text(
-        draw,
-        ((WIDTH - text_width) / 2, PERIOD_CENTER_Y - font.size * 0.70),
-        lines[0],
-        font,
-        GOLD,
-        language,
-    )
+    top = PERIOD_CENTER_Y - line_height * len(lines) / 2 - font.size * 0.20
+    for index, line in enumerate(lines):
+        _draw_text(
+            draw,
+            ((WIDTH - widths[index]) / 2, top + line_height * index),
+            line,
+            font,
+            GOLD,
+            language,
+        )
     return _save_cropped(img, path)
 
 

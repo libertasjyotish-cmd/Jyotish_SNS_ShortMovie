@@ -14,6 +14,7 @@ export interface ScriptIssue {
     | 'weak_cta'
     | 'contains_url'
     | 'missing_period'
+    | 'missing_sign'
     | 'too_short'
     | 'too_long';
   detail: string;
@@ -207,6 +208,8 @@ export function lintScript(
   pattern: Pattern,
   /** Spoken week the reading covers; sign readings must say it out loud. */
   period?: string,
+  /** Sign the reading is for, in the audience's language; it must be named out loud too. */
+  signName?: string,
 ): ScriptIssue[] {
   const issues: ScriptIssue[] = [];
   const fields: { field: ScriptIssue['field']; text: string }[] = [
@@ -281,6 +284,17 @@ export function lintScript(
         field: 'body_script',
         code: 'missing_period',
         detail: `the narration never says the week it covers (${period})`,
+      });
+    }
+  }
+
+  if (signName) {
+    const opening = `${script.hook_text} ${script.body_script}`;
+    if (!opening.toLowerCase().includes(signName.toLowerCase())) {
+      issues.push({
+        field: 'body_script',
+        code: 'missing_sign',
+        detail: `the narration never says which sign it reads (${signName})`,
       });
     }
   }

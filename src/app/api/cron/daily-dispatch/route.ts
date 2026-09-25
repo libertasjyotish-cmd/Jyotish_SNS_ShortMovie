@@ -4,6 +4,7 @@ import { buildDescription, YOUTUBE_COMMENT } from '@/lib/cta';
 import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
 import { weekPeriodLabel } from '@/lib/period';
+import { zodiacName } from '@/lib/zodiac-names';
 import { runWatchdog } from '@/lib/watchdog-run';
 import { buildYouTubeTitle } from '@/lib/youtube-seo';
 import { FacebookService } from '@/services/facebook';
@@ -172,6 +173,9 @@ export async function GET(request: Request) {
 
         const script30s: GeneratedScript = JSON.parse(scriptOutput.script_30s_json);
         const period = postPeriod(post);
+        const signName = zodiacName(post.zodiac_sign, post.lang_code);
+        /** Captions open on the sign and the week, so a viewer knows at a glance whose reading it is. */
+        const signedPeriod = [signName, period].filter(Boolean).join(' · ') || undefined;
         const [youtubeChannel, instagramChannel, threadsChannel, facebookChannel] =
           await Promise.all(
             (['YouTube', 'Instagram', 'Threads', 'Facebook'] as Platform[]).map((platform) =>
@@ -191,7 +195,7 @@ export async function GET(request: Request) {
                 lang: post.lang_code,
                 title: buildYouTubeTitle({
                   lang: post.lang_code,
-                  zodiacSign: post.zodiac_sign,
+                  zodiacSign: signName,
                   hook: script30s.hook_text,
                   period,
                 }),
@@ -199,7 +203,7 @@ export async function GET(request: Request) {
                   lang: post.lang_code,
                   body: script30s.body_script,
                   hashtags: scriptOutput.hashtags,
-                  period,
+                  period: signedPeriod,
                 }),
                 videoUrl,
               });
@@ -230,7 +234,7 @@ export async function GET(request: Request) {
                         lang: post.lang_code,
                         body: script30s.hook_text,
                         hashtags: scriptOutput.hashtags,
-                        period,
+                        period: signedPeriod,
                       }),
                       videoUrl,
                     }),
@@ -260,7 +264,7 @@ export async function GET(request: Request) {
                         lang: post.lang_code,
                         body: script30s.hook_text,
                         hashtags: scriptOutput.hashtags,
-                        period,
+                        period: signedPeriod,
                       }),
                       videoUrl,
                     }),
@@ -279,7 +283,7 @@ export async function GET(request: Request) {
             lang: post.lang_code,
             body: script30s.hook_text,
             hashtags: scriptOutput.hashtags,
-            period,
+            period: signedPeriod,
           });
           uploads.push({
             platform: 'Facebook',
