@@ -40,6 +40,11 @@ export interface Channel {
   fb_page_access_token?: string;
   creatomate_template_30s: string;
   creatomate_template_65s: string;
+  /**
+   * ISO timestamp before which this channel is skipped while its credentials stay in place,
+   * used to hold a profile back after a suspension without losing its connection.
+   */
+  posting_paused_until?: string;
 }
 
 export interface ContentQueue {
@@ -845,6 +850,7 @@ export class GoogleSheetsService {
       fb_page_access_token: row.values.fb_page_access_token || undefined,
       creatomate_template_30s: row.values.creatomate_template_30s,
       creatomate_template_65s: row.values.creatomate_template_65s,
+      posting_paused_until: row.values.posting_paused_until || undefined,
     };
   }
 }
