@@ -24,6 +24,9 @@ import { YouTubeService } from '@/services/youtube';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
+/** How long new tasks may still be started, leaving the rest of `maxDuration` to finish one. */
+const DISPATCH_BUDGET_MS = 200_000;
+
 function isDue(scheduledPostTime: string, now: Date): boolean {
   const scheduled = new Date(scheduledPostTime);
   if (Number.isNaN(scheduled.getTime())) {
@@ -172,7 +175,16 @@ export async function GET(request: Request) {
     let failed = 0;
     let skipped = 0;
 
+    // A run killed by the platform timeout loses the status of whatever it was posting, so it
+    // stops handing out new tasks while there is still time to finish the one in flight; the
+    // tasks it did not reach stay Pending for the next window.
+    const deadline = now.getTime() + DISPATCH_BUDGET_MS;
+
     for (const post of duePosts) {
+      if (Date.now() > deadline) {
+        skipped += 1;
+        continue;
+      }
       try {
         const [scriptOutput, renderOutput] = await Promise.all([
           sheetsService.getScriptOutput(post.task_id),
