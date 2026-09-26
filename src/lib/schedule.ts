@@ -7,6 +7,8 @@
  * four per day, so even the Sunday batch still covers the days ahead.
  */
 
+import { Language } from '@/lib/languages';
+
 export type DayOfWeek = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
 
 export const THEME_DAYS: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu'];
@@ -49,31 +51,33 @@ export const ZODIAC_DAYS: { day: DayOfWeek; signs: ZodiacSign[] }[] = [
 ];
 
 /**
- * Local posting time per day, in JST hours and minutes, for the one theme video a day.
- * `daily-dispatch` posts everything already due, so a slot only has to fall on one of
- * the hours it runs.
+ * Where the audience of each language is. Posting times are wall-clock times there, so an
+ * English video lands in an American or British evening instead of the middle of its night.
+ * English and Spanish carry two markets, and their slots are split between them.
  */
-const POST_TIME_JST: Record<DayOfWeek, [number, number]> = {
-  Mon: [18, 0],
-  Tue: [18, 0],
-  Wed: [18, 0],
-  Thu: [18, 0],
-  Fri: [18, 0],
-  Sat: [18, 0],
-  Sun: [18, 0],
+export const AUDIENCE_MARKETS: Record<Language, string[]> = {
+  ja: ['Asia/Tokyo'],
+  en: ['Europe/London', 'America/New_York'],
+  es: ['Europe/Madrid', 'America/Mexico_City'],
+  pt: ['America/Sao_Paulo'],
+  id: ['Asia/Jakarta'],
+  ar: ['Asia/Dubai'],
+  fr: ['Europe/Paris'],
+  de: ['Europe/Berlin'],
 };
 
 /**
- * The four sign readings of a day go out three hours apart instead of together: posts
- * released at the same minute compete with each other for the same audience, which costs
- * each one part of the first-hour reach the platforms decide distribution from.
+ * The four sign readings of a day go out hours apart instead of together: posts released at
+ * the same minute compete with each other for the same audience, which costs each one part of
+ * the first-hour reach the platforms decide distribution from. A single-market language
+ * spreads them over its own day; a two-market one gives each market the two evening hours
+ * that carry the most watch time there.
  */
-export const ZODIAC_SLOTS_JST: [number, number][] = [
-  [12, 0],
-  [15, 0],
-  [18, 0],
-  [21, 0],
-];
+const ZODIAC_HOURS_ONE_MARKET = [12, 15, 18, 21];
+const ZODIAC_HOURS_TWO_MARKETS = [18, 21];
+
+/** Local posting time of the one theme video a day. */
+const THEME_HOUR = 18;
 
 export const DAY_OFFSET: Record<DayOfWeek, number> = {
   Mon: 0,
@@ -86,7 +90,7 @@ export const DAY_OFFSET: Record<DayOfWeek, number> = {
 };
 
 const MS_PER_DAY = 86_400_000;
-const JST_OFFSET_HOURS = 9;
+const MS_PER_MINUTE = 60_000;
 
 function utcDate(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -132,15 +136,76 @@ export function weekStartFromId(weekId: string): Date | undefined {
   return new Date(firstMonday.getTime() + (Number(week) - 1) * 7 * MS_PER_DAY);
 }
 
+/** Minutes `timeZone` is ahead of UTC at `instant`, daylight saving included. */
+function zoneOffsetMinutes(timeZone: string, instant: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(instant);
+  const field = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+  // Intl prints midnight as hour 24 in some runtimes.
+  const asUtc = Date.UTC(
+    field('year'),
+    field('month') - 1,
+    field('day'),
+    field('hour') % 24,
+    field('minute'),
+    field('second'),
+  );
+  return Math.round((asUtc - instant.getTime()) / MS_PER_MINUTE);
+}
+
+/** The instant at which `timeZone` reads `hour:minute` on the UTC calendar day of `day`. */
+function localTimeToUtc(day: Date, hour: number, minute: number, timeZone: string): Date {
+  const wallClock = Date.UTC(
+    day.getUTCFullYear(),
+    day.getUTCMonth(),
+    day.getUTCDate(),
+    hour,
+    minute,
+  );
+  // The offset itself depends on the instant, so the first guess is corrected once, which
+  // is enough for every zone except the hour a DST change skips.
+  const guess = new Date(wallClock - zoneOffsetMinutes(timeZone, new Date(wallClock)) * MS_PER_MINUTE);
+  return new Date(wallClock - zoneOffsetMinutes(timeZone, guess) * MS_PER_MINUTE);
+}
+
 /**
- * ISO timestamp of the posting slot for `day` of the week starting at `weekStart`.
- * `slot` picks one of `ZODIAC_SLOTS_JST` for the sign readings; theme videos omit it and
- * take the single slot of their day.
+ * Market and local hour of the `slot`-th sign reading of a day, or of the day's theme video
+ * when `slot` is undefined. Two-market languages alternate: the readings by slot, and the
+ * theme videos by weekday, so over Monday to Thursday each market gets two of them.
  */
-export function scheduledPostTime(weekStart: Date, day: DayOfWeek, slot?: number): string {
-  const [hour, minute] =
-    slot === undefined ? POST_TIME_JST[day] : ZODIAC_SLOTS_JST[slot % ZODIAC_SLOTS_JST.length];
-  const time = new Date(weekStart.getTime() + DAY_OFFSET[day] * MS_PER_DAY);
-  time.setUTCHours(hour - JST_OFFSET_HOURS, minute, 0, 0);
-  return time.toISOString();
+function postingSlot(lang: Language, day: DayOfWeek, slot?: number): [string, number] {
+  const markets = AUDIENCE_MARKETS[lang];
+  if (slot === undefined) {
+    return [markets[DAY_OFFSET[day] % markets.length], THEME_HOUR];
+  }
+  if (markets.length === 1) {
+    return [markets[0], ZODIAC_HOURS_ONE_MARKET[slot % ZODIAC_HOURS_ONE_MARKET.length]];
+  }
+  const hours = ZODIAC_HOURS_TWO_MARKETS;
+  return [markets[slot % markets.length], hours[Math.floor(slot / markets.length) % hours.length]];
+}
+
+/**
+ * ISO timestamp of the posting slot for `day` of the week starting at `weekStart`, in the
+ * time zone of the market it is aimed at. `slot` picks one of the day's four sign readings;
+ * theme videos omit it and take the single slot of their day.
+ */
+export function scheduledPostTime(
+  weekStart: Date,
+  day: DayOfWeek,
+  lang: Language,
+  slot?: number,
+): string {
+  const [timeZone, hour] = postingSlot(lang, day, slot);
+  const date = new Date(weekStart.getTime() + DAY_OFFSET[day] * MS_PER_DAY);
+  return localTimeToUtc(date, hour, 0, timeZone).toISOString();
 }
