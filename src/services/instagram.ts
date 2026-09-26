@@ -6,7 +6,7 @@ const GRAPH_VERSION = 'v21.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const STATUS_POLL_INTERVAL_MS = 5000;
 /** Only a grace period: a container that is still transcoding is published by a later run. */
-const STATUS_POLL_ATTEMPTS = 12;
+const STATUS_POLL_ATTEMPTS = 4;
 
 export interface InstagramUploadParams {
   channel: Channel;
