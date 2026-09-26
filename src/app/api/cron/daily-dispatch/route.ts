@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
-import { buildDescription, YOUTUBE_COMMENT } from '@/lib/cta';
+import { buildDescription, youtubeComment } from '@/lib/cta';
 import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
+import { optionalEnv } from '@/lib/env';
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
 import { weekPeriodLabel } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
@@ -76,7 +77,8 @@ function postPeriod(task: ContentQueue): string | undefined {
 /**
  * In-channel follow-ups that must never cost the post itself: the upload joins the playlist of
  * its slot so viewers can walk the rest of the channel, and the site link is repeated as a
- * comment because Shorts hide the description. Either failing leaves the video published.
+ * comment because Shorts hide the description, together with the subscribe link that is the only
+ * tappable one a Short can carry. Either failing leaves the video published.
  */
 async function addChannelSurfaces(args: {
   youtubeService: YouTubeService;
@@ -98,10 +100,37 @@ async function addChannelSurfaces(args: {
     }
   }
   try {
-    await youtubeService.postComment(channel, videoId, YOUTUBE_COMMENT[task.lang_code]);
+    const subscribeChannelId = await youtubeService.channelId(channel);
+    await youtubeService.postComment(
+      channel,
+      videoId,
+      youtubeComment(task.lang_code, subscribeChannelId),
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error(`${task.task_id} comment failed:`, message);
+  }
+}
+
+/**
+ * Instagram only shows a tappable link in a story, so every published Reel is shared as one as
+ * well. Stories pile up next to each other and expire after 24 hours, so a failed or skipped
+ * share is never retried and never costs the Reel.
+ */
+async function addStoryShare(args: {
+  instagramService: InstagramService;
+  channel: Channel;
+  task: ContentQueue;
+  videoUrl: string;
+}): Promise<void> {
+  if ((optionalEnv('INSTAGRAM_SHARE_TO_STORY') ?? 'true') !== 'true') return;
+
+  const { instagramService, channel, task, videoUrl } = args;
+  try {
+    await instagramService.shareToStory(channel, videoUrl);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`${task.task_id} instagram story failed:`, message);
   }
 }
 
@@ -228,6 +257,9 @@ export async function GET(request: Request) {
             uploads.push({
               platform: 'YouTube',
               run: async () => {
+                const subscribeChannelId = await youtubeService
+                  .channelId(youtubeChannel)
+                  .catch(() => undefined);
                 const videoId = await youtubeService.uploadVideo({
                   channel: youtubeChannel,
                   lang: post.lang_code,
@@ -242,6 +274,7 @@ export async function GET(request: Request) {
                     body: script30s.body_script,
                     hashtags: scriptOutput.hashtags,
                     period: signedPeriod,
+                    subscribeChannelId,
                   }),
                   videoUrl,
                 });
@@ -259,8 +292,8 @@ export async function GET(request: Request) {
             const videoUrl = renderOutput.video_url_30s;
             uploads.push({
               platform: 'Instagram',
-              run: () =>
-                postViaContainer({
+              run: async () => {
+                const mediaId = await postViaContainer({
                   sheetsService,
                   task: post,
                   platform: 'Instagram',
@@ -281,7 +314,15 @@ export async function GET(request: Request) {
                     publishContainer: (containerId) =>
                       instagramService.publishContainer(instagramChannel, containerId),
                   },
-                }),
+                });
+                await addStoryShare({
+                  instagramService,
+                  channel: instagramChannel,
+                  task: post,
+                  videoUrl,
+                });
+                return mediaId;
+              },
             });
           }
 

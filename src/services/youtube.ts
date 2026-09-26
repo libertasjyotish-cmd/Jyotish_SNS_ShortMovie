@@ -32,6 +32,22 @@ function authorize(channel: Channel) {
 }
 
 export class YouTubeService {
+  private readonly channelIds = new Map<string, string>();
+
+  /** The subscribe link needs the channel's own id, which is read once per run. */
+  async channelId(channel: Channel): Promise<string> {
+    const cached = this.channelIds.get(channel.channel_id);
+    if (cached) return cached;
+
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    const response = await youtube.channels.list({ part: ['id'], mine: true });
+    const id = response.data.items?.[0]?.id;
+    if (!id) throw new Error('YouTube returned no channel for these credentials');
+
+    this.channelIds.set(channel.channel_id, id);
+    return id;
+  }
+
   /** Exchanges the refresh token and reads the channel back, without uploading anything. */
   async verifyChannel(channel: Channel): Promise<string> {
     const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
