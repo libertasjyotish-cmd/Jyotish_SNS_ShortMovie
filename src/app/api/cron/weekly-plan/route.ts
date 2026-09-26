@@ -76,7 +76,7 @@ function baseTask(
     render_attempts_30s: 0,
     render_attempts_65s: 0,
     post_status: 'Pending' as const,
-    scheduled_post_time: scheduledPostTime(weekStart, day, slot),
+    scheduled_post_time: scheduledPostTime(weekStart, day, lang, slot),
   };
 }
 

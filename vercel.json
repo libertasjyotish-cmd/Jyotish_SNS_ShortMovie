@@ -9,11 +9,7 @@
     { "path": "/api/cron/render-batch", "schedule": "0 1,4,7,10,13,16,19,22 * * 2" },
     { "path": "/api/cron/render-batch", "schedule": "0 1,4,7,10,13,16,19,22 * * 3" },
     { "path": "/api/cron/render-batch", "schedule": "0 1,4,7,10,13 * * 4" },
-    { "path": "/api/cron/daily-dispatch", "schedule": "0 3 * * *" },
-    { "path": "/api/cron/daily-dispatch", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/daily-dispatch", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/daily-dispatch", "schedule": "0 12 * * *" },
-    { "path": "/api/cron/daily-dispatch", "schedule": "10,25,40 3,6,9,12 * * *" },
+    { "path": "/api/cron/daily-dispatch", "schedule": "0,15,30,45 * * * *" },
     { "path": "/api/cron/watchdog", "schedule": "20 3 * * *" },
     { "path": "/api/cron/health-check", "schedule": "40 3 * * *" },
     { "path": "/api/cron/expire-weekly", "schedule": "0 16 * * 1" }
