@@ -107,6 +107,21 @@ export const DISCLAIMERS: Record<Language, string> = {
   de: 'Nur zu Unterhaltungszwecken. Wende dich bei medizinischen, finanziellen oder rechtlichen Entscheidungen an Fachleute.',
 };
 
+/**
+ * Hashtag search only surfaces an account that keeps using the same tags, so captions lead with a
+ * fixed set per language and the generated tags fill the remaining slots.
+ */
+const CORE_HASHTAGS: Record<Language, readonly string[]> = {
+  ja: ['#インド占星術', '#ジョーティシュ', '#月星座', '#LibertasJyotish'],
+  en: ['#VedicAstrology', '#Jyotish', '#MoonSign', '#LibertasJyotish'],
+  es: ['#AstrologiaVedica', '#Jyotish', '#SignoLunar', '#LibertasJyotish'],
+  pt: ['#AstrologiaVedica', '#Jyotish', '#SignoLunar', '#LibertasJyotish'],
+  id: ['#AstrologiVeda', '#Jyotish', '#ZodiakBulan', '#LibertasJyotish'],
+  ar: ['#التنجيم_الهندي', '#جيوتيش', '#برج_القمر', '#LibertasJyotish'],
+  fr: ['#AstrologieVedique', '#Jyotish', '#SigneLunaire', '#LibertasJyotish'],
+  de: ['#VedischeAstrologie', '#Jyotish', '#Mondzeichen', '#LibertasJyotish'],
+};
+
 /** YouTube treats long hashtag lists as spam, so keep only the leading few. */
 export function limitHashtags(hashtags: string, max = 4): string {
   return hashtags
@@ -116,11 +131,22 @@ export function limitHashtags(hashtags: string, max = 4): string {
     .join(' ');
 }
 
+export function captionHashtags(lang: Language, generated: string, max: number): string {
+  const tags = [...CORE_HASHTAGS[lang]];
+  const seen = new Set(tags.map((tag) => tag.toLowerCase()));
+  for (const tag of generated.split(/\s+/).filter((tag) => tag.startsWith('#'))) {
+    if (seen.has(tag.toLowerCase())) continue;
+    seen.add(tag.toLowerCase());
+    tags.push(tag);
+  }
+  return tags.slice(0, max).join(' ');
+}
+
 export interface DescriptionParams {
   lang: Language;
   body: string;
   hashtags: string;
-  platform?: 'default' | 'tiktok';
+  platform?: 'default' | 'tiktok' | 'instagram';
   /** Dated week a sign reading covers; it opens the caption so older posts date themselves. */
   period?: string;
   /** YouTube channel the video is uploaded to; adds the subscribe link to the description. */
@@ -137,7 +163,8 @@ export function buildDescription({
 }: DescriptionParams): string {
   const cta = platform === 'tiktok' ? TIKTOK_DESCRIPTION_CTA[lang] : DESCRIPTION_CTA[lang];
   const subscribe = subscribeChannelId ? subscribeBlock(lang, subscribeChannelId) : undefined;
-  return [period, body, cta, subscribe, DISCLAIMERS[lang], limitHashtags(hashtags)]
+  const tags = captionHashtags(lang, hashtags, platform === 'instagram' ? 6 : 4);
+  return [period, body, cta, subscribe, DISCLAIMERS[lang], tags]
     .filter(Boolean)
     .join('\n\n');
 }

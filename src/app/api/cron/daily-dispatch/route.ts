@@ -306,6 +306,7 @@ export async function GET(request: Request) {
                           body: script30s.hook_text,
                           hashtags: scriptOutput.hashtags,
                           period: signedPeriod,
+                          platform: 'instagram',
                         }),
                         videoUrl,
                       }),
