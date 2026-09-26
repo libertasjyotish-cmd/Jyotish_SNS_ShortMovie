@@ -162,7 +162,12 @@ export async function GET(request: Request) {
     // one more chance before each posting window.
     const watchdog = await runWatchdog(sheetsService, now);
     const pendingPosts = await sheetsService.getPendingPosts();
-    const duePosts = pendingPosts.filter((post) => isDue(post.scheduled_post_time, now));
+    // A language that is not dispatched keeps accumulating due tasks forever, and reading their
+    // scripts, renders and channels costs the run its whole time budget before it reaches the
+    // languages that do publish, so they are dropped before any per-task lookup.
+    const duePosts = pendingPosts.filter(
+      (post) => isDue(post.scheduled_post_time, now) && isDispatchEnabledFor(post.lang_code),
+    );
     let posted = 0;
     let failed = 0;
     let skipped = 0;
@@ -323,12 +328,6 @@ export async function GET(request: Request) {
         if (remaining.length === 0) {
           await sheetsService.markPosted(post.task_id, done);
           posted += 1;
-          continue;
-        }
-
-        if (!isDispatchEnabledFor(post.lang_code)) {
-          console.log(`Dry run: ${post.task_id} ready for ${uploads.length} upload(s)`);
-          skipped += 1;
           continue;
         }
 
