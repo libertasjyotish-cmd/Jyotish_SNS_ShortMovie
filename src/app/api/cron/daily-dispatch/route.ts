@@ -26,6 +26,10 @@ export const maxDuration = 300;
 
 /** How long new tasks may still be started, leaving the rest of `maxDuration` to finish one. */
 const DISPATCH_BUDGET_MS = 200_000;
+/** Tasks posted at once. A slot holds one task per language, so a run has to clear all of them. */
+const DISPATCH_CONCURRENCY = 3;
+/** A posting window that has been over for this long is never going to be published. */
+const STALE_POST_DAYS = 3;
 
 function isDue(scheduledPostTime: string, now: Date): boolean {
   const scheduled = new Date(scheduledPostTime);
@@ -164,6 +168,11 @@ export async function GET(request: Request) {
     // Recovery rides along with the dispatch that needs the videos, so a stuck render gets
     // one more chance before each posting window.
     const watchdog = await runWatchdog(sheetsService, now);
+    // Nothing else lets go of a task that was never posted, so its window closing is what ends it;
+    // left Pending it makes every later run read it again.
+    const held = await sheetsService.holdStalePosts(
+      new Date(now.getTime() - STALE_POST_DAYS * 24 * 60 * 60 * 1000),
+    );
     const pendingPosts = await sheetsService.getPendingPosts();
     // A language that is not dispatched keeps accumulating due tasks forever, and reading their
     // scripts, renders and channels costs the run its whole time budget before it reaches the
@@ -179,209 +188,222 @@ export async function GET(request: Request) {
     // stops handing out new tasks while there is still time to finish the one in flight; the
     // tasks it did not reach stay Pending for the next window.
     const deadline = now.getTime() + DISPATCH_BUDGET_MS;
+    const queue = [...duePosts];
 
-    for (const post of duePosts) {
-      if (Date.now() > deadline) {
-        skipped += 1;
-        continue;
-      }
-      try {
-        const [scriptOutput, renderOutput] = await Promise.all([
-          sheetsService.getScriptOutput(post.task_id),
-          sheetsService.getRenderOutput(post.task_id),
-        ]);
-        if (!scriptOutput) throw new Error(`No script output for ${post.task_id}`);
+    /**
+     * Posting is almost entirely waiting on the platforms, so the tasks of a window are handed to
+     * a few workers at once: serially, one task can spend minutes on transcodes and a window's
+     * languages never fit in a single run, which pushes them into the next one indefinitely.
+     */
+    const worker = async (): Promise<void> => {
+      for (let post = queue.shift(); post; post = queue.shift()) {
+        if (Date.now() > deadline) {
+          skipped += queue.length + 1;
+          queue.length = 0;
+          return;
+        }
+        try {
+          const [scriptOutput, renderOutput] = await Promise.all([
+            sheetsService.getScriptOutput(post.task_id),
+            sheetsService.getRenderOutput(post.task_id),
+          ]);
+          if (!scriptOutput) throw new Error(`No script output for ${post.task_id}`);
 
-        const script30s: GeneratedScript = JSON.parse(scriptOutput.script_30s_json);
-        const period = postPeriod(post);
-        const signName = zodiacName(post.zodiac_sign, post.lang_code);
-        /** Captions open on the sign and the week, so a viewer knows at a glance whose reading it is. */
-        const signedPeriod = [signName, period].filter(Boolean).join(' · ') || undefined;
-        const [youtubeChannel, instagramChannel, threadsChannel, facebookChannel] =
-          await Promise.all(
-            (['YouTube', 'Instagram', 'Threads', 'Facebook'] as Platform[]).map((platform) =>
-              sheetsService.getChannelConfig(post.lang_code, platform),
-            ),
+          const script30s: GeneratedScript = JSON.parse(scriptOutput.script_30s_json);
+          const period = postPeriod(post);
+          const signName = zodiacName(post.zodiac_sign, post.lang_code);
+          /** Captions open on the sign and the week, so a viewer knows at a glance whose reading it is. */
+          const signedPeriod = [signName, period].filter(Boolean).join(' · ') || undefined;
+          const [youtubeChannel, instagramChannel, threadsChannel, facebookChannel] =
+            await Promise.all(
+              (['YouTube', 'Instagram', 'Threads', 'Facebook'] as Platform[]).map((platform) =>
+                sheetsService.getChannelConfig(post.lang_code, platform),
+              ),
+            );
+
+          const done: PostedRef[] = post.posted_refs ?? [];
+          const uploads: { platform: Platform; run: () => Promise<string> }[] = [];
+          if (isConnected(youtubeChannel) && renderOutput?.video_url_30s) {
+            const videoUrl = renderOutput.video_url_30s;
+            uploads.push({
+              platform: 'YouTube',
+              run: async () => {
+                const videoId = await youtubeService.uploadVideo({
+                  channel: youtubeChannel,
+                  lang: post.lang_code,
+                  title: buildYouTubeTitle({
+                    lang: post.lang_code,
+                    zodiacSign: signName,
+                    hook: script30s.hook_text,
+                    period,
+                  }),
+                  description: buildDescription({
+                    lang: post.lang_code,
+                    body: script30s.body_script,
+                    hashtags: scriptOutput.hashtags,
+                    period: signedPeriod,
+                  }),
+                  videoUrl,
+                });
+                await addChannelSurfaces({
+                  youtubeService,
+                  channel: youtubeChannel,
+                  task: post,
+                  videoId,
+                });
+                return videoId;
+              },
+            });
+          }
+          if (isConnected(instagramChannel) && renderOutput?.video_url_30s) {
+            const videoUrl = renderOutput.video_url_30s;
+            uploads.push({
+              platform: 'Instagram',
+              run: () =>
+                postViaContainer({
+                  sheetsService,
+                  task: post,
+                  platform: 'Instagram',
+                  uploader: {
+                    createContainer: () =>
+                      instagramService.createContainer({
+                        channel: instagramChannel,
+                        caption: buildDescription({
+                          lang: post.lang_code,
+                          body: script30s.hook_text,
+                          hashtags: scriptOutput.hashtags,
+                          period: signedPeriod,
+                        }),
+                        videoUrl,
+                      }),
+                    waitUntilFinished: (containerId) =>
+                      instagramService.waitUntilFinished(instagramChannel, containerId),
+                    publishContainer: (containerId) =>
+                      instagramService.publishContainer(instagramChannel, containerId),
+                  },
+                }),
+            });
+          }
+
+          if (isConnected(threadsChannel) && renderOutput?.video_url_30s) {
+            const videoUrl = renderOutput.video_url_30s;
+            uploads.push({
+              platform: 'Threads',
+              run: () =>
+                postViaContainer({
+                  sheetsService,
+                  task: post,
+                  platform: 'Threads',
+                  uploader: {
+                    createContainer: () =>
+                      threadsService.createContainer({
+                        channel: threadsChannel,
+                        text: buildDescription({
+                          lang: post.lang_code,
+                          body: script30s.hook_text,
+                          hashtags: scriptOutput.hashtags,
+                          period: signedPeriod,
+                        }),
+                        videoUrl,
+                      }),
+                    waitUntilFinished: (containerId) =>
+                      threadsService.waitUntilFinished(threadsChannel, containerId),
+                    publishContainer: (containerId) =>
+                      threadsService.publishContainer(threadsChannel, containerId),
+                  },
+                }),
+            });
+          }
+
+          if (isConnected(facebookChannel) && renderOutput?.video_url_30s) {
+            const videoUrl = renderOutput.video_url_30s;
+            const description = buildDescription({
+              lang: post.lang_code,
+              body: script30s.hook_text,
+              hashtags: scriptOutput.hashtags,
+              period: signedPeriod,
+            });
+            uploads.push({
+              platform: 'Facebook',
+              run: () =>
+                postViaContainer({
+                  sheetsService,
+                  task: post,
+                  platform: 'Facebook',
+                  uploader: {
+                    createContainer: () =>
+                      facebookService.createUploadSession({
+                        channel: facebookChannel,
+                        description,
+                        videoUrl,
+                      }),
+                    waitUntilFinished: (videoId) =>
+                      facebookService.waitUntilUploaded(facebookChannel, videoId),
+                    publishContainer: (videoId) =>
+                      facebookService.publishVideo(facebookChannel, videoId, description),
+                  },
+                }),
+            });
+          }
+
+          const remaining = uploads.filter(
+            (upload) => !done.some((ref) => ref.platform === upload.platform),
           );
 
-        const done: PostedRef[] = post.posted_refs ?? [];
-        const uploads: { platform: Platform; run: () => Promise<string> }[] = [];
-        if (isConnected(youtubeChannel) && renderOutput?.video_url_30s) {
-          const videoUrl = renderOutput.video_url_30s;
-          uploads.push({
-            platform: 'YouTube',
-            run: async () => {
-              const videoId = await youtubeService.uploadVideo({
-                channel: youtubeChannel,
-                lang: post.lang_code,
-                title: buildYouTubeTitle({
-                  lang: post.lang_code,
-                  zodiacSign: signName,
-                  hook: script30s.hook_text,
-                  period,
-                }),
-                description: buildDescription({
-                  lang: post.lang_code,
-                  body: script30s.body_script,
-                  hashtags: scriptOutput.hashtags,
-                  period: signedPeriod,
-                }),
-                videoUrl,
-              });
-              await addChannelSurfaces({
-                youtubeService,
-                channel: youtubeChannel,
-                task: post,
-                videoId,
-              });
-              return videoId;
-            },
-          });
-        }
-        if (isConnected(instagramChannel) && renderOutput?.video_url_30s) {
-          const videoUrl = renderOutput.video_url_30s;
-          uploads.push({
-            platform: 'Instagram',
-            run: () =>
-              postViaContainer({
-                sheetsService,
-                task: post,
-                platform: 'Instagram',
-                uploader: {
-                  createContainer: () =>
-                    instagramService.createContainer({
-                      channel: instagramChannel,
-                      caption: buildDescription({
-                        lang: post.lang_code,
-                        body: script30s.hook_text,
-                        hashtags: scriptOutput.hashtags,
-                        period: signedPeriod,
-                      }),
-                      videoUrl,
-                    }),
-                  waitUntilFinished: (containerId) =>
-                    instagramService.waitUntilFinished(instagramChannel, containerId),
-                  publishContainer: (containerId) =>
-                    instagramService.publishContainer(instagramChannel, containerId),
-                },
-              }),
-          });
-        }
+          if (uploads.length === 0) {
+            throw new Error(`No connected platform with a rendered video for ${post.task_id}`);
+          }
 
-        if (isConnected(threadsChannel) && renderOutput?.video_url_30s) {
-          const videoUrl = renderOutput.video_url_30s;
-          uploads.push({
-            platform: 'Threads',
-            run: () =>
-              postViaContainer({
-                sheetsService,
-                task: post,
-                platform: 'Threads',
-                uploader: {
-                  createContainer: () =>
-                    threadsService.createContainer({
-                      channel: threadsChannel,
-                      text: buildDescription({
-                        lang: post.lang_code,
-                        body: script30s.hook_text,
-                        hashtags: scriptOutput.hashtags,
-                        period: signedPeriod,
-                      }),
-                      videoUrl,
-                    }),
-                  waitUntilFinished: (containerId) =>
-                    threadsService.waitUntilFinished(threadsChannel, containerId),
-                  publishContainer: (containerId) =>
-                    threadsService.publishContainer(threadsChannel, containerId),
-                },
-              }),
-          });
-        }
-
-        if (isConnected(facebookChannel) && renderOutput?.video_url_30s) {
-          const videoUrl = renderOutput.video_url_30s;
-          const description = buildDescription({
-            lang: post.lang_code,
-            body: script30s.hook_text,
-            hashtags: scriptOutput.hashtags,
-            period: signedPeriod,
-          });
-          uploads.push({
-            platform: 'Facebook',
-            run: () =>
-              postViaContainer({
-                sheetsService,
-                task: post,
-                platform: 'Facebook',
-                uploader: {
-                  createContainer: () =>
-                    facebookService.createUploadSession({
-                      channel: facebookChannel,
-                      description,
-                      videoUrl,
-                    }),
-                  waitUntilFinished: (videoId) =>
-                    facebookService.waitUntilUploaded(facebookChannel, videoId),
-                  publishContainer: (videoId) =>
-                    facebookService.publishVideo(facebookChannel, videoId, description),
-                },
-              }),
-          });
-        }
-
-        const remaining = uploads.filter(
-          (upload) => !done.some((ref) => ref.platform === upload.platform),
-        );
-
-        if (uploads.length === 0) {
-          throw new Error(`No connected platform with a rendered video for ${post.task_id}`);
-        }
-
-        if (remaining.length === 0) {
-          await sheetsService.markPosted(post.task_id, done);
-          posted += 1;
-          continue;
-        }
-
-        // Each post id is written as soon as it exists, so a platform failing halfway through -
-        // or the function running out of time - still leaves the earlier ones on the row and the
-        // retry posts only what is missing, instead of publishing the same video twice. One
-        // platform rejecting the video says nothing about the others, so all of them are attempted.
-        const refs: PostedRef[] = [...done];
-        let errored = false;
-        let waiting = false;
-        for (const upload of remaining) {
-          try {
-            refs.push({ platform: upload.platform, post_id: await upload.run() });
-          } catch (uploadError) {
-            const message = uploadError instanceof Error ? uploadError.message : 'Unknown error';
-            if (uploadError instanceof PendingTranscodeError) {
-              waiting = true;
-              console.log(`${post.task_id} ${upload.platform}: ${message}`);
-            } else {
-              errored = true;
-              console.error(`${post.task_id} ${upload.platform} failed:`, message);
-            }
+          if (remaining.length === 0) {
+            await sheetsService.markPosted(post.task_id, done);
+            posted += 1;
             continue;
           }
-          const complete = refs.length === uploads.length;
-          await sheetsService.markPosted(post.task_id, refs, complete ? 'Posted' : 'Error');
-        }
 
-        if (errored || waiting) {
-          await sheetsService.markPosted(post.task_id, refs, 'Error');
-          if (errored) failed += 1;
-          else skipped += 1;
-          continue;
+          // Each post id is written as soon as it exists, so a platform failing halfway through -
+          // or the function running out of time - still leaves the earlier ones on the row and the
+          // retry posts only what is missing, instead of publishing the same video twice. One
+          // platform rejecting the video says nothing about the others, so all of them are attempted.
+          const refs: PostedRef[] = [...done];
+          let errored = false;
+          let waiting = false;
+          for (const upload of remaining) {
+            try {
+              refs.push({ platform: upload.platform, post_id: await upload.run() });
+            } catch (uploadError) {
+              const message = uploadError instanceof Error ? uploadError.message : 'Unknown error';
+              if (uploadError instanceof PendingTranscodeError) {
+                waiting = true;
+                console.log(`${post.task_id} ${upload.platform}: ${message}`);
+              } else {
+                errored = true;
+                console.error(`${post.task_id} ${upload.platform} failed:`, message);
+              }
+              continue;
+            }
+            const complete = refs.length === uploads.length;
+            await sheetsService.markPosted(post.task_id, refs, complete ? 'Posted' : 'Error');
+          }
+
+          // Waiting on a transcode is not a failure: the row stays Pending so the next run, minutes
+          // later, publishes the container it already handed over.
+          if (errored || waiting) {
+            await sheetsService.markPosted(post.task_id, refs, errored ? 'Error' : 'Pending');
+            if (errored) failed += 1;
+            else skipped += 1;
+            continue;
+          }
+          posted += 1;
+        } catch (taskError) {
+          failed += 1;
+          const message = taskError instanceof Error ? taskError.message : 'Unknown error';
+          console.error(`Failed to post task ${post.task_id}:`, message);
+          await sheetsService.updatePostStatus(post.task_id, 'Error');
         }
-        posted += 1;
-      } catch (taskError) {
-        failed += 1;
-        const message = taskError instanceof Error ? taskError.message : 'Unknown error';
-        console.error(`Failed to post task ${post.task_id}:`, message);
-        await sheetsService.updatePostStatus(post.task_id, 'Error');
       }
-    }
+    };
+
+    await Promise.all(Array.from({ length: DISPATCH_CONCURRENCY }, () => worker()));
 
     return NextResponse.json({
       status: 'Dispatch completed',
@@ -391,6 +413,7 @@ export async function GET(request: Request) {
       posted,
       failed,
       skipped,
+      held: held.length,
       watchdog,
     });
   } catch (error) {

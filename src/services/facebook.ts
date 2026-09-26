@@ -7,7 +7,7 @@ const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const RUPLOAD_BASE = `https://rupload.facebook.com/video-upload/${GRAPH_VERSION}`;
 const AUTHORIZE_ENDPOINT = 'https://www.facebook.com/v21.0/dialog/oauth';
 const STATUS_POLL_INTERVAL_MS = 5000;
-const STATUS_POLL_ATTEMPTS = 12;
+const STATUS_POLL_ATTEMPTS = 4;
 
 /** `pages_manage_posts` is what allows publishing a Reel to a page. */
 export const FACEBOOK_SCOPES = [

@@ -9,7 +9,7 @@ export type Platform = 'YouTube' | 'TikTok' | 'Instagram' | 'Threads' | 'Faceboo
 export type TargetType = 'All_Signs' | 'Zodiac_Sign' | 'Theme' | 'Promo';
 export type ScriptStatus = 'Pending' | 'Script_Done' | 'Error';
 export type RenderStatus = 'Pending' | 'Rendering' | 'Rendered' | 'Error';
-export type PostStatus = 'Pending' | 'Posted' | 'Error';
+export type PostStatus = 'Pending' | 'Posted' | 'Error' | 'Hold';
 export type Pattern = '30s' | '65s';
 
 export interface Channel {
@@ -726,6 +726,29 @@ export class GoogleSheetsService {
           row.values.render_status_65s === 'Rendered',
       )
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
+  }
+
+  /**
+   * Puts tasks whose posting window is long gone on hold. A reading nobody published is worthless
+   * once its week has passed, and leaving it Pending keeps every later dispatch walking over it.
+   * Returns the ids it parked.
+   */
+  async holdStalePosts(dueBefore: Date): Promise<string[]> {
+    const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
+    const stale = rows.filter(
+      (row) =>
+        row.values.task_id &&
+        ['Pending', 'Error'].includes(row.values.post_status || 'Pending') &&
+        !parsePostedRefs(row.values[POSTED_REFS_COLUMN])?.length &&
+        Date.parse(row.values.scheduled_post_time) < dueBefore.getTime(),
+    );
+    if (stale.length === 0) return [];
+
+    await this.patchRows(
+      SHEET_NAMES.contentQueue,
+      stale.map((row) => ({ rowNumber: row.rowNumber, patch: { post_status: 'Hold' } })),
+    );
+    return stale.map((row) => row.values.task_id);
   }
 
   async updatePostStatus(taskId: string, status: PostStatus): Promise<void> {
