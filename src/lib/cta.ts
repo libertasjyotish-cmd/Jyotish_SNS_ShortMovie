@@ -50,6 +50,36 @@ Suche: ${SITE_DOMAIN}`,
 /** Comments render the URL as a tappable link, unlike a Shorts description. */
 export const COMMENT_URL = `${SITE_URL}/?utm_source=youtube&utm_medium=comment`;
 
+/** Opens the subscribe confirmation dialog of the channel, so one tap subscribes. */
+export function subscribeUrl(channelId: string): string {
+  return `https://www.youtube.com/channel/${channelId}?sub_confirmation=1`;
+}
+
+const SUBSCRIBE_CTA: Record<Language, string> = {
+  ja: '▼ 毎週の占いを見逃さないようにチャンネル登録',
+  en: '▼ Subscribe so you never miss a weekly reading',
+  es: '▼ Suscríbete para no perderte ninguna lectura semanal',
+  pt: '▼ Inscreva-se para não perder nenhuma leitura semanal',
+  id: '▼ Subscribe agar tidak melewatkan ramalan mingguan',
+  ar: '▼ اشترك في القناة حتى لا تفوتك قراءة كل أسبوع',
+  fr: '▼ Abonnez-vous pour ne manquer aucune lecture hebdomadaire',
+  de: '▼ Abonniere den Kanal, um keine Wocheneinschätzung zu verpassen',
+};
+
+function subscribeBlock(lang: Language, channelId: string): string {
+  return `${SUBSCRIBE_CTA[lang]}\n${subscribeUrl(channelId)}`;
+}
+
+/**
+ * The subscribe link is the only tappable subscribe surface a Short has: the player's own button
+ * is out of our reach and the watermark does not render on Shorts.
+ */
+export function youtubeComment(lang: Language, channelId?: string): string {
+  return [YOUTUBE_COMMENT[lang], channelId ? subscribeBlock(lang, channelId) : undefined]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 /**
  * Posted under every upload. It names what the sign in the video actually is, so a viewer who
  * only knows their Western sun sign has a reason to look their own up.
@@ -93,6 +123,8 @@ export interface DescriptionParams {
   platform?: 'default' | 'tiktok';
   /** Dated week a sign reading covers; it opens the caption so older posts date themselves. */
   period?: string;
+  /** YouTube channel the video is uploaded to; adds the subscribe link to the description. */
+  subscribeChannelId?: string;
 }
 
 export function buildDescription({
@@ -101,9 +133,11 @@ export function buildDescription({
   hashtags,
   platform,
   period,
+  subscribeChannelId,
 }: DescriptionParams): string {
   const cta = platform === 'tiktok' ? TIKTOK_DESCRIPTION_CTA[lang] : DESCRIPTION_CTA[lang];
-  return [period, body, cta, DISCLAIMERS[lang], limitHashtags(hashtags)]
+  const subscribe = subscribeChannelId ? subscribeBlock(lang, subscribeChannelId) : undefined;
+  return [period, body, cta, subscribe, DISCLAIMERS[lang], limitHashtags(hashtags)]
     .filter(Boolean)
     .join('\n\n');
 }
