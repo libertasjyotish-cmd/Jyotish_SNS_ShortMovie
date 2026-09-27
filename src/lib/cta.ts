@@ -15,17 +15,40 @@ export const CTA_NOTES: Record<Language, string> = {
   de: 'Tippe auf den Link in unserem Profil',
 };
 
+const CTA_HEADLINE: Record<Language, string> = {
+  ja: '▼ あなたの本当の星座を調べる',
+  en: '▼ Find your true sidereal sign',
+  es: '▼ Descubre tu verdadero signo sideral',
+  pt: '▼ Descubra seu verdadeiro signo sideral',
+  id: '▼ Temukan zodiak sideralmu yang sebenarnya',
+  ar: '▼ اكتشف برجك الحقيقي',
+  fr: '▼ Découvrez votre véritable signe sidéral',
+  de: '▼ Finde dein wahres siderisches Sternzeichen',
+};
+
 /** Shorts descriptions render URLs as plain text, so the profile link is the only tappable route. */
 export const DESCRIPTION_CTA: Record<Language, string> = {
-  ja: `▼ あなたの本当の星座を調べる\nプロフィールのリンクから\n${SITE_URL}`,
-  en: `▼ Find your true sidereal sign\nTap the link in our profile\n${SITE_URL}`,
-  es: `▼ Descubre tu verdadero signo sideral\nToca el enlace en el perfil\n${SITE_URL}`,
-  pt: `▼ Descubra seu verdadeiro signo sideral\nToque no link do perfil\n${SITE_URL}`,
-  id: `▼ Temukan zodiak sideralmu yang sebenarnya\nKetuk tautan di profil\n${SITE_URL}`,
-  ar: `▼ اكتشف برجك الحقيقي\nاضغط على الرابط في الملف الشخصي\n${SITE_URL}`,
-  fr: `▼ Découvrez votre véritable signe sidéral\nTouchez le lien dans notre profil\n${SITE_URL}`,
-  de: `▼ Finde dein wahres siderisches Sternzeichen\nTippe auf den Link in unserem Profil\n${SITE_URL}`,
+  ja: `${CTA_HEADLINE.ja}\nプロフィールのリンクから\n${SITE_URL}`,
+  en: `${CTA_HEADLINE.en}\nTap the link in our profile\n${SITE_URL}`,
+  es: `${CTA_HEADLINE.es}\nToca el enlace en el perfil\n${SITE_URL}`,
+  pt: `${CTA_HEADLINE.pt}\nToque no link do perfil\n${SITE_URL}`,
+  id: `${CTA_HEADLINE.id}\nKetuk tautan di profil\n${SITE_URL}`,
+  ar: `${CTA_HEADLINE.ar}\nاضغط على الرابط في الملف الشخصي\n${SITE_URL}`,
+  fr: `${CTA_HEADLINE.fr}\nTouchez le lien dans notre profil\n${SITE_URL}`,
+  de: `${CTA_HEADLINE.de}\nTippe auf den Link in unserem Profil\n${SITE_URL}`,
 };
+
+function siteLink(source: string): string {
+  return `${SITE_URL}/?utm_source=${source}&utm_medium=caption`;
+}
+
+/**
+ * Threads and Facebook turn a URL in the body into a tappable link, unlike an Instagram caption or
+ * a Shorts description, so those two get the site link itself instead of the profile detour.
+ */
+function linkCta(lang: Language, source: 'threads' | 'facebook'): string {
+  return `${CTA_HEADLINE[lang]}\n${siteLink(source)}`;
+}
 
 /** TikTok profile links need 1,000 followers, so the domain is spelled out instead. */
 export const TIKTOK_DESCRIPTION_CTA: Record<Language, string> = {
@@ -134,7 +157,7 @@ export interface DescriptionParams {
   lang: Language;
   body: string;
   hashtags: string;
-  platform?: 'default' | 'tiktok' | 'instagram';
+  platform?: 'default' | 'tiktok' | 'instagram' | 'threads' | 'facebook';
   /** Dated week a sign reading covers; it opens the caption so older posts date themselves. */
   period?: string;
   /** YouTube channel the video is uploaded to; adds the subscribe link to the description. */
@@ -149,7 +172,12 @@ export function buildDescription({
   period,
   subscribeChannelId,
 }: DescriptionParams): string {
-  const cta = platform === 'tiktok' ? TIKTOK_DESCRIPTION_CTA[lang] : DESCRIPTION_CTA[lang];
+  const cta =
+    platform === 'tiktok'
+      ? TIKTOK_DESCRIPTION_CTA[lang]
+      : platform === 'threads' || platform === 'facebook'
+        ? linkCta(lang, platform)
+        : DESCRIPTION_CTA[lang];
   const subscribe = subscribeChannelId ? subscribeBlock(lang, subscribeChannelId) : undefined;
   const tags = captionHashtags(lang, hashtags, platform === 'instagram' ? 6 : 4);
   return [period, body, cta, subscribe, tags]
