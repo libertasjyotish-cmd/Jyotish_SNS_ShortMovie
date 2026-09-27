@@ -21,7 +21,7 @@ PANEL = (10, 7, 18, 150)
 PERIOD_CENTER_Y = 300
 HOOK_CENTER_Y = 500
 BODY_CENTER_Y = 1040
-CTA_CENTER_Y = 1520
+CTA_CENTER_Y = 1600
 
 FONTS: dict[str, dict[str, tuple[str, str | None]]] = {
     "ja": {
