@@ -95,18 +95,6 @@ export const YOUTUBE_COMMENT: Record<Language, string> = {
   de: `Das Sternzeichen in diesem Video ist dein siderisches Mondzeichen, das im Jyotish (indische Astrologie) gelesen wird. Es ergibt sich aus dem Stand des Mondes bei deiner Geburt und weicht deshalb oft von deinem westlichen Sonnenzeichen ab.\n▼ Dein echtes Mondzeichen kostenlos prüfen\n${COMMENT_URL}`,
 };
 
-/** Required so astrology content is not read as medical, financial or legal advice. */
-export const DISCLAIMERS: Record<Language, string> = {
-  ja: 'エンターテインメントを目的とした内容です。医療・投資・法律上の判断は専門家にご相談ください。',
-  en: 'For entertainment purposes only. Consult a professional for medical, financial or legal decisions.',
-  es: 'Solo con fines de entretenimiento. Consulta a un profesional para decisiones médicas, financieras o legales.',
-  pt: 'Apenas para entretenimento. Consulte um profissional para decisões médicas, financeiras ou jurídicas.',
-  id: 'Hanya untuk hiburan. Konsultasikan dengan profesional untuk keputusan medis, keuangan, atau hukum.',
-  ar: 'المحتوى لأغراض الترفيه فقط. استشر مختصاً في القرارات الطبية أو المالية أو القانونية.',
-  fr: "À des fins de divertissement uniquement. Consultez un professionnel pour toute décision médicale, financière ou juridique.",
-  de: 'Nur zu Unterhaltungszwecken. Wende dich bei medizinischen, finanziellen oder rechtlichen Entscheidungen an Fachleute.',
-};
-
 /**
  * Hashtag search only surfaces an account that keeps using the same tags, so captions lead with a
  * fixed set per language and the generated tags fill the remaining slots.
@@ -164,7 +152,7 @@ export function buildDescription({
   const cta = platform === 'tiktok' ? TIKTOK_DESCRIPTION_CTA[lang] : DESCRIPTION_CTA[lang];
   const subscribe = subscribeChannelId ? subscribeBlock(lang, subscribeChannelId) : undefined;
   const tags = captionHashtags(lang, hashtags, platform === 'instagram' ? 6 : 4);
-  return [period, body, cta, subscribe, DISCLAIMERS[lang], tags]
+  return [period, body, cta, subscribe, tags]
     .filter(Boolean)
     .join('\n\n');
 }
