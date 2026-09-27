@@ -29,6 +29,8 @@ interface RenderOnceBody {
   codeLayout?: boolean;
   /** Small print under the CTA button. */
   note?: string;
+  /** Sign name and covered week, as the zodiac renders show them. */
+  period?: string;
   /** Renders through Creatomate even when the Cloud Run renderer is configured. */
   useCreatomate?: boolean;
 }
@@ -107,6 +109,7 @@ export async function POST(req: NextRequest) {
         script,
         backgroundUrl,
         note: payload.note,
+        period: payload.period,
         target: DURATION_BOUNDS[pattern],
       });
       return NextResponse.json({ status: "succeeded", ...rendered });
