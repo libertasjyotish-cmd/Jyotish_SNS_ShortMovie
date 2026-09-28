@@ -3,6 +3,7 @@ import { optionalEnv } from '@/lib/env';
 import { mp3DurationSeconds } from '@/lib/mp3';
 import { applyReadingHints } from '@/lib/reading';
 import { DAY_OFFSET, DayOfWeek } from '@/lib/schedule';
+import { ZODIAC_SIGNS } from '@/lib/zodiac-names';
 import { CreatomateService } from '@/services/creatomate';
 import { GeneratedScript } from '@/services/gemini';
 import { RendererService, isRendererConfigured } from '@/services/renderer';
@@ -105,10 +106,13 @@ function stableHash(value: string): number {
   return hash;
 }
 
+/** Slots a week takes up: the four theme days plus the twelve sign readings. */
+const SLOTS_PER_WEEK = 16;
+
 /**
- * Walks the background videos in order of the slot each task is posted in, so a channel never
- * shows the same background two days running: the week and the day advance the index by one
- * step per day, and the four zodiac slots of a day sit a quarter of the list apart.
+ * Walks the background videos in the order the week's videos go out, one asset per slot, so the
+ * whole library is cycled through evenly instead of being sampled at random: every asset comes
+ * up once per cycle and no two videos of a week share a background.
  */
 export function pickBackground(
   taskId: string,
@@ -121,10 +125,9 @@ export function pickBackground(
   const day = dayOfWeek ? DAY_OFFSET[dayOfWeek as DayOfWeek] : undefined;
   if (!week || day === undefined) return urls[stableHash(taskId) % urls.length];
 
-  const slot = stableHash(taskId.split('-').pop() ?? '') % 4;
-  const step = Math.max(1, Math.floor(urls.length / 4));
-  const ordinal = (Number(week[1]) * 7 + day) * 4;
-  return urls[(ordinal + slot * step) % urls.length];
+  const sign = ZODIAC_SIGNS.indexOf((taskId.split('-').pop() ?? '') as (typeof ZODIAC_SIGNS)[number]);
+  const slot = sign >= 0 ? 4 + sign : day;
+  return urls[(Number(week[1]) * SLOTS_PER_WEEK + slot) % urls.length];
 }
 
 /** Where the renderer reports a finished video; empty when the base URL is unknown. */
