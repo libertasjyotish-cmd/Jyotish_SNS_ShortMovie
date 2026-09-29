@@ -341,6 +341,13 @@ export class GoogleSheetsService {
   }
 
   private async appendRow(sheet: SheetName, record: Record<string, string>): Promise<void> {
+    await this.appendRows(sheet, [record]);
+  }
+
+  /** Appends several rows to one sheet with a single write request. */
+  private async appendRows(sheet: SheetName, records: Record<string, string>[]): Promise<void> {
+    if (records.length === 0) return;
+
     const { headers } = await this.loadTable(sheet);
     await withWriteRetry(() =>
       this.sheets.spreadsheets.values.append({
@@ -349,7 +356,7 @@ export class GoogleSheetsService {
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
-          values: [headers.map((header) => record[header] ?? '')],
+          values: records.map((record) => headers.map((header) => record[header] ?? '')),
         },
       }),
     );
@@ -491,19 +498,29 @@ export class GoogleSheetsService {
   }
 
   async markEvergreenUsed(scriptId: string, lang_code: Language, weekId: string): Promise<void> {
+    await this.markEvergreenUsedMany([{ scriptId, lang_code, weekId }]);
+  }
+
+  /** Stamps the week onto several evergreen scripts with a single write request. */
+  async markEvergreenUsedMany(
+    uses: { scriptId: string; lang_code: Language; weekId: string }[],
+  ): Promise<void> {
+    if (uses.length === 0) return;
+
     const { rows } = await this.loadTable(SHEET_NAMES.evergreenScripts);
-    const row = rows.find(
-      (candidate) =>
-        candidate.values.script_id === scriptId && candidate.values.lang_code === lang_code,
-    );
-    if (!row) {
-      throw new Error(
-        `script_id "${scriptId}" (${lang_code}) not found in ${SHEET_NAMES.evergreenScripts}`,
+    const patches = uses.map(({ scriptId, lang_code, weekId }) => {
+      const row = rows.find(
+        (candidate) =>
+          candidate.values.script_id === scriptId && candidate.values.lang_code === lang_code,
       );
-    }
-    await this.patchRow(SHEET_NAMES.evergreenScripts, row.rowNumber, {
-      last_used_week: weekId,
+      if (!row) {
+        throw new Error(
+          `script_id "${scriptId}" (${lang_code}) not found in ${SHEET_NAMES.evergreenScripts}`,
+        );
+      }
+      return { rowNumber: row.rowNumber, patch: { last_used_week: weekId } };
     });
+    await this.patchRows(SHEET_NAMES.evergreenScripts, patches);
   }
 
   async getQueueTasks(weekId: string): Promise<ContentQueue[]> {
@@ -514,7 +531,20 @@ export class GoogleSheetsService {
   }
 
   async addQueueTask(task: ContentQueue): Promise<void> {
-    await this.appendRow(SHEET_NAMES.contentQueue, {
+    await this.addQueueTasks([task]);
+  }
+
+  /** Appends several tasks with a single write request, so planning a whole week stays
+   * inside the Sheets per-minute write quota. */
+  async addQueueTasks(tasks: ContentQueue[]): Promise<void> {
+    await this.appendRows(
+      SHEET_NAMES.contentQueue,
+      tasks.map((task) => GoogleSheetsService.toQueueRecord(task)),
+    );
+  }
+
+  private static toQueueRecord(task: ContentQueue): Record<string, string> {
+    return {
       task_id: task.task_id,
       week_id: task.week_id,
       day_of_week: task.day_of_week,
@@ -527,7 +557,7 @@ export class GoogleSheetsService {
       render_status_65s: task.render_status_65s,
       post_status: task.post_status,
       scheduled_post_time: task.scheduled_post_time,
-    });
+    };
   }
 
   async getWeeklyTransits(weekId: string): Promise<WeeklyTransit | null> {

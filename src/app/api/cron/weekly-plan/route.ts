@@ -116,7 +116,8 @@ export async function GET(request: Request) {
       });
     }
 
-    const created: string[] = [];
+    const pending: ContentQueue[] = [];
+    const themeUses: { scriptId: string; lang_code: Language; weekId: string }[] = [];
     const skippedDays: string[] = [];
 
     for (const lang of plannedLanguages()) {
@@ -142,9 +143,8 @@ export async function GET(request: Request) {
         };
         if (existing.has(task.task_id)) continue;
 
-        await sheets.addQueueTask(task);
-        await sheets.markEvergreenUsed(theme.script_id, lang, weekId);
-        created.push(task.task_id);
+        pending.push(task);
+        themeUses.push({ scriptId: theme.script_id, lang_code: lang, weekId });
       }
 
       for (const { day, signs } of ZODIAC_DAYS) {
@@ -158,18 +158,22 @@ export async function GET(request: Request) {
           };
           if (existing.has(task.task_id)) continue;
 
-          await sheets.addQueueTask(task);
-          created.push(task.task_id);
+          pending.push(task);
         }
       }
     }
+
+    // One write per sheet: a row-at-a-time plan runs into the Sheets per-minute write quota
+    // partway through the languages and leaves the week half planned.
+    await sheets.addQueueTasks(pending);
+    await sheets.markEvergreenUsedMany(themeUses);
 
     return NextResponse.json({
       status: 'Weekly plan completed',
       week_id: weekId,
       transit_written: transitWritten,
-      created: created.length,
-      task_ids: created,
+      created: pending.length,
+      task_ids: pending.map((task) => task.task_id),
       skipped_theme_slots: skippedDays,
     });
   } catch (error) {
