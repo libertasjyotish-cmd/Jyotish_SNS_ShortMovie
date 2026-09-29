@@ -1,7 +1,14 @@
 import { sendAlert } from '@/lib/alert';
 import { isDispatchEnabledFor } from '@/lib/dispatch-gate';
+import { plannedLanguages } from '@/lib/plan-languages';
 import { runRenderBatch } from '@/lib/render-batch';
-import { MAX_RENDER_ATTEMPTS, findBlockedTasks, planRenderRecovery } from '@/lib/watchdog';
+import { isoWeekId, nextWeekStart } from '@/lib/schedule';
+import {
+  MAX_RENDER_ATTEMPTS,
+  findBlockedTasks,
+  findIncompletePlan,
+  planRenderRecovery,
+} from '@/lib/watchdog';
 import { CreatomateService } from '@/services/creatomate';
 import { GoogleSheetsService } from '@/services/sheets';
 
@@ -47,6 +54,7 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
     ...findBlockedTasks(tasks, now, {
       isDispatchEnabledFor,
     }),
+    ...findIncompletePlan(tasks, isoWeekId(nextWeekStart(now)), plannedLanguages()),
   );
   const alerted = await sendAlert(
     alerts.length > 0 ? ['Jyotish SNS pipeline needs attention:', ...alerts] : [],
