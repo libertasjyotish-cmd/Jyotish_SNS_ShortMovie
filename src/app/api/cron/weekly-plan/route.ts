@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { optionalEnv } from '@/lib/env';
 import { buildTransitReference } from '@/lib/ephemeris';
+import { plannedLanguages } from '@/lib/plan-languages';
 import {
   DayOfWeek,
   isoWeekId,
@@ -23,16 +24,6 @@ import {
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
-
-function plannedLanguages(): Language[] {
-  const configured = (optionalEnv('PLAN_LANGUAGES') ?? 'ja')
-    .split(',')
-    .map((code) => code.trim())
-    .filter(Boolean);
-  return configured.filter((code): code is Language =>
-    LANGUAGES.includes(code as Language)
-  );
-}
 
 /** The script that has waited longest for this day of the week. */
 function pickScript(

@@ -1,4 +1,9 @@
-import { ContentQueue, Pattern, RenderStatus } from '@/services/sheets';
+import { THEME_DAYS, ZODIAC_DAYS } from '@/lib/schedule';
+import { ContentQueue, Language, Pattern, RenderStatus } from '@/services/sheets';
+
+/** Slots the weekly plan creates per language: the theme days plus the twelve Moon signs. */
+export const SLOTS_PER_LANGUAGE =
+  THEME_DAYS.length + ZODIAC_DAYS.reduce((total, { signs }) => total + signs.length, 0);
 
 /** A render whose callback should have arrived by now is treated as lost. */
 export const RENDER_STALE_MINUTES = 30;
@@ -68,6 +73,30 @@ export function planRenderRecovery(tasks: ContentQueue[], now: Date): RenderReco
   }
 
   return recoveries;
+}
+
+/**
+ * Languages whose week is short of slots. A plan that dies partway through leaves no error
+ * row behind, so the gap is only visible by counting what the week should hold.
+ */
+export function findIncompletePlan(
+  tasks: ContentQueue[],
+  weekId: string,
+  languages: Language[],
+): string[] {
+  const planned = tasks.filter((task) => task.week_id === weekId);
+  if (planned.length === 0) return [];
+
+  return languages
+    .map((lang) => ({
+      lang,
+      count: planned.filter((task) => task.lang_code === lang).length,
+    }))
+    .filter(({ count }) => count < SLOTS_PER_LANGUAGE)
+    .map(
+      ({ lang, count }) =>
+        `${weekId}/${lang}: only ${count} of ${SLOTS_PER_LANGUAGE} slots planned`,
+    );
 }
 
 /**
