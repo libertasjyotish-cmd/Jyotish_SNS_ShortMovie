@@ -14,19 +14,38 @@ interface ThemeScript {
   tags: string;
 }
 
-const TARGETS: Record<string, { name: string; length: string; note?: string }> = {
-  es: { name: 'Español', length: '62 a 92 palabras en total' },
-  pt: { name: 'Português', length: '62 a 92 palavras no total' },
-  id: { name: 'Bahasa Indonesia', length: 'total 62 sampai 92 kata' },
+const TARGETS: Record<string, { name: string; length: string; notice: string; note?: string }> = {
+  en: { name: 'English', length: '48 to 68 words in total', notice: 'notice, you may have noticed, recognise' },
+  es: {
+    name: 'Español',
+    length: '62 a 92 palabras en total',
+    notice: 'notas, has notado, te das cuenta',
+  },
+  pt: {
+    name: 'Português',
+    length: '62 a 92 palavras no total',
+    notice: 'percebe, reconhece',
+  },
+  id: {
+    name: 'Bahasa Indonesia',
+    length: 'total 62 sampai 92 kata',
+    notice: 'memperhatikan, menyadari, terasa',
+  },
   ar: {
     name: 'العربية',
     length: '62 إلى 92 كلمة إجمالاً',
+    notice: 'تلاحظ, لاحظت, تشعر',
     note: 'Right-to-left script. Keep the numeral 108 and write dasha as داشا.',
   },
-  fr: { name: 'Français', length: '62 à 92 mots au total' },
+  fr: {
+    name: 'Français',
+    length: '62 à 92 mots au total',
+    notice: 'remarquez, ressentez, reconnaissez',
+  },
   de: {
     name: 'Deutsch',
     length: 'insgesamt 58 bis 82 Wörter',
+    notice: 'bemerkst, spürst, erkennst',
     note: 'Prefer short everyday words over long compound nouns.',
   },
 };
@@ -50,10 +69,11 @@ function prompt(lang: string, script: ThemeScript, feedback?: string): string {
     `1. Total length of the three fields together: ${target.length}. Count before answering.`,
     '2. Keep the meaning and the order of the original. Do not add or drop ideas.',
     '3. The hook must address the viewer directly (second person) and name the everyday situation.',
-    '4. The body must contain a verb of noticing ("you notice", "you have noticed") so the viewer can tell whether it reaches them.',
+    `4. The body must contain a verb of noticing so the viewer can tell whether it reaches them. Use one of: ${target.notice}.`,
     '5. cta_text keeps all three parts: (a) "to find out <the one thing left unanswered>"; (b) twelve sun signs are not enough, Jyotish combines the 108 subdivisions with the dasha periods; (c) check yours free through the link. Keep the numeral 108 and the word dasha.',
     '6. No URL, domain or email. No fear wording and no guarantee of a fixed outcome.',
-    target.note ? `7. ${target.note}` : '',
+    '7. A zodiac sign name keeps its common name in the target language, in the same places as the original.',
+    target.note ? `8. ${target.note}` : '',
     feedback ? `Your previous attempt was rejected: ${feedback}. Fix it.` : '',
     '',
     `hook_text: ${script.hook}`,
