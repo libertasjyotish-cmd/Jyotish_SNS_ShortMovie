@@ -109,38 +109,59 @@ function stableHash(value: string): number {
 /** Slots a week takes up: the four theme days plus the twelve sign readings. */
 const SLOTS_PER_WEEK = 16;
 
+/** Traits that decide how a background looks: its `visual_group` and how bright it is. */
+function traitsOf(asset: BackgroundAsset): string[] {
+  const brightness = asset.brightness ?? 0;
+  return [
+    `group:${asset.visual_group || asset.asset_id}`,
+    `tone:${brightness >= 150 ? 'bright' : brightness >= 90 ? 'mid' : 'dark'}`,
+  ];
+}
+
+const TRAIT_WEIGHT = [1.5, 1];
+
 /**
- * Orders the library so that each `visual_group` is spread evenly over the whole cycle instead
- * of sitting together in upload order. Most of the library shares a handful of looks, so
- * walking it in upload order shows the same look several times in a row even though every file
- * differs. An asset with no group counts as a look of its own.
+ * Orders the library so that neither look nor brightness comes up in runs. Assets sit in upload
+ * order, which groups them by look and leaves the few bright ones bunched together, so walking
+ * the list shows the same picture (and the same darkness) several slots in a row even though
+ * every file differs.
+ *
+ * Each asset is placed by picking, from what is left, the one whose traits have gone unused the
+ * longest relative to how common they are: a trait held by a third of the library scores full
+ * marks once three slots have passed, one held by a tenth needs ten. That spaces every trait out
+ * in proportion to its stock, which is the most even a lopsided library allows.
  */
-export function spreadByVisualGroup(assets: BackgroundAsset[]): string[] {
-  const sizes = new Map<string, number>();
-  const groupOf = (asset: BackgroundAsset) => asset.visual_group || asset.asset_id;
+export function balancedOrder(assets: BackgroundAsset[]): string[] {
+  const stock = new Map<string, number>();
   for (const asset of assets) {
-    sizes.set(groupOf(asset), (sizes.get(groupOf(asset)) ?? 0) + 1);
+    for (const trait of traitsOf(asset)) stock.set(trait, (stock.get(trait) ?? 0) + 1);
   }
 
-  const taken = new Map<string, number>();
-  const order = assets
-    .map((asset) => {
-      const group = groupOf(asset);
-      const position = taken.get(group) ?? 0;
-      taken.set(group, position + 1);
-      return { url: asset.video_url, group, rank: (position + 0.5) / (sizes.get(group) ?? 1) };
-    })
-    .sort((a, b) => a.rank - b.rank || a.group.localeCompare(b.group));
+  const total = assets.length;
+  const pool = [...assets].sort((a, b) => a.asset_id.localeCompare(b.asset_id));
+  const lastUsed = new Map<string, number>();
+  const order: string[] = [];
 
-  for (let i = 1; i < order.length; i += 1) {
-    if (order[i].group !== order[i - 1].group) continue;
-    const swap = order.findIndex(
-      (entry, j) =>
-        j > i && entry.group !== order[i - 1].group && order[j + 1]?.group !== order[i].group,
-    );
-    if (swap > i) [order[i], order[swap]] = [order[swap], order[i]];
+  while (pool.length > 0) {
+    const slot = order.length;
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+    pool.forEach((asset, index) => {
+      const score = traitsOf(asset).reduce((sum, trait, i) => {
+        const gap = slot - (lastUsed.get(trait) ?? -total);
+        return sum + TRAIT_WEIGHT[i] * Math.min(1, (gap * (stock.get(trait) ?? 1)) / total);
+      }, 0);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    });
+
+    const [picked] = pool.splice(bestIndex, 1);
+    for (const trait of traitsOf(picked)) lastUsed.set(trait, slot);
+    order.push(picked.video_url);
   }
-  return order.map((entry) => entry.url);
+  return order;
 }
 
 /**
@@ -154,7 +175,7 @@ export function pickBackground(
   dayOfWeek?: string,
 ): string | undefined {
   if (assets.length === 0) return undefined;
-  const urls = spreadByVisualGroup(assets);
+  const urls = balancedOrder(assets);
 
   const week = /-W(\d{2})/.exec(taskId);
   const day = dayOfWeek ? DAY_OFFSET[dayOfWeek as DayOfWeek] : undefined;
