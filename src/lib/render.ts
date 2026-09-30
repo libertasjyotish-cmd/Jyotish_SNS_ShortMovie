@@ -7,7 +7,7 @@ import { ZODIAC_SIGNS } from '@/lib/zodiac-names';
 import { CreatomateService } from '@/services/creatomate';
 import { GeneratedScript } from '@/services/gemini';
 import { RendererService, isRendererConfigured } from '@/services/renderer';
-import { GoogleSheetsService, Language, Pattern, Platform } from '@/services/sheets';
+import { BackgroundAsset, GoogleSheetsService, Language, Pattern, Platform } from '@/services/sheets';
 import { uploadVoiceover } from '@/services/storage';
 import { TextToSpeechService } from '@/services/tts';
 
@@ -110,16 +110,51 @@ function stableHash(value: string): number {
 const SLOTS_PER_WEEK = 16;
 
 /**
+ * Orders the library so that each `visual_group` is spread evenly over the whole cycle instead
+ * of sitting together in upload order. Most of the library shares a handful of looks, so
+ * walking it in upload order shows the same look several times in a row even though every file
+ * differs. An asset with no group counts as a look of its own.
+ */
+export function spreadByVisualGroup(assets: BackgroundAsset[]): string[] {
+  const sizes = new Map<string, number>();
+  const groupOf = (asset: BackgroundAsset) => asset.visual_group || asset.asset_id;
+  for (const asset of assets) {
+    sizes.set(groupOf(asset), (sizes.get(groupOf(asset)) ?? 0) + 1);
+  }
+
+  const taken = new Map<string, number>();
+  const order = assets
+    .map((asset) => {
+      const group = groupOf(asset);
+      const position = taken.get(group) ?? 0;
+      taken.set(group, position + 1);
+      return { url: asset.video_url, group, rank: (position + 0.5) / (sizes.get(group) ?? 1) };
+    })
+    .sort((a, b) => a.rank - b.rank || a.group.localeCompare(b.group));
+
+  for (let i = 1; i < order.length; i += 1) {
+    if (order[i].group !== order[i - 1].group) continue;
+    const swap = order.findIndex(
+      (entry, j) =>
+        j > i && entry.group !== order[i - 1].group && order[j + 1]?.group !== order[i].group,
+    );
+    if (swap > i) [order[i], order[swap]] = [order[swap], order[i]];
+  }
+  return order.map((entry) => entry.url);
+}
+
+/**
  * Walks the background videos in the order the week's videos go out, one asset per slot, so the
  * whole library is cycled through evenly instead of being sampled at random: every asset comes
  * up once per cycle and no two videos of a week share a background.
  */
 export function pickBackground(
   taskId: string,
-  urls: string[],
+  assets: BackgroundAsset[],
   dayOfWeek?: string,
 ): string | undefined {
-  if (urls.length === 0) return undefined;
+  if (assets.length === 0) return undefined;
+  const urls = spreadByVisualGroup(assets);
 
   const week = /-W(\d{2})/.exec(taskId);
   const day = dayOfWeek ? DAY_OFFSET[dayOfWeek as DayOfWeek] : undefined;
@@ -157,11 +192,7 @@ async function renderOnCloudRun(
     day_of_week: params.dayOfWeek,
     pattern: params.pattern,
   });
-  const backgroundUrl = pickBackground(
-    params.taskId,
-    assets.map((asset) => asset.video_url),
-    params.dayOfWeek,
-  );
+  const backgroundUrl = pickBackground(params.taskId, assets, params.dayOfWeek);
   if (!backgroundUrl) {
     throw new Error(`No background asset available for "${params.language}"`);
   }
@@ -239,11 +270,7 @@ export async function startRender(
     language: params.language,
     scriptData: params.script,
     voiceoverUrl,
-    backgroundUrl: pickBackground(
-      params.taskId,
-      assets.map((asset) => asset.video_url),
-      params.dayOfWeek,
-    ),
+    backgroundUrl: pickBackground(params.taskId, assets, params.dayOfWeek),
     durationSeconds:
       duration > 0 ? Number((INTRO_SECONDS + duration + OUTRO_SECONDS).toFixed(2)) : undefined,
     voiceoverStart: INTRO_SECONDS,
