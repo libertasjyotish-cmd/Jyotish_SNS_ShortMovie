@@ -144,6 +144,10 @@ export interface BackgroundAsset {
   lang_code?: Language;
   day_of_week?: string;
   pattern?: Pattern;
+  /** Assets that look alike share a group, so the rotation can keep them apart. */
+  visual_group?: string;
+  /** Mean luminance (0-255) of the clip, so the rotation can keep dark ones apart. */
+  brightness?: number;
   enabled: boolean;
 }
 
@@ -468,6 +472,8 @@ export class GoogleSheetsService {
         lang_code: (row.values.lang_code || undefined) as Language | undefined,
         day_of_week: row.values.day_of_week || undefined,
         pattern: (row.values.pattern || undefined) as Pattern | undefined,
+        visual_group: row.values.visual_group || undefined,
+        brightness: toNumber(row.values.brightness),
         enabled: (row.values.enabled || 'TRUE').toUpperCase() !== 'FALSE',
       }))
       .filter(

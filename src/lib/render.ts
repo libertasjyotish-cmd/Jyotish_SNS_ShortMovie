@@ -7,7 +7,7 @@ import { ZODIAC_SIGNS } from '@/lib/zodiac-names';
 import { CreatomateService } from '@/services/creatomate';
 import { GeneratedScript } from '@/services/gemini';
 import { RendererService, isRendererConfigured } from '@/services/renderer';
-import { GoogleSheetsService, Language, Pattern, Platform } from '@/services/sheets';
+import { BackgroundAsset, GoogleSheetsService, Language, Pattern, Platform } from '@/services/sheets';
 import { uploadVoiceover } from '@/services/storage';
 import { TextToSpeechService } from '@/services/tts';
 
@@ -109,6 +109,61 @@ function stableHash(value: string): number {
 /** Slots a week takes up: the four theme days plus the twelve sign readings. */
 const SLOTS_PER_WEEK = 16;
 
+/** Traits that decide how a background looks: its `visual_group` and how bright it is. */
+function traitsOf(asset: BackgroundAsset): string[] {
+  const brightness = asset.brightness ?? 0;
+  return [
+    `group:${asset.visual_group || asset.asset_id}`,
+    `tone:${brightness >= 150 ? 'bright' : brightness >= 90 ? 'mid' : 'dark'}`,
+  ];
+}
+
+const TRAIT_WEIGHT = [1.5, 1];
+
+/**
+ * Orders the library so that neither look nor brightness comes up in runs. Assets sit in upload
+ * order, which groups them by look and leaves the few bright ones bunched together, so walking
+ * the list shows the same picture (and the same darkness) several slots in a row even though
+ * every file differs.
+ *
+ * Each asset is placed by picking, from what is left, the one whose traits have gone unused the
+ * longest relative to how common they are: a trait held by a third of the library scores full
+ * marks once three slots have passed, one held by a tenth needs ten. That spaces every trait out
+ * in proportion to its stock, which is the most even a lopsided library allows.
+ */
+export function balancedOrder(assets: BackgroundAsset[]): string[] {
+  const stock = new Map<string, number>();
+  for (const asset of assets) {
+    for (const trait of traitsOf(asset)) stock.set(trait, (stock.get(trait) ?? 0) + 1);
+  }
+
+  const total = assets.length;
+  const pool = [...assets].sort((a, b) => a.asset_id.localeCompare(b.asset_id));
+  const lastUsed = new Map<string, number>();
+  const order: string[] = [];
+
+  while (pool.length > 0) {
+    const slot = order.length;
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+    pool.forEach((asset, index) => {
+      const score = traitsOf(asset).reduce((sum, trait, i) => {
+        const gap = slot - (lastUsed.get(trait) ?? -total);
+        return sum + TRAIT_WEIGHT[i] * Math.min(1, (gap * (stock.get(trait) ?? 1)) / total);
+      }, 0);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    });
+
+    const [picked] = pool.splice(bestIndex, 1);
+    for (const trait of traitsOf(picked)) lastUsed.set(trait, slot);
+    order.push(picked.video_url);
+  }
+  return order;
+}
+
 /**
  * Walks the background videos in the order the week's videos go out, one asset per slot, so the
  * whole library is cycled through evenly instead of being sampled at random: every asset comes
@@ -116,10 +171,11 @@ const SLOTS_PER_WEEK = 16;
  */
 export function pickBackground(
   taskId: string,
-  urls: string[],
+  assets: BackgroundAsset[],
   dayOfWeek?: string,
 ): string | undefined {
-  if (urls.length === 0) return undefined;
+  if (assets.length === 0) return undefined;
+  const urls = balancedOrder(assets);
 
   const week = /-W(\d{2})/.exec(taskId);
   const day = dayOfWeek ? DAY_OFFSET[dayOfWeek as DayOfWeek] : undefined;
@@ -157,11 +213,7 @@ async function renderOnCloudRun(
     day_of_week: params.dayOfWeek,
     pattern: params.pattern,
   });
-  const backgroundUrl = pickBackground(
-    params.taskId,
-    assets.map((asset) => asset.video_url),
-    params.dayOfWeek,
-  );
+  const backgroundUrl = pickBackground(params.taskId, assets, params.dayOfWeek);
   if (!backgroundUrl) {
     throw new Error(`No background asset available for "${params.language}"`);
   }
@@ -239,11 +291,7 @@ export async function startRender(
     language: params.language,
     scriptData: params.script,
     voiceoverUrl,
-    backgroundUrl: pickBackground(
-      params.taskId,
-      assets.map((asset) => asset.video_url),
-      params.dayOfWeek,
-    ),
+    backgroundUrl: pickBackground(params.taskId, assets, params.dayOfWeek),
     durationSeconds:
       duration > 0 ? Number((INTRO_SECONDS + duration + OUTRO_SECONDS).toFixed(2)) : undefined,
     voiceoverStart: INTRO_SECONDS,
