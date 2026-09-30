@@ -1,3 +1,4 @@
+import { SignThemeSeries } from '@/lib/sign-themes';
 import { Language } from '@/services/sheets';
 
 const BRAND = 'Libertas Jyotish';
@@ -16,6 +17,34 @@ export const TITLE_KEYWORDS: Record<Language, { weekly: string; theme: string }>
   ar: { weekly: 'حظك هذا الأسبوع', theme: 'التنجيم الفيدي' },
   fr: { weekly: 'Horoscope Hebdomadaire', theme: 'Astrologie Védique' },
   de: { weekly: 'Wochenhoroskop', theme: 'Vedische Astrologie' },
+};
+
+/** The searched phrase of each sign-targeted evergreen series, used in place of the weekly one. */
+export const SERIES_KEYWORDS: Record<Language, Record<SignThemeSeries, string>> = {
+  ja: { compat: '相性がいい星座・悪い星座', nature: '本質と性格', sidereal: '西洋占星術とのずれ' },
+  en: { compat: 'Compatibility', nature: 'Personality Traits', sidereal: 'Your Real Sidereal Sign' },
+  es: { compat: 'Compatibilidad', nature: 'Personalidad', sidereal: 'Tu verdadero signo sideral' },
+  pt: { compat: 'Compatibilidade', nature: 'Personalidade', sidereal: 'Seu verdadeiro signo sideral' },
+  id: { compat: 'Kecocokan', nature: 'Kepribadian', sidereal: 'Zodiak sideral sebenarnya' },
+  ar: { compat: 'التوافق', nature: 'الشخصية', sidereal: 'برجك الفلكي الحقيقي' },
+  fr: { compat: 'Compatibilité', nature: 'Personnalité', sidereal: 'Votre vrai signe sidéral' },
+  de: { compat: 'Kompatibilität', nature: 'Persönlichkeit', sidereal: 'Dein echtes siderisches Zeichen' },
+};
+
+/**
+ * Viewers search for the sign they were told they are, which is their Western sun sign, so a
+ * title that names a sign says which system it belongs to. It sits at the end because phones
+ * cut a title off after roughly forty characters.
+ */
+export const MOON_SIGN_NOTE: Record<Language, string> = {
+  ja: 'インド占星術の月星座',
+  en: 'Vedic Moon Sign',
+  es: 'Signo lunar védico',
+  pt: 'Signo lunar védico',
+  id: 'Zodiak Bulan Veda',
+  ar: 'برج القمر في التنجيم الفيدي',
+  fr: 'Signe lunaire védique',
+  de: 'Vedisches Mondzeichen',
 };
 
 /** Tags carry the spellings a title has no room for, including the untranslated Sanskrit terms. */
@@ -37,15 +66,30 @@ export interface TitleParams {
   hook: string;
   /** Dated week a sign reading covers. */
   period?: string;
+  /** Series of a sign-targeted evergreen video; its phrase replaces the weekly one. */
+  series?: SignThemeSeries;
 }
 
-/** The brand is dropped rather than truncated when the searchable part fills the title. */
-export function buildYouTubeTitle({ lang, zodiacSign, hook, period }: TitleParams): string {
+/**
+ * The hook is dropped rather than truncated when the searchable part fills the title, and a
+ * sign title ends with the system it reads instead of the brand.
+ */
+export function buildYouTubeTitle({
+  lang,
+  zodiacSign,
+  hook,
+  period,
+  series,
+}: TitleParams): string {
   const keywords = TITLE_KEYWORDS[lang];
-  const lead = zodiacSign
-    ? [zodiacSign, keywords.weekly, period].filter(Boolean).join(' ')
-    : keywords.theme;
-  const head = hook ? `${lead}: ${hook}` : lead;
-  const withBrand = `${head} | ${BRAND}`;
-  return (withBrand.length <= TITLE_LIMIT ? withBrand : head).slice(0, TITLE_LIMIT);
+  const phrase = series ? SERIES_KEYWORDS[lang][series] : keywords.weekly;
+  const lead = zodiacSign ? [zodiacSign, phrase, period].filter(Boolean).join(' ') : keywords.theme;
+  const separator = lang === 'ja' ? '｜' : ' | ';
+  const tail = `${separator}${zodiacSign ? MOON_SIGN_NOTE[lang] : BRAND}`;
+  // A series keyword already says what the video is, so its hook would only push the
+  // moon-sign note past what a phone shows.
+  const withHook = `${lead}: ${hook}${tail}`;
+  if (hook && !series && withHook.length <= TITLE_LIMIT) return withHook;
+  const withTail = `${lead}${tail}`;
+  return (withTail.length <= TITLE_LIMIT ? withTail : lead).slice(0, TITLE_LIMIT);
 }

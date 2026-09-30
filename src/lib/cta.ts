@@ -153,6 +153,22 @@ export function captionHashtags(lang: Language, generated: string, max: number):
   return tags.slice(0, max).join(' ');
 }
 
+/**
+ * A viewer only knows the sun sign a Western horoscope gave them, so every caption that names
+ * a sign says up front which sign it means; the answer is on the site, which is where the CTA
+ * below already sends them.
+ */
+export const MOON_SIGN_CAPTION: Record<Language, string> = {
+  ja: '※この星座はインド占星術（ジョーティシュ）の月星座です。西洋占星術の星座とは違うことがよくあります。',
+  en: 'Note: this sign is your sidereal Moon sign, the one Jyotish (Indian astrology) reads. It is often not the Western sun sign you know.',
+  es: 'Nota: este signo es tu signo lunar sideral, el que lee el Jyotish (astrología india). Muchas veces no coincide con el signo solar occidental que conoces.',
+  pt: 'Nota: este signo é o seu signo lunar sideral, o que o Jyotish (astrologia indiana) lê. Muitas vezes não é o signo solar ocidental que você conhece.',
+  id: 'Catatan: zodiak ini adalah zodiak bulan sideral yang dibaca dalam Jyotish (astrologi India). Sering berbeda dari zodiak matahari versi Barat yang Anda kenal.',
+  ar: 'ملاحظة: هذا البرج هو برج القمر الفلكي الذي يعتمده الجيوتيش (التنجيم الهندي)، وهو غالبًا يختلف عن برج الشمس الغربي الذي تعرفه.',
+  fr: 'Note : ce signe est votre signe lunaire sidéral, celui que lit le Jyotish (astrologie indienne). Il diffère souvent du signe solaire occidental que vous connaissez.',
+  de: 'Hinweis: Dieses Sternzeichen ist dein siderisches Mondzeichen, das im Jyotish (indische Astrologie) gelesen wird. Es weicht oft von deinem westlichen Sonnenzeichen ab.',
+};
+
 export interface DescriptionParams {
   lang: Language;
   body: string;
@@ -162,6 +178,8 @@ export interface DescriptionParams {
   period?: string;
   /** YouTube channel the video is uploaded to; adds the subscribe link to the description. */
   subscribeChannelId?: string;
+  /** Opens the caption with the note that the sign named is a sidereal Moon sign. */
+  moonSign?: boolean;
 }
 
 export function buildDescription({
@@ -171,6 +189,7 @@ export function buildDescription({
   platform,
   period,
   subscribeChannelId,
+  moonSign,
 }: DescriptionParams): string {
   const cta =
     platform === 'tiktok'
@@ -180,7 +199,7 @@ export function buildDescription({
         : DESCRIPTION_CTA[lang];
   const subscribe = subscribeChannelId ? subscribeBlock(lang, subscribeChannelId) : undefined;
   const tags = captionHashtags(lang, hashtags, platform === 'instagram' ? 6 : 4);
-  return [period, body, cta, subscribe, tags]
+  return [moonSign ? MOON_SIGN_CAPTION[lang] : undefined, period, body, cta, subscribe, tags]
     .filter(Boolean)
     .join('\n\n');
 }
