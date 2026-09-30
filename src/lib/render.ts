@@ -3,6 +3,7 @@ import { optionalEnv } from '@/lib/env';
 import { mp3DurationSeconds } from '@/lib/mp3';
 import { applyReadingHints } from '@/lib/reading';
 import { DAY_OFFSET, DayOfWeek } from '@/lib/schedule';
+import { SIGN_THEME_SERIES } from '@/lib/sign-themes';
 import { ZODIAC_SIGNS } from '@/lib/zodiac-names';
 import { CreatomateService } from '@/services/creatomate';
 import { GeneratedScript } from '@/services/gemini';
@@ -181,7 +182,14 @@ export function pickBackground(
   const day = dayOfWeek ? DAY_OFFSET[dayOfWeek as DayOfWeek] : undefined;
   if (!week || day === undefined) return urls[stableHash(taskId) % urls.length];
 
-  const sign = ZODIAC_SIGNS.indexOf((taskId.split('-').pop() ?? '') as (typeof ZODIAC_SIGNS)[number]);
+  // A sign-targeted evergreen ends in a sign too, but it takes the slot of its weekday: the
+  // three series of one sign go out on the Monday, Tuesday and Wednesday of the same week, and
+  // consecutive slots are what the balanced order keeps apart. Reading it as a sign instead
+  // would hand all three, and the sign's own weekly reading, the same background.
+  const isSignTheme = SIGN_THEME_SERIES.some((series) => taskId.includes(`-sign-${series}-`));
+  const sign = isSignTheme
+    ? -1
+    : ZODIAC_SIGNS.indexOf((taskId.split('-').pop() ?? '') as (typeof ZODIAC_SIGNS)[number]);
   const slot = sign >= 0 ? 4 + sign : day;
   return urls[(Number(week[1]) * SLOTS_PER_WEEK + slot) % urls.length];
 }
