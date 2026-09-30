@@ -1,4 +1,5 @@
 import { sendAlert } from '@/lib/alert';
+import { triggerNextBatch } from '@/lib/batch';
 import { isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { plannedLanguages } from '@/lib/plan-languages';
 import { runRenderBatch } from '@/lib/render-batch';
@@ -19,6 +20,8 @@ export interface WatchdogResult {
   stillPending: number;
   renderFailed: number;
   renderErrors: string[];
+  pendingScripts: number;
+  generationResumed: boolean;
   alerts: string[];
   alerted: boolean;
 }
@@ -56,6 +59,13 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
     }),
     ...findIncompletePlan(tasks, isoWeekId(nextWeekStart(now)), plannedLanguages()),
   );
+  // The generation chain hands its remainder to a fresh invocation, so a single lost
+  // invocation leaves the week half written until the next weekly cron. Restarting it here
+  // picks the backlog up the same day.
+  const pendingScripts = tasks.filter((task) => task.script_status === 'Pending').length;
+  const generationResumed =
+    pendingScripts > 0 ? await triggerNextBatch('/api/cron/weekly-generate', 0) : false;
+
   const alerted = await sendAlert(
     alerts.length > 0 ? ['Jyotish SNS pipeline needs attention:', ...alerts] : [],
   );
@@ -67,6 +77,8 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
     stillPending: batch?.remaining ?? 0,
     renderFailed: batch?.failed ?? 0,
     renderErrors: batch?.errors ?? [],
+    pendingScripts,
+    generationResumed,
     alerts,
     alerted,
   };
