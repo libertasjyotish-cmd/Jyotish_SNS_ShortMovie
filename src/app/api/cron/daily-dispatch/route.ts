@@ -5,6 +5,7 @@ import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/li
 import { optionalEnv } from '@/lib/env';
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
 import { weekPeriodLabel } from '@/lib/period';
+import { parseSignThemeId } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
 import { runWatchdog } from '@/lib/watchdog-run';
 import { buildYouTubeTitle } from '@/lib/youtube-seo';
@@ -243,6 +244,7 @@ export async function GET(request: Request) {
           const signName = zodiacName(post.zodiac_sign, post.lang_code);
           /** Captions open on the sign and the week, so a viewer knows at a glance whose reading it is. */
           const signedPeriod = [signName, period].filter(Boolean).join(' · ') || undefined;
+          const series = post.theme_id ? parseSignThemeId(post.theme_id)?.series : undefined;
           const [youtubeChannel, instagramChannel, threadsChannel, facebookChannel] =
             await Promise.all(
               (['YouTube', 'Instagram', 'Threads', 'Facebook'] as Platform[]).map((platform) =>
@@ -268,6 +270,7 @@ export async function GET(request: Request) {
                     zodiacSign: signName,
                     hook: script30s.hook_text,
                     period,
+                    series,
                   }),
                   description: buildDescription({
                     lang: post.lang_code,
@@ -275,6 +278,7 @@ export async function GET(request: Request) {
                     hashtags: scriptOutput.hashtags,
                     period: signedPeriod,
                     subscribeChannelId,
+                    moonSign: Boolean(signName),
                   }),
                   videoUrl,
                 });
@@ -307,6 +311,7 @@ export async function GET(request: Request) {
                           hashtags: scriptOutput.hashtags,
                           period: signedPeriod,
                           platform: 'instagram',
+                          moonSign: Boolean(signName),
                         }),
                         videoUrl,
                       }),
@@ -346,6 +351,7 @@ export async function GET(request: Request) {
                           hashtags: scriptOutput.hashtags,
                           period: signedPeriod,
                           platform: 'threads',
+                          moonSign: Boolean(signName),
                         }),
                         videoUrl,
                       }),
@@ -366,6 +372,7 @@ export async function GET(request: Request) {
               hashtags: scriptOutput.hashtags,
               period: signedPeriod,
               platform: 'facebook',
+              moonSign: Boolean(signName),
             });
             uploads.push({
               platform: 'Facebook',

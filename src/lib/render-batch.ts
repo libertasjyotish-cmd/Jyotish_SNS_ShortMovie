@@ -68,17 +68,17 @@ export async function runRenderBatch(
           language: task.lang_code,
           pattern,
           dayOfWeek: task.day_of_week,
-          // Only the sign readings are tied to a sign and a week; a theme applies whenever it
-          // is watched.
+          // A sign-targeted evergreen names its sign but no week, because it applies whenever
+          // it is watched; only the weekly readings carry the dates they cover.
           period:
-            task.target_type === 'Zodiac_Sign'
-              ? [
-                  zodiacName(task.zodiac_sign, task.lang_code),
-                  weekPeriodLabel(task.week_id, task.lang_code),
-                ]
-                  .filter(Boolean)
-                  .join('\n') || undefined
-              : undefined,
+            [
+              zodiacName(task.zodiac_sign, task.lang_code),
+              task.target_type === 'Zodiac_Sign'
+                ? weekPeriodLabel(task.week_id, task.lang_code)
+                : undefined,
+            ]
+              .filter(Boolean)
+              .join('\n') || undefined,
           script: JSON.parse(
             pattern === '30s' ? scriptOutput.script_30s_json : scriptOutput.script_65s_json,
           ),

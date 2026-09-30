@@ -14,6 +14,7 @@ import {
   ZODIAC_DAYS,
   zodiacPostWeekStart,
 } from '@/lib/schedule';
+import { parseSignThemeId, SERIES_BY_DAY } from '@/lib/sign-themes';
 import {
   ContentQueue,
   EvergreenScript,
@@ -25,18 +26,24 @@ import {
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-/** The script that has waited longest for this day of the week. */
+/**
+ * The script that has waited longest for this day of the week. Days that run a sign series
+ * take only that series, so the older general-audience scripts left in the sheet are never
+ * picked up again in their place.
+ */
 function pickScript(
   scripts: EvergreenScript[],
   day: DayOfWeek,
   taken: Set<string>,
   promo: boolean,
 ): EvergreenScript | undefined {
+  const series = promo ? undefined : SERIES_BY_DAY[day];
   return scripts
     .filter(
       (script) =>
         script.day_of_week === day &&
         isPromoScriptId(script.script_id) === promo &&
+        (!series || parseSignThemeId(script.script_id)?.series === series) &&
         !taken.has(script.script_id),
     )
     .sort((a, b) => a.last_used_week.localeCompare(b.last_used_week))[0];
@@ -126,11 +133,15 @@ export async function GET(request: Request) {
         }
         taken.add(theme.script_id);
 
+        // A sign-targeted evergreen carries its sign, so the label on the video, the title and
+        // the caption read the same way they do for a weekly reading.
+        const signTheme = parseSignThemeId(theme.script_id);
         const task: ContentQueue = {
           ...baseTask(weekId, day, weekStart, lang),
           task_id: `${weekId}-${lang}-${theme.script_id}`,
           target_type: promo ? 'Promo' : 'Theme',
           theme_id: theme.script_id,
+          zodiac_sign: signTheme?.sign,
         };
         if (existing.has(task.task_id)) continue;
 

@@ -92,10 +92,9 @@ export async function GET(request: Request) {
             task.target_type === 'Zodiac_Sign'
               ? weekPeriodSpoken(task.week_id, task.lang_code)
               : undefined;
-          const signName =
-            task.target_type === 'Zodiac_Sign'
-              ? zodiacName(task.zodiac_sign, task.lang_code)
-              : undefined;
+          // Both the weekly readings and the sign-targeted evergreens must name their sign out
+          // loud, so a viewer who scrolled in halfway knows whether it is theirs.
+          const signName = zodiacName(task.zodiac_sign, task.lang_code);
 
           const lint = (data: typeof scriptData) =>
             (
