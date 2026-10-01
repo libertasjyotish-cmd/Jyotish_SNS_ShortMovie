@@ -16,13 +16,17 @@ interface WeekSummary {
   render_pending: number;
   posted: number;
   post_error: number;
+  /** Rows taken out of the week on purpose (duplicates, stale stock); not part of the counts. */
+  held: number;
 }
 
-function summarize(weekId: string, tasks: ContentQueue[]): WeekSummary {
+function summarize(weekId: string, all: ContentQueue[]): WeekSummary {
   const patterns = (task: ContentQueue) => [task.render_status_30s, task.render_status_65s];
+  const tasks = all.filter((task) => task.post_status !== 'Hold');
   return {
     week_id: weekId,
     total: tasks.length,
+    held: all.length - tasks.length,
     script_done: tasks.filter((t) => t.script_status === 'Script_Done').length,
     script_error: tasks.filter((t) => t.script_status === 'Error').length,
     rendered: tasks.filter((t) => patterns(t).every((s) => s === 'Rendered')).length,
@@ -53,10 +57,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const tasks = await new GoogleSheetsService().getAllQueueTasks();
+    const all = await new GoogleSheetsService().getAllQueueTasks();
+    const tasks = all.filter((task) => task.post_status !== 'Hold');
     const now = Date.now();
 
-    const weeks = Array.from(new Set(tasks.map((task) => task.week_id))).sort();
+    const weeks = Array.from(new Set(all.map((task) => task.week_id))).sort();
     const overdue = tasks
       .filter((task) => task.post_status === 'Pending')
       .filter((task) => {
@@ -77,7 +82,7 @@ export async function GET(request: NextRequest) {
       weeks: weeks.map((weekId) =>
         summarize(
           weekId,
-          tasks.filter((task) => task.week_id === weekId),
+          all.filter((task) => task.week_id === weekId),
         ),
       ),
       script_errors: tasks.filter((t) => t.script_status === 'Error').map((t) => t.task_id),
