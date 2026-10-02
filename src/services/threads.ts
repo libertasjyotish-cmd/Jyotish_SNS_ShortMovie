@@ -201,6 +201,31 @@ export class ThreadsService {
     return published.id;
   }
 
+  /**
+   * Replies to the profile's own post, so the site link sits under the video instead of inside the
+   * collapsed caption. A text container is published the same way a video one is.
+   */
+  async replyWithText(channel: Channel, mediaId: string, text: string): Promise<string> {
+    const accessToken = await this.accessTokenFor(channel);
+    const userId = channel.threads_user_id;
+    if (!userId) {
+      throw new Error(`Missing threads_user_id for channel "${channel.channel_id}"`);
+    }
+
+    const container = await request<{ id: string }>(`${API_BASE}/${userId}/threads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        media_type: 'TEXT',
+        text: text.slice(0, 500),
+        reply_to_id: mediaId,
+        access_token: accessToken,
+      }).toString(),
+    });
+
+    return this.publishContainer(channel, container.id);
+  }
+
   /** Removes a reading whose week has passed; Threads allows 100 deletions a day per profile. */
   async deletePost(channel: Channel, mediaId: string): Promise<void> {
     const accessToken = await this.accessTokenFor(channel);

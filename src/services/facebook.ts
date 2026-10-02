@@ -9,11 +9,15 @@ const AUTHORIZE_ENDPOINT = 'https://www.facebook.com/v21.0/dialog/oauth';
 const STATUS_POLL_INTERVAL_MS = 5000;
 const STATUS_POLL_ATTEMPTS = 4;
 
-/** `pages_manage_posts` is what allows publishing a Reel to a page. */
+/**
+ * `pages_manage_posts` is what allows publishing a Reel to a page, `pages_manage_engagement` what
+ * allows commenting on it as the page.
+ */
 export const FACEBOOK_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
+  'pages_manage_engagement',
 ];
 
 export interface FacebookUploadParams {
@@ -173,6 +177,23 @@ export class FacebookService {
       { method: 'POST' },
     );
     return videoId;
+  }
+
+  /**
+   * Comments on the page's own Reel, so the site link stays visible instead of sitting in the
+   * description behind "See more".
+   */
+  async commentOnVideo(channel: Channel, videoId: string, message: string): Promise<string> {
+    const { accessToken } = credentials(channel);
+    const comment = await graphRequest<{ id: string }>(
+      `${GRAPH_BASE}/${videoId}/comments`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ message, access_token: accessToken }).toString(),
+      },
+    );
+    return comment.id;
   }
 
   /** Takes down a reading whose week has passed; the video node is deleted with the page token. */

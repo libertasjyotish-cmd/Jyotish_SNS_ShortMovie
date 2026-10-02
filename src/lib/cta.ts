@@ -71,6 +71,14 @@ export function playlistDescription(lang: Language): string {
   return `${MOON_SIGN_CAPTION[lang]}\n\n${CTA_HEADLINE[lang]}\n${siteLink('youtube-playlist')}`;
 }
 
+/**
+ * Threads collapses a long caption and Facebook hides it behind "See more", so the link is
+ * repeated in the first reply, which stays visible under the video.
+ */
+export function followUpLink(lang: Language, source: 'threads' | 'facebook'): string {
+  return `${CTA_HEADLINE[lang]}\n${SITE_URL}/?utm_source=${source}&utm_medium=reply`;
+}
+
 /** Comments render the URL as a tappable link, unlike a Shorts description. */
 export const COMMENT_URL = `${SITE_URL}/?utm_source=youtube&utm_medium=comment`;
 
