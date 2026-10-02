@@ -198,11 +198,12 @@ export function buildDescription({
         : descriptionCta(lang, platform === 'instagram' ? 'instagram' : 'youtube');
   const subscribe = subscribeChannelId ? subscribeBlock(lang, subscribeChannelId) : undefined;
   const tags = captionHashtags(lang, hashtags, platform === 'instagram' ? 6 : 4);
+  // A feed shows only the first line, so the sign and the week lead and the note follows the body.
   return [
     keywordLine,
-    moonSign ? MOON_SIGN_CAPTION[lang] : undefined,
     period,
     body,
+    moonSign ? MOON_SIGN_CAPTION[lang] : undefined,
     cta,
     subscribe,
     tags,
