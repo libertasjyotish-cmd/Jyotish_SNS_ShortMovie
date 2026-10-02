@@ -64,6 +64,14 @@ Suche: ${SITE_DOMAIN}`,
 };
 
 /**
+ * A playlist page is indexed and carries a tappable link, so the description says what the sign
+ * means here and sends the viewer to the site.
+ */
+export function playlistDescription(lang: Language): string {
+  return `${MOON_SIGN_CAPTION[lang]}\n\n${CTA_HEADLINE[lang]}\n${siteLink('youtube-playlist')}`;
+}
+
+/**
  * Threads collapses a long caption and Facebook hides it behind "See more", so the link is
  * repeated in the first reply, which stays visible under the video.
  */

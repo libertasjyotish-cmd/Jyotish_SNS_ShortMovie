@@ -37,6 +37,8 @@ function authorize(channel: Channel) {
 
 export class YouTubeService {
   private readonly channelIds = new Map<string, string>();
+  /** Playlists of a channel, keyed by title, read once so a lookup costs no extra quota. */
+  private readonly playlists = new Map<string, Map<string, string>>();
 
   /** The subscribe link needs the channel's own id, which is read once per run. */
   async channelId(channel: Channel): Promise<string> {
@@ -112,6 +114,69 @@ export class YouTubeService {
       part: ['snippet'],
       requestBody: {
         snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } },
+      },
+    });
+  }
+
+  /**
+   * Id of the channel's playlist with this title, created on first use.
+   *
+   * The titles are derived from the language and the sign, so the channel needs no configuration
+   * per sign, and an existing playlist is reused instead of a duplicate being created.
+   */
+  async ensurePlaylist(channel: Channel, title: string, description: string): Promise<string> {
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    let known = this.playlists.get(channel.channel_id);
+    if (!known) {
+      known = new Map();
+      let pageToken: string | undefined;
+      do {
+        const page = await youtube.playlists.list({
+          part: ['snippet'],
+          mine: true,
+          maxResults: 50,
+          pageToken,
+        });
+        for (const item of page.data.items ?? []) {
+          if (item.snippet?.title && item.id) known.set(item.snippet.title, item.id);
+        }
+        pageToken = page.data.nextPageToken ?? undefined;
+      } while (pageToken);
+      this.playlists.set(channel.channel_id, known);
+    }
+
+    const existing = known.get(title);
+    if (existing) return existing;
+
+    const created = await youtube.playlists.insert({
+      part: ['snippet', 'status'],
+      requestBody: {
+        snippet: { title, description },
+        status: { privacyStatus: 'public' },
+      },
+    });
+    const id = created.data.id;
+    if (!id) throw new Error(`YouTube playlist "${title}" returned no id`);
+    known.set(title, id);
+    return id;
+  }
+
+  /**
+   * Sets the still a Short is shown with in search, on the channel and inside playlists, where
+   * the title is cut short. Channels that are not verified cannot carry a custom thumbnail, and
+   * the API rejects the call, so the caller treats a failure as cosmetic.
+   */
+  async setThumbnail(channel: Channel, videoId: string, imageUrl: string): Promise<void> {
+    const response = await fetch(imageUrl);
+    if (!response.ok || !response.body) {
+      throw new Error(`Failed to download thumbnail (${response.status})`);
+    }
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    await youtube.thumbnails.set({
+      videoId,
+      media: {
+        mimeType: response.headers.get('content-type') ?? 'image/jpeg',
+        body: Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]),
       },
     });
   }
