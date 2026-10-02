@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminTokenMatches, isAdminAuthorized } from '@/lib/admin-auth';
+import { isCronAuthorized } from '@/lib/auth';
 import { FACEBOOK_STATE_COOKIE, facebookRedirectUri } from '@/lib/facebook-oauth';
 import { facebookAuthorizeUrl } from '@/services/facebook';
 
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token') ?? '';
-  if (!isAdminAuthorized(req) && !adminTokenMatches(token)) {
+  if (!isAdminAuthorized(req) && !adminTokenMatches(token) && !isCronAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
