@@ -35,6 +35,15 @@ def trim_silence(path: str) -> str:
     return trimmed
 
 
+def extract_frame(path: str, output: str, at: float = 1.0) -> str:
+    """Grabs a single frame, used as the backdrop of the listing thumbnail."""
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-ss", f"{at}", "-i", path, "-frames:v", "1", output],
+        check=True,
+    )
+    return output
+
+
 FADE_IN = 0.3
 FADE_OUT = 0.3
 

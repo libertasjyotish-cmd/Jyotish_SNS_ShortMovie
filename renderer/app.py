@@ -2,11 +2,15 @@
 
 import json
 import os
+import tempfile
 import urllib.error
 import urllib.request
 
 from flask import Flask, jsonify, request
 
+import storage
+import thumbnail
+import video
 from pipeline import RenderRequest, render
 
 app = Flask(__name__)
@@ -63,6 +67,45 @@ def _render_and_notify(build: RenderRequest, callback_url: str, meta: dict) -> N
         _notify(callback_url, {**meta, "error": str(error)})
         return
     _notify(callback_url, {**meta, "url": result.url, "duration": result.duration})
+
+
+@app.post("/thumbnail")
+def build_thumbnail():
+    """Renders the listing thumbnail of an already finished video.
+
+    Kept apart from /render so a video that was rendered before thumbnails existed still gets
+    one, and so a failed thumbnail never costs a render.
+    """
+    if not _authorized():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    missing = [f for f in ("task_id", "language", "video_url", "title") if not payload.get(f)]
+    if missing:
+        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
+    if payload["language"] not in LANGUAGES:
+        return jsonify({"error": f"Unsupported language \"{payload['language']}\""}), 400
+
+    with tempfile.TemporaryDirectory() as work:
+        try:
+            source = os.path.join(work, "source.mp4")
+            with urllib.request.urlopen(payload["video_url"]) as response, open(source, "wb") as f:
+                f.write(response.read())
+            frame = video.extract_frame(source, os.path.join(work, "frame.png"))
+            image = thumbnail.build(
+                os.path.join(work, "thumbnail.jpg"),
+                frame,
+                payload["title"],
+                payload.get("subtitle", ""),
+                payload["language"],
+            )
+            destination = payload.get("output_path") or f"thumbnails/{payload['task_id']}.jpg"
+            url = storage.upload(image, destination, content_type="image/jpeg")
+        except Exception as error:  # noqa: BLE001 - the caller decides whether to retry
+            app.logger.exception("Thumbnail failed")
+            return jsonify({"error": str(error)}), 500
+
+    return jsonify({"url": url})
 
 
 @app.post("/render")

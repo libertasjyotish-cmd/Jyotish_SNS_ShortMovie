@@ -25,6 +25,15 @@ export interface RendererResult {
   segments: string[];
 }
 
+export interface ThumbnailRequest {
+  taskId: string;
+  language: Language;
+  /** Finished video the backdrop frame is taken from. */
+  videoUrl: string;
+  title: string;
+  subtitle: string;
+}
+
 /** Cloud Run keeps the whole render synchronous; a 30s clip takes ~2.5 minutes. */
 const RENDER_TIMEOUT_MS = 280_000;
 /**
@@ -32,6 +41,8 @@ const RENDER_TIMEOUT_MS = 280_000;
  * render per instance, so handing a render over means opening the request and hanging up on it.
  */
 const HANDOVER_MS = 10_000;
+/** A thumbnail only downloads the finished video and draws one frame. */
+const THUMBNAIL_TIMEOUT_MS = 60_000;
 
 export function isRendererConfigured(): boolean {
   return Boolean(optionalEnv('RENDERER_URL'));
@@ -72,6 +83,33 @@ export class RendererService {
       if (error instanceof Error && error.name === 'AbortError') return;
       throw error;
     }
+  }
+
+  /** Builds the still the video is listed with and returns its public URL. */
+  async thumbnail(request: ThumbnailRequest): Promise<string> {
+    const token = await this.identityToken();
+    const response = await fetch(`${this.baseUrl}/thumbnail`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(THUMBNAIL_TIMEOUT_MS),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Cron-Secret': requireEnv('CRON_SECRET'),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        task_id: request.taskId,
+        language: request.language,
+        video_url: request.videoUrl,
+        title: request.title,
+        subtitle: request.subtitle,
+        output_path: `thumbnails/${request.taskId}.jpg`,
+      }),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Thumbnail failed (${response.status}): ${text.slice(0, 300)}`);
+    }
+    return (JSON.parse(text) as { url: string }).url;
   }
 
   async render(request: RendererRequest): Promise<RendererResult> {
