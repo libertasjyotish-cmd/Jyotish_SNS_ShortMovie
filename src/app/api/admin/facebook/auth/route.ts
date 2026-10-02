@@ -4,6 +4,7 @@ import { adminTokenMatches, isAdminAuthorized } from '@/lib/admin-auth';
 import { isCronAuthorized } from '@/lib/auth';
 import { FACEBOOK_STATE_COOKIE, facebookRedirectUri } from '@/lib/facebook-oauth';
 import { facebookAuthorizeUrl } from '@/services/facebook';
+import { GoogleSheetsService } from '@/services/sheets';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,9 +19,21 @@ export async function GET(req: NextRequest) {
   }
 
   const state = randomUUID();
+  /** Consent often has to finish in a browser that cannot send this endpoint's credentials. */
+  const handoff = req.nextUrl.searchParams.get('handoff') === '1';
 
   try {
-    const response = NextResponse.redirect(facebookAuthorizeUrl(facebookRedirectUri(), state));
+    const authorizeUrl = facebookAuthorizeUrl(facebookRedirectUri(), state);
+
+    if (handoff) {
+      const sheets = new GoogleSheetsService();
+      const channel = await sheets.getChannelConfig('ja', 'Facebook');
+      if (!channel) throw new Error('No Facebook channel configured for "ja"');
+      await sheets.setFacebookOauthState(channel.channel_id, state);
+      return NextResponse.json({ authorize_url: authorizeUrl });
+    }
+
+    const response = NextResponse.redirect(authorizeUrl);
     response.cookies.set(FACEBOOK_STATE_COOKIE, state, {
       httpOnly: true,
       secure: true,

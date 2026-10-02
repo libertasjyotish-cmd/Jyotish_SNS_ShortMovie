@@ -184,6 +184,7 @@ export const SHEET_NAMES = {
 type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
 
 export const THREADS_OAUTH_STATE_COLUMN = 'threads_oauth_state';
+export const FACEBOOK_OAUTH_STATE_COLUMN = 'fb_oauth_state';
 
 /** A sheet row keyed by header name, plus its 1-based row number in the sheet. */
 interface SheetRow {
@@ -866,6 +867,18 @@ export class GoogleSheetsService {
     const { rows } = await this.loadTable(SHEET_NAMES.channels);
     const row = rows.find((candidate) => candidate.values.channel_id === channelId);
     return row?.values[THREADS_OAUTH_STATE_COLUMN] ?? '';
+  }
+
+  /** One Facebook consent covers every page, so its state lives on the ja row alone. */
+  async setFacebookOauthState(channelId: string, state: string): Promise<void> {
+    await this.ensureColumns(SHEET_NAMES.channels, [FACEBOOK_OAUTH_STATE_COLUMN]);
+    await this.updateChannelTokens(channelId, { [FACEBOOK_OAUTH_STATE_COLUMN]: state });
+  }
+
+  async getFacebookOauthState(channelId: string): Promise<string> {
+    const { rows } = await this.loadTable(SHEET_NAMES.channels);
+    const row = rows.find((candidate) => candidate.values.channel_id === channelId);
+    return row?.values[FACEBOOK_OAUTH_STATE_COLUMN] ?? '';
   }
 
   /** Persists rotated OAuth tokens back onto the channel's row. */

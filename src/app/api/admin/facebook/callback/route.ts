@@ -22,14 +22,23 @@ export async function GET(req: NextRequest) {
 
   const code = params.get('code');
   const state = params.get('state');
-  const expectedState = req.cookies.get(FACEBOOK_STATE_COOKIE)?.value;
-  if (!code || !state || !expectedState || state !== expectedState) {
+  const cookieState = req.cookies.get(FACEBOOK_STATE_COOKIE)?.value;
+  if (!code || !state) {
     return NextResponse.json({ error: 'Invalid OAuth state' }, { status: 400 });
   }
 
   try {
-    const userToken = await exchangeFacebookCode(code, facebookRedirectUri());
     const sheets = new GoogleSheetsService();
+    const jaChannel = await sheets.getChannelConfig('ja', 'Facebook');
+    /** Consent finished elsewhere carries no cookie, so the state is matched against the sheet. */
+    const storedState = jaChannel
+      ? await sheets.getFacebookOauthState(jaChannel.channel_id)
+      : '';
+    if (state !== cookieState && (!storedState || state !== storedState)) {
+      return NextResponse.json({ error: 'Invalid OAuth state' }, { status: 400 });
+    }
+
+    const userToken = await exchangeFacebookCode(code, facebookRedirectUri());
     const connected: string[] = [];
     const missing: string[] = [];
 
@@ -45,6 +54,8 @@ export async function GET(req: NextRequest) {
       });
       connected.push(channel.channel_id);
     }
+
+    if (storedState && jaChannel) await sheets.setFacebookOauthState(jaChannel.channel_id, '');
 
     const response = NextResponse.json({ connected, missing });
     response.cookies.delete(FACEBOOK_STATE_COOKIE);
