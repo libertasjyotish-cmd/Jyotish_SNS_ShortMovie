@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import overlays
 import storage
 import video
-from text import split_body_into_segments, split_cta_into_parts
+from text import split_body_into_segments, split_cta_into_parts, split_cta_slices
 from tts import Narrator
 
 """On-screen text per body segment; more than this and `overlays.body` shrinks the font."""
@@ -169,14 +169,27 @@ def render(request: RenderRequest) -> RenderResult:
             name = f"cta{index}"
             duration = next(clip[2] for clip in clips if clip[0] == name)
             last = index == len(cta_parts) - 1
-            layers.append(
-                (
-                    *overlays.cta(os.path.join(work, f"{name}.png"), text, request.language),
-                    starts[name] - (0.4 if index == 0 else GAP_SECONDS - video.FADE_OUT),
-                    # The closing banner holds to the end, including any stretched tail.
-                    total if last else starts[name] + duration,
+            slices = split_cta_slices(text, request.language)
+            spoken_chars = sum(len(piece) for piece in slices)
+            start = starts[name] - (0.4 if index == 0 else GAP_SECONDS - video.FADE_OUT)
+            cursor = starts[name]
+            for position, piece in enumerate(slices):
+                # A chunk is spoken as one clip, so its banners split the clip by text length.
+                cursor += duration * len(piece) / spoken_chars
+                final = last and position == len(slices) - 1
+                layers.append(
+                    (
+                        *overlays.cta(
+                            os.path.join(work, f"{name}-{position}.png"),
+                            piece,
+                            request.language,
+                        ),
+                        start,
+                        # The closing banner holds to the end, including any stretched tail.
+                        total if final else cursor,
+                    )
                 )
-            )
+                start = cursor
         if request.note:
             layers.append(
                 (

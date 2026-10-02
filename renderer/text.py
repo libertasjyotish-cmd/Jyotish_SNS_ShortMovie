@@ -107,13 +107,16 @@ def split_body_into_segments(text: str, maximum: int) -> list[str]:
 
 
 """Characters a CTA banner holds at a readable size; longer text is shown in parts."""
-CTA_CHARS = {"ja": 34, "default": 72}
+CTA_CHARS = {"ja": 50, "default": 60}
+"""Chunks the CTA is spoken in; each one is cut where the voice would pause anyway."""
 MAX_CTA_PARTS = 3
+"""Banners one spoken chunk is shown across, so a long clause is not read in a small font."""
+MAX_CTA_SLICES = 4
 
 
 def split_cta_into_parts(text: str, language: str) -> list[str]:
-    """Parts shown one after another, so the banner keeps a large font instead of shrinking."""
-    limit = CTA_CHARS.get(language, CTA_CHARS["default"])
+    """Chunks spoken one after another, cut at punctuation so the delivery keeps its pauses."""
+    limit = CTA_CHARS.get(language, CTA_CHARS["default"]) * MAX_CTA_SLICES
     parts = split_sentences(text) or [text]
 
     while len(parts) < MAX_CTA_PARTS:
@@ -137,6 +140,53 @@ def split_cta_into_parts(text: str, language: str) -> list[str]:
         parts[shortest : shortest + 2] = [_join_segments(parts[shortest], parts[shortest + 1])]
 
     return parts
+
+
+def split_cta_slices(part: str, language: str) -> list[str]:
+    """The banners one spoken chunk is shown across, each holding a readable amount of text."""
+    limit = CTA_CHARS.get(language, CTA_CHARS["default"])
+    slices = [part]
+    while len(slices) < MAX_CTA_SLICES and max(len(piece) for piece in slices) > limit:
+        index = max(range(len(slices)), key=lambda i: len(slices[i]))
+        split = _split_in_half(slices[index]) if len(slices[index]) > limit else None
+        if split is None:
+            break
+        slices[index : index + 1] = list(split)
+    return slices
+
+
+def _split_in_half(text: str) -> tuple[str, str] | None:
+    """Halves text at the most natural break: a sentence end, then punctuation, then a word gap."""
+    sentences = split_sentences(text)
+    if len(sentences) > 1:
+        middle = len(text) / 2
+        counted = 0
+        lengths = []
+        for sentence in sentences:
+            counted += len(sentence)
+            lengths.append(counted)
+        cut = min(range(len(sentences) - 1), key=lambda i: abs(lengths[i] - middle))
+        return (
+            _join_sentences(sentences[: cut + 1]),
+            _join_sentences(sentences[cut + 1 :]),
+        )
+    split = _split_at_comma(text)
+    if split is not None:
+        return split
+    spaces = [i for i, ch in enumerate(text) if ch.isspace()]
+    if spaces:
+        middle = len(text) / 2
+        cut = min(spaces, key=lambda pos: abs(pos - middle))
+        head, tail = text[:cut].strip(), text[cut:].strip()
+        return (head, tail) if head and tail else None
+    return None
+
+
+def _join_sentences(sentences: list[str]) -> str:
+    joined = sentences[0]
+    for sentence in sentences[1:]:
+        joined = _join_segments(joined, sentence)
+    return joined
 
 
 def _join_segments(left: str, right: str) -> str:
