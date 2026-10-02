@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
-import { buildDescription, youtubeComment } from '@/lib/cta';
+import { buildDescription, followUpLink, youtubeComment } from '@/lib/cta';
 import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { optionalEnv } from '@/lib/env';
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
@@ -140,6 +140,8 @@ interface ContainerUploader {
   createContainer(): Promise<string>;
   waitUntilFinished(containerId: string): Promise<boolean>;
   publishContainer(containerId: string): Promise<string>;
+  /** Runs once the post is live; a failure here leaves the post itself successful. */
+  afterPublish?(postId: string): Promise<unknown>;
 }
 
 /**
@@ -179,6 +181,16 @@ async function postViaContainer(args: {
 
   const postId = await uploader.publishContainer(containerId);
   await sheetsService.setPlatformContainer(task.task_id, platform, '');
+
+  if (uploader.afterPublish) {
+    try {
+      await uploader.afterPublish(postId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`${task.task_id} ${platform} follow-up failed:`, message);
+    }
+  }
+
   return postId;
 }
 
@@ -368,6 +380,12 @@ export async function GET(request: Request) {
                       threadsService.waitUntilFinished(threadsChannel, containerId),
                     publishContainer: (containerId) =>
                       threadsService.publishContainer(threadsChannel, containerId),
+                    afterPublish: (postId) =>
+                      threadsService.replyWithText(
+                        threadsChannel,
+                        postId,
+                        followUpLink(post.lang_code, 'threads'),
+                      ),
                   },
                 }),
             });
@@ -401,6 +419,12 @@ export async function GET(request: Request) {
                       facebookService.waitUntilUploaded(facebookChannel, videoId),
                     publishContainer: (videoId) =>
                       facebookService.publishVideo(facebookChannel, videoId, description),
+                    afterPublish: (videoId) =>
+                      facebookService.commentOnVideo(
+                        facebookChannel,
+                        videoId,
+                        followUpLink(post.lang_code, 'facebook'),
+                      ),
                   },
                 }),
             });
