@@ -252,6 +252,14 @@ export async function GET(request: Request) {
               ),
             );
 
+          const youtubeTitle = buildYouTubeTitle({
+            lang: post.lang_code,
+            zodiacSign: signName,
+            hook: script30s.hook_text,
+            period,
+            series,
+          });
+
           const done: PostedRef[] = post.posted_refs ?? [];
           const uploads: { platform: Platform; run: () => Promise<string> }[] = [];
           if (isConnected(youtubeChannel) && renderOutput?.video_url_30s) {
@@ -265,13 +273,7 @@ export async function GET(request: Request) {
                 const videoId = await youtubeService.uploadVideo({
                   channel: youtubeChannel,
                   lang: post.lang_code,
-                  title: buildYouTubeTitle({
-                    lang: post.lang_code,
-                    zodiacSign: signName,
-                    hook: script30s.hook_text,
-                    period,
-                    series,
-                  }),
+                  title: youtubeTitle,
                   description: buildDescription({
                     lang: post.lang_code,
                     body: script30s.body_script,
@@ -279,8 +281,11 @@ export async function GET(request: Request) {
                     period: signedPeriod,
                     subscribeChannelId,
                     moonSign: Boolean(signName),
+                    keywordLine: youtubeTitle,
                   }),
                   videoUrl,
+                  zodiacSign: signName,
+                  series,
                 });
                 await addChannelSurfaces({
                   youtubeService,

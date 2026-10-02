@@ -59,6 +59,41 @@ export const VIDEO_TAGS: Record<Language, string[]> = {
   de: ['vedische astrologie', 'jyotish', 'mondzeichen', 'nakshatra', 'siderische astrologie', 'wochenhoroskop', 'indische astrologie', 'rashi', 'dasha'],
 };
 
+/** YouTube drops the whole tag list when it exceeds this many characters. */
+const TAGS_LIMIT = 460;
+
+/**
+ * A viewer searches for their own sign, not for the system, so the sign name and its phrase
+ * combinations lead the tag list; the language-wide terms fill what is left.
+ */
+export function buildVideoTags({ lang, zodiacSign, series }: TagParams): string[] {
+  const keywords = TITLE_KEYWORDS[lang];
+  const phrase = series ? SERIES_KEYWORDS[lang][series] : keywords.weekly;
+  const signTags = zodiacSign
+    ? [
+        zodiacSign,
+        `${zodiacSign} ${phrase}`,
+        `${zodiacSign} ${MOON_SIGN_NOTE[lang]}`,
+        `${zodiacSign} ${keywords.theme}`,
+      ]
+    : [];
+  const tags: string[] = [];
+  let length = 0;
+  for (const tag of [...signTags, ...VIDEO_TAGS[lang]]) {
+    // Each tag costs its own length plus the comma YouTube counts between tags.
+    if (length + tag.length + 1 > TAGS_LIMIT) break;
+    tags.push(tag);
+    length += tag.length + 1;
+  }
+  return tags;
+}
+
+export interface TagParams {
+  lang: Language;
+  zodiacSign?: string;
+  series?: SignThemeSeries;
+}
+
 export interface TitleParams {
   lang: Language;
   /** Sign name for a weekly reading; empty for an evergreen theme. */

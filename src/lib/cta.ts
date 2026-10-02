@@ -26,20 +26,13 @@ const CTA_HEADLINE: Record<Language, string> = {
   de: '▼ Finde dein wahres siderisches Sternzeichen',
 };
 
-/** Shorts descriptions render URLs as plain text, so the profile link is the only tappable route. */
-export const DESCRIPTION_CTA: Record<Language, string> = {
-  ja: `${CTA_HEADLINE.ja}\nプロフィールのリンクから\n${SITE_URL}`,
-  en: `${CTA_HEADLINE.en}\nTap the link in our profile\n${SITE_URL}`,
-  es: `${CTA_HEADLINE.es}\nToca el enlace en el perfil\n${SITE_URL}`,
-  pt: `${CTA_HEADLINE.pt}\nToque no link do perfil\n${SITE_URL}`,
-  id: `${CTA_HEADLINE.id}\nKetuk tautan di profil\n${SITE_URL}`,
-  ar: `${CTA_HEADLINE.ar}\nاضغط على الرابط في الملف الشخصي\n${SITE_URL}`,
-  fr: `${CTA_HEADLINE.fr}\nTouchez le lien dans notre profil\n${SITE_URL}`,
-  de: `${CTA_HEADLINE.de}\nTippe auf den Link in unserem Profil\n${SITE_URL}`,
-};
-
 function siteLink(source: string): string {
   return `${SITE_URL}/?utm_source=${source}&utm_medium=caption`;
+}
+
+/** Shorts descriptions render URLs as plain text, so the profile link is the only tappable route. */
+export function descriptionCta(lang: Language, source: string): string {
+  return `${CTA_HEADLINE[lang]}\n${CTA_NOTES[lang]}\n${siteLink(source)}`;
 }
 
 /**
@@ -180,6 +173,11 @@ export interface DescriptionParams {
   subscribeChannelId?: string;
   /** Opens the caption with the note that the sign named is a sidereal Moon sign. */
   moonSign?: boolean;
+  /**
+   * Searched phrase of the video, repeated as the opening line: search reads the start of a
+   * description, where the body script alone never names the sign or the format.
+   */
+  keywordLine?: string;
 }
 
 export function buildDescription({
@@ -190,16 +188,25 @@ export function buildDescription({
   period,
   subscribeChannelId,
   moonSign,
+  keywordLine,
 }: DescriptionParams): string {
   const cta =
     platform === 'tiktok'
       ? TIKTOK_DESCRIPTION_CTA[lang]
       : platform === 'threads' || platform === 'facebook'
         ? linkCta(lang, platform)
-        : DESCRIPTION_CTA[lang];
+        : descriptionCta(lang, platform === 'instagram' ? 'instagram' : 'youtube');
   const subscribe = subscribeChannelId ? subscribeBlock(lang, subscribeChannelId) : undefined;
   const tags = captionHashtags(lang, hashtags, platform === 'instagram' ? 6 : 4);
-  return [moonSign ? MOON_SIGN_CAPTION[lang] : undefined, period, body, cta, subscribe, tags]
+  return [
+    keywordLine,
+    moonSign ? MOON_SIGN_CAPTION[lang] : undefined,
+    period,
+    body,
+    cta,
+    subscribe,
+    tags,
+  ]
     .filter(Boolean)
     .join('\n\n');
 }
