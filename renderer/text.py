@@ -8,6 +8,8 @@ import re
 
 SENTENCE_END = re.compile(r"(?<=[。．.!?！？])\s*")
 COMMAS = "、,"
+"""Punctuation a sentence may be cut at, in order of how natural the pause is."""
+CUT_POINTS = COMMAS + "：:；;"
 CJK_PUNCTUATION = re.compile(r"[\u3000-\u303f\uff00-\uffef]$")
 CJK_LANGUAGES = {"ja"}
 RTL_LANGUAGES = {"ar"}
@@ -66,7 +68,7 @@ def split_for_speech(text: str, limit: int) -> list[str]:
 
 
 def _split_at_comma(sentence: str) -> tuple[str, str] | None:
-    positions = [i for i, ch in enumerate(sentence) if ch in COMMAS]
+    positions = [i for i, ch in enumerate(sentence) if ch in CUT_POINTS]
     if not positions:
         return None
     middle = len(sentence) / 2
@@ -104,6 +106,39 @@ def split_body_into_segments(text: str, maximum: int) -> list[str]:
     return segments
 
 
+"""Characters a CTA banner holds at a readable size; longer text is shown in parts."""
+CTA_CHARS = {"ja": 34, "default": 72}
+MAX_CTA_PARTS = 3
+
+
+def split_cta_into_parts(text: str, language: str) -> list[str]:
+    """Parts shown one after another, so the banner keeps a large font instead of shrinking."""
+    limit = CTA_CHARS.get(language, CTA_CHARS["default"])
+    parts = split_sentences(text) or [text]
+
+    while len(parts) < MAX_CTA_PARTS:
+        index = max(range(len(parts)), key=lambda i: len(parts[i]))
+        split = _split_at_comma(parts[index]) if len(parts[index]) > limit else None
+        if split is None:
+            break
+        parts[index : index + 1] = list(split)
+
+    while len(parts) > MAX_CTA_PARTS or (
+        len(parts) > 1
+        and min(
+            len(parts[i]) + len(parts[i + 1]) for i in range(len(parts) - 1)
+        )
+        <= limit
+    ):
+        shortest = min(
+            range(len(parts) - 1),
+            key=lambda i: len(parts[i]) + len(parts[i + 1]),
+        )
+        parts[shortest : shortest + 2] = [_join_segments(parts[shortest], parts[shortest + 1])]
+
+    return parts
+
+
 def _join_segments(left: str, right: str) -> str:
     """Space-separated languages need the separator back when two sentences are merged."""
     return left + right if CJK_PUNCTUATION.search(left) else f"{left} {right}"
@@ -126,8 +161,10 @@ def _wrap_characters(measure, paragraph: str, max_width: float) -> list[str]:
     line = ""
     for char in paragraph:
         if line and measure(line + char) > max_width:
-            lines.append(line)
-            line = char.lstrip("、。")
+            # A number or Latin word is carried over whole rather than split across lines.
+            carried = _trailing_run(line) if char.isascii() and char.isalnum() else ""
+            lines.append(line[: len(line) - len(carried)])
+            line = (carried + char).lstrip("、。")
         else:
             line += char
     if line:
@@ -150,12 +187,22 @@ def _wrap_words(measure, paragraph: str, max_width: float) -> list[str]:
     return lines
 
 
+def _trailing_run(line: str) -> str:
+    """The Latin or numeric run the line ends with, empty when it would take the whole line."""
+    run = ""
+    for char in reversed(line):
+        if not (char.isascii() and char.isalnum()):
+            break
+        run = char + run
+    return "" if len(run) == len(line) else run
+
+
 def _rebalance(lines: list[str], language: str) -> list[str]:
     """Avoids a dangling one or two character line at the end of a block."""
     if language not in CJK_LANGUAGES:
         return lines
     for i in range(len(lines) - 1):
-        if len(lines[i + 1]) <= 2 and len(lines[i]) > 3:
+        if len(lines[i + 1]) <= 2 and len(lines[i]) > 3 and not _trailing_run(lines[i]):
             lines[i + 1] = lines[i][-2:] + lines[i + 1]
             lines[i] = lines[i][:-2]
     return lines

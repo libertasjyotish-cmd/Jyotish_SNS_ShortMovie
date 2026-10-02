@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import overlays
 import storage
 import video
-from text import split_body_into_segments
+from text import split_body_into_segments, split_cta_into_parts
 from tts import Narrator
 
 """On-screen text per body segment; more than this and `overlays.body` shrinks the font."""
@@ -107,8 +107,12 @@ def _segment_count(request: RenderRequest) -> int:
 
 def render(request: RenderRequest) -> RenderResult:
     segments = split_body_into_segments(request.body, _segment_count(request))
-    spoken = [("hook", request.hook), *[(f"body{i}", text) for i, text in enumerate(segments)]]
-    spoken.append(("cta", request.cta))
+    cta_parts = split_cta_into_parts(request.cta, request.language)
+    spoken = [
+        ("hook", request.hook),
+        *[(f"body{i}", text) for i, text in enumerate(segments)],
+        *[(f"cta{i}", text) for i, text in enumerate(cta_parts)],
+    ]
 
     with tempfile.TemporaryDirectory() as work:
         narrator = Narrator()
@@ -161,15 +165,28 @@ def render(request: RenderRequest) -> RenderResult:
                     starts[name] + duration,
                 )
             )
-        layers.append(
-            (
-                *overlays.cta(
-                    os.path.join(work, "cta.png"), request.cta, request.note, request.language
-                ),
-                starts["cta"] - 0.4,
-                total,
+        for index, text in enumerate(cta_parts):
+            name = f"cta{index}"
+            duration = next(clip[2] for clip in clips if clip[0] == name)
+            last = index == len(cta_parts) - 1
+            layers.append(
+                (
+                    *overlays.cta(os.path.join(work, f"{name}.png"), text, request.language),
+                    starts[name] - (0.4 if index == 0 else GAP_SECONDS - video.FADE_OUT),
+                    # The closing banner holds to the end, including any stretched tail.
+                    total if last else starts[name] + duration,
+                )
             )
-        )
+        if request.note:
+            layers.append(
+                (
+                    *overlays.note(
+                        os.path.join(work, "note.png"), request.note, request.language
+                    ),
+                    starts["cta0"] - 0.4,
+                    total,
+                )
+            )
 
         output = video.build(
             background=background,
