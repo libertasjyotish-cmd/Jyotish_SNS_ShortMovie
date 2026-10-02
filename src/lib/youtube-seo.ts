@@ -99,6 +99,34 @@ export function buildCaptionLead({ lang, zodiacSign, period, series }: CaptionLe
   return [`${zodiacSign} ${phrase}`, period].filter(Boolean).join(' · ');
 }
 
+/**
+ * Playlist that collects everything published for one sign. A playlist title is indexed on its
+ * own, so searching a sign reaches the playlist even when no single video ranks, and the viewer
+ * lands on a list of that sign's videos instead of one clip.
+ */
+export function signPlaylistTitle({ lang, zodiacSign }: { lang: Language; zodiacSign: string }) {
+  return `${zodiacSign} ${TITLE_KEYWORDS[lang].weekly} | ${MOON_SIGN_NOTE[lang]}`;
+}
+
+/**
+ * Text of the thumbnail. A Short is shown with a thumbnail in search, on the channel and in
+ * playlists, where the title is truncated: the sign has to be readable from the image alone.
+ */
+export function buildThumbnailText({ lang, zodiacSign, series }: TagParams): {
+  title: string;
+  subtitle: string;
+} {
+  const keywords = TITLE_KEYWORDS[lang];
+  return {
+    title: zodiacSign ?? keywords.theme,
+    subtitle: zodiacSign
+      ? series
+        ? SERIES_KEYWORDS[lang][series]
+        : keywords.weekly
+      : BRAND,
+  };
+}
+
 export interface CaptionLeadParams {
   lang: Language;
   zodiacSign?: string;

@@ -63,6 +63,14 @@ Recherchez : ${SITE_DOMAIN}`,
 Suche: ${SITE_DOMAIN}`,
 };
 
+/**
+ * A playlist page is indexed and carries a tappable link, so the description says what the sign
+ * means here and sends the viewer to the site.
+ */
+export function playlistDescription(lang: Language): string {
+  return `${MOON_SIGN_CAPTION[lang]}\n\n${CTA_HEADLINE[lang]}\n${siteLink('youtube-playlist')}`;
+}
+
 /** Comments render the URL as a tappable link, unlike a Shorts description. */
 export const COMMENT_URL = `${SITE_URL}/?utm_source=youtube&utm_medium=comment`;
 

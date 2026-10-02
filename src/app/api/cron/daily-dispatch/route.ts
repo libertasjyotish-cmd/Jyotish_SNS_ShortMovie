@@ -1,17 +1,23 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
-import { buildDescription, youtubeComment } from '@/lib/cta';
+import { buildDescription, playlistDescription, youtubeComment } from '@/lib/cta';
 import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { optionalEnv } from '@/lib/env';
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
 import { weekPeriodLabel } from '@/lib/period';
-import { parseSignThemeId } from '@/lib/sign-themes';
+import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
 import { runWatchdog } from '@/lib/watchdog-run';
-import { buildCaptionLead, buildYouTubeTitle } from '@/lib/youtube-seo';
+import {
+  buildCaptionLead,
+  buildThumbnailText,
+  buildYouTubeTitle,
+  signPlaylistTitle,
+} from '@/lib/youtube-seo';
 import { FacebookService } from '@/services/facebook';
 import { GeneratedScript } from '@/services/gemini';
 import { InstagramService } from '@/services/instagram';
+import { isRendererConfigured, RendererService } from '@/services/renderer';
 import {
   Channel,
   ContainerPlatform,
@@ -76,28 +82,68 @@ function postPeriod(task: ContentQueue): string | undefined {
 }
 
 /**
- * In-channel follow-ups that must never cost the post itself: the upload joins the playlist of
- * its slot so viewers can walk the rest of the channel, and the site link is repeated as a
- * comment because Shorts hide the description, together with the subscribe link that is the only
- * tappable one a Short can carry. Either failing leaves the video published.
+ * Playlists the upload joins: the one for its slot, and — when it reads a sign — the playlist of
+ * that sign, which is searched for by name and lands the viewer on every video of their sign.
+ */
+async function playlistIds(args: {
+  youtubeService: YouTubeService;
+  channel: Channel;
+  task: ContentQueue;
+  signName?: string;
+}): Promise<string[]> {
+  const { youtubeService, channel, task, signName } = args;
+  const slot =
+    task.target_type === 'Zodiac_Sign'
+      ? channel.youtube_playlist_weekly
+      : channel.youtube_playlist_theme;
+  const ids = slot ? [slot] : [];
+  if (!signName) return ids;
+
+  const title = signPlaylistTitle({ lang: task.lang_code, zodiacSign: signName });
+  ids.push(
+    await youtubeService.ensurePlaylist(channel, title, playlistDescription(task.lang_code)),
+  );
+  return ids;
+}
+
+/**
+ * In-channel follow-ups that must never cost the post itself: the upload joins the playlists it
+ * belongs to so viewers can walk the rest of the channel, gets the thumbnail it is listed with
+ * outside the Shorts feed, and the site link is repeated as a comment because Shorts hide the
+ * description, together with the subscribe link that is the only tappable one a Short can carry.
+ * Any of them failing leaves the video published.
  */
 async function addChannelSurfaces(args: {
   youtubeService: YouTubeService;
   channel: Channel;
   task: ContentQueue;
   videoId: string;
+  videoUrl: string;
+  signName?: string;
+  series?: SignThemeSeries;
 }): Promise<void> {
-  const { youtubeService, channel, task, videoId } = args;
-  const playlistId =
-    task.target_type === 'Zodiac_Sign'
-      ? channel.youtube_playlist_weekly
-      : channel.youtube_playlist_theme;
-  if (playlistId) {
-    try {
+  const { youtubeService, channel, task, videoId, videoUrl, signName, series } = args;
+  try {
+    for (const playlistId of await playlistIds({ youtubeService, channel, task, signName })) {
       await youtubeService.addToPlaylist(channel, playlistId, videoId);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`${task.task_id} playlist failed:`, message);
+  }
+  if (isRendererConfigured()) {
+    try {
+      const text = buildThumbnailText({ lang: task.lang_code, zodiacSign: signName, series });
+      const imageUrl = await new RendererService().thumbnail({
+        taskId: task.task_id,
+        language: task.lang_code,
+        videoUrl,
+        ...text,
+      });
+      await youtubeService.setThumbnail(channel, videoId, imageUrl);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`${task.task_id} playlist ${playlistId} failed:`, message);
+      console.error(`${task.task_id} thumbnail failed:`, message);
     }
   }
   try {
@@ -296,6 +342,9 @@ export async function GET(request: Request) {
                   channel: youtubeChannel,
                   task: post,
                   videoId,
+                  videoUrl,
+                  signName,
+                  series,
                 });
                 return videoId;
               },
