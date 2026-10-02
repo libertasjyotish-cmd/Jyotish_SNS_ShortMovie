@@ -70,9 +70,20 @@ export interface TitleParams {
   series?: SignThemeSeries;
 }
 
+/** Shortest hook worth keeping; below this it reads as a cut-off fragment. */
+const MIN_HOOK = 12;
+
+function trimHook(hook: string, room: number): string {
+  if (hook.length <= room) return hook;
+  const cut = hook.slice(0, room);
+  const space = cut.lastIndexOf(' ');
+  return (space > MIN_HOOK ? cut.slice(0, space) : cut).trim();
+}
+
 /**
- * The hook is dropped rather than truncated when the searchable part fills the title, and a
- * sign title ends with the system it reads instead of the brand.
+ * The hook carries the wording viewers type into search, so it stays in the title and the
+ * moon-sign note gives up its room first. A sign title ends with the system it reads
+ * instead of the brand.
  */
 export function buildYouTubeTitle({
   lang,
@@ -86,10 +97,18 @@ export function buildYouTubeTitle({
   const lead = zodiacSign ? [zodiacSign, phrase, period].filter(Boolean).join(' ') : keywords.theme;
   const separator = lang === 'ja' ? '｜' : ' | ';
   const tail = `${separator}${zodiacSign ? MOON_SIGN_NOTE[lang] : BRAND}`;
-  // A series keyword already says what the video is, so its hook would only push the
-  // moon-sign note past what a phone shows.
-  const withHook = `${lead}: ${hook}${tail}`;
-  if (hook && !series && withHook.length <= TITLE_LIMIT) return withHook;
+  // A series keyword already says what the video is, so its hook would only repeat it.
+  if (hook && !series) {
+    const full = `${lead}: ${hook}`;
+    if (`${full}${tail}`.length <= TITLE_LIMIT) return `${full}${tail}`;
+    if (full.length <= TITLE_LIMIT) return full;
+    const withTail = `${lead}: ${trimHook(hook, TITLE_LIMIT - lead.length - 2 - tail.length)}${tail}`;
+    if (withTail.length <= TITLE_LIMIT && withTail.length >= lead.length + 2 + MIN_HOOK + tail.length) {
+      return withTail;
+    }
+    const bare = `${lead}: ${trimHook(hook, TITLE_LIMIT - lead.length - 2)}`;
+    if (bare.length >= lead.length + 2 + MIN_HOOK) return bare.slice(0, TITLE_LIMIT);
+  }
   const withTail = `${lead}${tail}`;
   return (withTail.length <= TITLE_LIMIT ? withTail : lead).slice(0, TITLE_LIMIT);
 }
