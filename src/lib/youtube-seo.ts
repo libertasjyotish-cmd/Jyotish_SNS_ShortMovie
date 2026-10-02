@@ -88,6 +88,24 @@ export function buildVideoTags({ lang, zodiacSign, series }: TagParams): string[
   return tags;
 }
 
+/**
+ * Opening line of a caption on the platforms that have no title: a feed shows only this line,
+ * so it carries the same sign, searched phrase and week as a YouTube title does.
+ */
+export function buildCaptionLead({ lang, zodiacSign, period, series }: CaptionLeadParams): string | undefined {
+  if (!zodiacSign) return period;
+  const keywords = TITLE_KEYWORDS[lang];
+  const phrase = series ? SERIES_KEYWORDS[lang][series] : keywords.weekly;
+  return [`${zodiacSign} ${phrase}`, period].filter(Boolean).join(' · ');
+}
+
+export interface CaptionLeadParams {
+  lang: Language;
+  zodiacSign?: string;
+  period?: string;
+  series?: SignThemeSeries;
+}
+
 export interface TagParams {
   lang: Language;
   zodiacSign?: string;
