@@ -8,7 +8,7 @@ import { weekPeriodLabel } from '@/lib/period';
 import { parseSignThemeId } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
 import { runWatchdog } from '@/lib/watchdog-run';
-import { buildYouTubeTitle } from '@/lib/youtube-seo';
+import { buildCaptionLead, buildYouTubeTitle } from '@/lib/youtube-seo';
 import { FacebookService } from '@/services/facebook';
 import { GeneratedScript } from '@/services/gemini';
 import { InstagramService } from '@/services/instagram';
@@ -242,15 +242,27 @@ export async function GET(request: Request) {
           const script30s: GeneratedScript = JSON.parse(scriptOutput.script_30s_json);
           const period = postPeriod(post);
           const signName = zodiacName(post.zodiac_sign, post.lang_code);
-          /** Captions open on the sign and the week, so a viewer knows at a glance whose reading it is. */
-          const signedPeriod = [signName, period].filter(Boolean).join(' · ') || undefined;
           const series = post.theme_id ? parseSignThemeId(post.theme_id)?.series : undefined;
+          const captionLead = buildCaptionLead({
+            lang: post.lang_code,
+            zodiacSign: signName,
+            period,
+            series,
+          });
           const [youtubeChannel, instagramChannel, threadsChannel, facebookChannel] =
             await Promise.all(
               (['YouTube', 'Instagram', 'Threads', 'Facebook'] as Platform[]).map((platform) =>
                 sheetsService.getChannelConfig(post.lang_code, platform),
               ),
             );
+
+          const youtubeTitle = buildYouTubeTitle({
+            lang: post.lang_code,
+            zodiacSign: signName,
+            hook: script30s.hook_text,
+            period,
+            series,
+          });
 
           const done: PostedRef[] = post.posted_refs ?? [];
           const uploads: { platform: Platform; run: () => Promise<string> }[] = [];
@@ -265,22 +277,19 @@ export async function GET(request: Request) {
                 const videoId = await youtubeService.uploadVideo({
                   channel: youtubeChannel,
                   lang: post.lang_code,
-                  title: buildYouTubeTitle({
-                    lang: post.lang_code,
-                    zodiacSign: signName,
-                    hook: script30s.hook_text,
-                    period,
-                    series,
-                  }),
+                  title: youtubeTitle,
                   description: buildDescription({
                     lang: post.lang_code,
                     body: script30s.body_script,
                     hashtags: scriptOutput.hashtags,
-                    period: signedPeriod,
+                    period: captionLead,
                     subscribeChannelId,
                     moonSign: Boolean(signName),
+                    keywordLine: youtubeTitle,
                   }),
                   videoUrl,
+                  zodiacSign: signName,
+                  series,
                 });
                 await addChannelSurfaces({
                   youtubeService,
@@ -309,7 +318,7 @@ export async function GET(request: Request) {
                           lang: post.lang_code,
                           body: script30s.hook_text,
                           hashtags: scriptOutput.hashtags,
-                          period: signedPeriod,
+                          period: captionLead,
                           platform: 'instagram',
                           moonSign: Boolean(signName),
                         }),
@@ -349,7 +358,7 @@ export async function GET(request: Request) {
                           lang: post.lang_code,
                           body: script30s.hook_text,
                           hashtags: scriptOutput.hashtags,
-                          period: signedPeriod,
+                          period: captionLead,
                           platform: 'threads',
                           moonSign: Boolean(signName),
                         }),
@@ -370,7 +379,7 @@ export async function GET(request: Request) {
               lang: post.lang_code,
               body: script30s.hook_text,
               hashtags: scriptOutput.hashtags,
-              period: signedPeriod,
+              period: captionLead,
               platform: 'facebook',
               moonSign: Boolean(signName),
             });

@@ -1,7 +1,8 @@
 import { Readable } from 'stream';
 import { google } from 'googleapis';
 import { optionalEnv, requireEnv } from '@/lib/env';
-import { VIDEO_TAGS } from '@/lib/youtube-seo';
+import { SignThemeSeries } from '@/lib/sign-themes';
+import { buildVideoTags } from '@/lib/youtube-seo';
 import { Channel, Language } from './sheets';
 
 export interface YouTubeUploadParams {
@@ -10,6 +11,9 @@ export interface YouTubeUploadParams {
   title: string;
   description: string;
   videoUrl: string;
+  /** Sign the video reads, added to the tags viewers search by. */
+  zodiacSign?: string;
+  series?: SignThemeSeries;
 }
 
 /** Defaults to `private` so a misconfigured run never publishes to a live channel. */
@@ -73,7 +77,11 @@ export class YouTubeService {
           title: params.title,
           description: params.description,
           categoryId: '22',
-          tags: VIDEO_TAGS[params.lang],
+          tags: buildVideoTags({
+            lang: params.lang,
+            zodiacSign: params.zodiacSign,
+            series: params.series,
+          }),
           // Without both, YouTube treats the upload as English and offers no translated metadata.
           defaultLanguage: params.lang,
           defaultAudioLanguage: params.lang,

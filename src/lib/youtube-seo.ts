@@ -59,6 +59,59 @@ export const VIDEO_TAGS: Record<Language, string[]> = {
   de: ['vedische astrologie', 'jyotish', 'mondzeichen', 'nakshatra', 'siderische astrologie', 'wochenhoroskop', 'indische astrologie', 'rashi', 'dasha'],
 };
 
+/** YouTube drops the whole tag list when it exceeds this many characters. */
+const TAGS_LIMIT = 460;
+
+/**
+ * A viewer searches for their own sign, not for the system, so the sign name and its phrase
+ * combinations lead the tag list; the language-wide terms fill what is left.
+ */
+export function buildVideoTags({ lang, zodiacSign, series }: TagParams): string[] {
+  const keywords = TITLE_KEYWORDS[lang];
+  const phrase = series ? SERIES_KEYWORDS[lang][series] : keywords.weekly;
+  const signTags = zodiacSign
+    ? [
+        zodiacSign,
+        `${zodiacSign} ${phrase}`,
+        `${zodiacSign} ${MOON_SIGN_NOTE[lang]}`,
+        `${zodiacSign} ${keywords.theme}`,
+      ]
+    : [];
+  const tags: string[] = [];
+  let length = 0;
+  for (const tag of [...signTags, ...VIDEO_TAGS[lang]]) {
+    // Each tag costs its own length plus the comma YouTube counts between tags.
+    if (length + tag.length + 1 > TAGS_LIMIT) break;
+    tags.push(tag);
+    length += tag.length + 1;
+  }
+  return tags;
+}
+
+/**
+ * Opening line of a caption on the platforms that have no title: a feed shows only this line,
+ * so it carries the same sign, searched phrase and week as a YouTube title does.
+ */
+export function buildCaptionLead({ lang, zodiacSign, period, series }: CaptionLeadParams): string | undefined {
+  if (!zodiacSign) return period;
+  const keywords = TITLE_KEYWORDS[lang];
+  const phrase = series ? SERIES_KEYWORDS[lang][series] : keywords.weekly;
+  return [`${zodiacSign} ${phrase}`, period].filter(Boolean).join(' · ');
+}
+
+export interface CaptionLeadParams {
+  lang: Language;
+  zodiacSign?: string;
+  period?: string;
+  series?: SignThemeSeries;
+}
+
+export interface TagParams {
+  lang: Language;
+  zodiacSign?: string;
+  series?: SignThemeSeries;
+}
+
 export interface TitleParams {
   lang: Language;
   /** Sign name for a weekly reading; empty for an evergreen theme. */
@@ -77,13 +130,13 @@ function trimHook(hook: string, room: number): string {
   if (hook.length <= room) return hook;
   const cut = hook.slice(0, room);
   const space = cut.lastIndexOf(' ');
-  return (space > MIN_HOOK ? cut.slice(0, space) : cut).trim();
+  return (space >= MIN_HOOK ? cut.slice(0, space) : cut).trim();
 }
 
 /**
- * The hook carries the wording viewers type into search, so it stays in the title and the
- * moon-sign note gives up its room first. A sign title ends with the system it reads
- * instead of the brand.
+ * The hook carries the wording viewers type into search, so it is trimmed to fit rather
+ * than dropped, while the moon-sign note always stays: a sign title has to say which
+ * system it reads, or viewers look up their Western sun sign.
  */
 export function buildYouTubeTitle({
   lang,
@@ -99,15 +152,8 @@ export function buildYouTubeTitle({
   const tail = `${separator}${zodiacSign ? MOON_SIGN_NOTE[lang] : BRAND}`;
   // A series keyword already says what the video is, so its hook would only repeat it.
   if (hook && !series) {
-    const full = `${lead}: ${hook}`;
-    if (`${full}${tail}`.length <= TITLE_LIMIT) return `${full}${tail}`;
-    if (full.length <= TITLE_LIMIT) return full;
-    const withTail = `${lead}: ${trimHook(hook, TITLE_LIMIT - lead.length - 2 - tail.length)}${tail}`;
-    if (withTail.length <= TITLE_LIMIT && withTail.length >= lead.length + 2 + MIN_HOOK + tail.length) {
-      return withTail;
-    }
-    const bare = `${lead}: ${trimHook(hook, TITLE_LIMIT - lead.length - 2)}`;
-    if (bare.length >= lead.length + 2 + MIN_HOOK) return bare.slice(0, TITLE_LIMIT);
+    const room = TITLE_LIMIT - lead.length - 2 - tail.length;
+    if (room >= MIN_HOOK) return `${lead}: ${trimHook(hook, room)}${tail}`;
   }
   const withTail = `${lead}${tail}`;
   return (withTail.length <= TITLE_LIMIT ? withTail : lead).slice(0, TITLE_LIMIT);
