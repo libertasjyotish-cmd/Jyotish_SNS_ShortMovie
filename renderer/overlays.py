@@ -21,7 +21,10 @@ PANEL = (10, 7, 18, 150)
 PERIOD_CENTER_Y = 300
 HOOK_CENTER_Y = 500
 BODY_CENTER_Y = 1040
-CTA_CENTER_Y = 1600
+CTA_CENTER_Y = 1560
+NOTE_CENTER_Y = 1724
+"""Lines a CTA banner may wrap to; the caller splits longer text into parts instead."""
+CTA_MAX_LINES = 2
 
 FONTS: dict[str, dict[str, tuple[str, str | None]]] = {
     "ja": {
@@ -198,26 +201,31 @@ def body(path: str, text: str, language: str) -> tuple[str, int, int]:
     return _save_cropped(img, path)
 
 
-def cta(path: str, text: str, note: str | None, language: str) -> tuple[str, int, int]:
+def cta(path: str, text: str, language: str) -> tuple[str, int, int]:
+    """One banner; the gold panel grows with the wrapped text so nothing is cut off."""
     img = _blank()
     draw = ImageDraw.Draw(img)
-    font, lines = _fit_font(draw, text, language, "button", 52, WIDTH * 0.72, 1)
-    width = min(WIDTH * 0.86, draw.textlength(lines[0], font=font) + 150)
+    font, lines = _fit_font(draw, text, language, "button", 60, WIDTH * 0.78, CTA_MAX_LINES)
+    line_height = int(font.size * 1.3)
+    half_height = line_height * len(lines) / 2 + 34
+    width = min(WIDTH * 0.92, max(draw.textlength(line, font=font) for line in lines) + 110)
     draw.rounded_rectangle(
-        [(WIDTH - width) / 2, CTA_CENTER_Y - 62, (WIDTH + width) / 2, CTA_CENTER_Y + 62],
-        radius=62,
+        [
+            (WIDTH - width) / 2,
+            CTA_CENTER_Y - half_height,
+            (WIDTH + width) / 2,
+            CTA_CENTER_Y + half_height,
+        ],
+        radius=min(62, half_height),
         fill=GOLD,
     )
-    text_width = draw.textlength(lines[0], font=font)
-    _draw_text(
-        draw,
-        ((WIDTH - text_width) / 2, CTA_CENTER_Y - font.size * 0.72),
-        lines[0],
-        font,
-        INK,
-        language,
-    )
-    if note:
-        note_font, note_lines = _fit_font(draw, note, language, "body", 38, WIDTH * 0.8, 2)
-        _draw_block(img, note_lines, note_font, CTA_CENTER_Y + 118, language, CREAM, 1.3, True)
+    _draw_block(img, lines, font, CTA_CENTER_Y, language, INK, 1.3, False)
+    return _save_cropped(img, path)
+
+
+def note(path: str, text: str, language: str) -> tuple[str, int, int]:
+    img = _blank()
+    draw = ImageDraw.Draw(img)
+    font, lines = _fit_font(draw, text, language, "body", 40, WIDTH * 0.8, 2)
+    _draw_block(img, lines, font, NOTE_CENTER_Y, language, CREAM, 1.3, True)
     return _save_cropped(img, path)
