@@ -21,10 +21,10 @@ PANEL = (10, 7, 18, 150)
 PERIOD_CENTER_Y = 300
 HOOK_CENTER_Y = 500
 BODY_CENTER_Y = 1040
-CTA_CENTER_Y = 1560
+CTA_CENTER_Y = 1500
 NOTE_CENTER_Y = 1724
 """Lines a CTA banner may wrap to; the caller splits longer text into parts instead."""
-CTA_MAX_LINES = 2
+CTA_MAX_LINES = 3
 
 FONTS: dict[str, dict[str, tuple[str, str | None]]] = {
     "ja": {
