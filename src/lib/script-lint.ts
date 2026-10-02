@@ -15,6 +15,7 @@ export interface ScriptIssue {
     | 'contains_url'
     | 'missing_period'
     | 'missing_sign'
+    | 'vague_house'
     | 'too_short'
     | 'too_long';
   detail: string;
@@ -140,6 +141,22 @@ const CTA_ACTION_PATTERNS: Record<Language, RegExp> = {
   ar: /الرابط|الملف الشخصي|تحقق|اكتشف/,
   fr: /(lien|profil|bio|d[ée]couvrez|v[ée]rifiez)/i,
   de: /(link|profil|bio|finde heraus|pr[üu]fe)/i,
+};
+
+/**
+ * A reading names the house the transit falls in, counted from the sign it is written for.
+ * Without the count the viewer is told a planet moved somewhere unnamed, which is the one thing
+ * they cannot look up for themselves and the reason the video sends them to the site.
+ */
+const VAGUE_HOUSE_PATTERNS: Record<Language, RegExp> = {
+  ja: /特定の(?:部屋|ハウス|場所|位置|領域)|ある部屋|どこかの部屋/,
+  en: /\b(a (?:certain|particular|specific) (?:house|area|part)|some house)\b/i,
+  es: /\b(?:una|cierta) (?:casa|zona|parte) (?:determinada|concreta|espec[íi]fica)\b|\bcierta casa\b/i,
+  pt: /\b(?:uma|certa) (?:casa|[áa]rea|parte) (?:determinada|espec[íi]fica)\b|\bcerta casa\b/i,
+  id: /\brumah (?:tertentu|tertentu itu)\b|\bbagian tertentu\b/i,
+  ar: /بيت معين|منطقة معينة|جزء معين/,
+  fr: /\b(?:une|certaine) (?:maison|zone|partie) (?:particuli[èe]re|pr[ée]cise|donn[ée]e)\b|\bcertaine maison\b/i,
+  de: /\b(?:ein|einem) bestimmtes? Haus\b|\bbestimmten Bereich\b/i,
 };
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(?:com|net|org|jp|io)\b/i;
@@ -289,6 +306,11 @@ export function lintScript(
   }
 
   if (signName) {
+    const vague = script.body_script.match(VAGUE_HOUSE_PATTERNS[language]);
+    if (vague) {
+      issues.push({ field: 'body_script', code: 'vague_house', detail: vague[0] });
+    }
+
     const opening = `${script.hook_text} ${script.body_script}`;
     if (!opening.toLowerCase().includes(signName.toLowerCase())) {
       issues.push({
