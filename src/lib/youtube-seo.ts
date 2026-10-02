@@ -77,7 +77,7 @@ function trimHook(hook: string, room: number): string {
   if (hook.length <= room) return hook;
   const cut = hook.slice(0, room);
   const space = cut.lastIndexOf(' ');
-  return (space > MIN_HOOK ? cut.slice(0, space) : cut).trim();
+  return (space >= MIN_HOOK ? cut.slice(0, space) : cut).trim();
 }
 
 /**
