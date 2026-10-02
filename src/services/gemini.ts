@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { optionalEnv, requireEnv } from '@/lib/env';
+import { hookAssignment } from '@/lib/hook-angles';
 import { weekPeriodLabel, weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
 import { Language, TargetType } from './sheets';
@@ -242,6 +243,10 @@ function buildPrompt(request: GenerationRequest): string {
     request.target_type === 'Zodiac_Sign'
       ? weekPeriodSpoken(request.week_id, request.lang_code)
       : undefined;
+  const assignment =
+    request.target_type === 'Zodiac_Sign'
+      ? hookAssignment(request.week_id, request.zodiac_sign)
+      : undefined;
 
   return [
     'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
@@ -259,7 +264,9 @@ function buildPrompt(request: GenerationRequest): string {
     '4. Explain exactly one planetary movement, plainly. Orbital periods, degrees and cycle lengths may appear once as evidence, never as the subject of the video; the subject is what the viewer experiences in work, money, relationships, mood, home or timing.',
     '5. The CTA invites viewers to the Libertas Jyotish site for their personal reading. Never write a URL, a domain name or an email address in any field; the link lives in the profile and the description.',
     '6. Never give definitive medical, mental-health, financial, investment or legal advice, and never predict illness, death, pregnancy, accidents, lawsuits, or specific gains and losses of money. Phrase practical suggestions as everyday actions (rest, planning, communication), not as diagnoses or instructions.',
-    '7. Keep the tone calm and specific. Vary the opening sentence and the concrete example between zodiac signs so the twelve scripts of a week never read as one template.',
+    assignment
+      ? `7. Keep the tone calm and specific. The twelve signs of this week are each given a different opening so they never read as one template, and this one opens on ${assignment.angle}. Take the concrete everyday example from ${assignment.domain}. Both still have to follow from the transit below; if the transit cannot support this opening, choose the nearest one it does support rather than falling back on plans going wrong.`
+      : '7. Keep the tone calm and specific, and never open on plans or schedules going wrong, which is the opening these scripts fall into by default.',
     `8. Name the tradition in the first sentence of body_script, exactly as "${profile.tradition}". Viewers do not know what a nakshatra or a sidereal Moon sign is, so never open on a technical term without saying which system it comes from.`,
     '9. hook_text is one short line that either names something the viewer already lives with and asks whether it is happening to them, or contradicts what they believe ("that is not your fault", "you are looking at the wrong planet"). Never announce the video or the topic ("here is this week\'s movement of the stars"), and never answer the hook in the hook itself.',
     '10. In script_30s the fixed CTA already spends about a third of the budget, so hook_text is one short line and body_script is at most two sentences. The length limits are hard limits. Count before answering — characters excluding spaces for Japanese, words for the other languages — and cut adjectives or add a concrete everyday detail until the total is inside the range.',
@@ -276,7 +283,10 @@ function buildPrompt(request: GenerationRequest): string {
     localSign
       ? `17. Twelve readings are published the same week and a viewer scrolling past has seconds to tell whether this one is theirs, so the sign is said out loud, written exactly as "${localSign}", in hook_text or in the first sentence of body_script.`
       : '17. This video belongs to no single sign, so never name one.',
-    '18. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
+    request.target_type === 'Zodiac_Sign'
+      ? '18. Say which house the movement falls in for this Moon sign as an ordinal number counted from it, for example "the fourth house". Never write that it falls in "a certain house" or "a particular part of the chart": a reading that does not count the house gives the viewer nothing to check.'
+      : '18. This video reads no single chart, so never count a house from a sign.',
+    '19. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
     profile.note ?? '',
