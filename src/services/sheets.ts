@@ -164,6 +164,11 @@ export interface EvergreenScript {
   enabled: boolean;
   /** `week_id` this script was last scheduled for; blank when never used. */
   last_used_week: string;
+  /**
+   * Set on copy that is tied to a dated event: the script runs in that week only and stays
+   * out of the rotation the rest of the year. Blank on evergreen copy.
+   */
+  week_id: string;
 }
 
 export interface WeeklyTransit {
@@ -500,8 +505,37 @@ export class GoogleSheetsService {
         hashtags: row.values.hashtags,
         enabled: (row.values.enabled || 'TRUE').toUpperCase() !== 'FALSE',
         last_used_week: row.values.last_used_week || '',
+        week_id: row.values.week_id || '',
       }))
       .filter((script) => script.enabled);
+  }
+
+  /** Appends scripts, skipping any `script_id` the sheet already holds for that language. */
+  async addEvergreenScripts(scripts: EvergreenScript[]): Promise<EvergreenScript[]> {
+    await this.ensureColumns(SHEET_NAMES.evergreenScripts, ['week_id']);
+    const { rows } = await this.loadTable(SHEET_NAMES.evergreenScripts);
+    const existing = new Set(
+      rows.map((row) => `${row.values.script_id}/${row.values.lang_code}`),
+    );
+    const added = scripts.filter(
+      (script) => !existing.has(`${script.script_id}/${script.lang_code}`),
+    );
+    await this.appendRows(
+      SHEET_NAMES.evergreenScripts,
+      added.map((script) => ({
+        script_id: script.script_id,
+        day_of_week: script.day_of_week,
+        lang_code: script.lang_code,
+        hook: script.hook,
+        body: script.body,
+        cta: script.cta,
+        hashtags: script.hashtags,
+        enabled: script.enabled ? 'TRUE' : 'FALSE',
+        last_used_week: script.last_used_week,
+        week_id: script.week_id,
+      })),
+    );
+    return added;
   }
 
   async markEvergreenUsed(scriptId: string, lang_code: Language, weekId: string): Promise<void> {

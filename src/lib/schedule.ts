@@ -14,7 +14,7 @@ export type DayOfWeek = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
 export const THEME_DAYS: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu'];
 
 /**
- * Day the Kāl Kundali promotion takes over from the theme video. It only applies while
+ * Day the report promotions take over from the theme video. It only applies while
  * `PROMO_ENABLED` is on; until then the day carries a theme like the rest of the week.
  */
 export const PROMO_DAY: DayOfWeek = 'Thu';
@@ -22,9 +22,22 @@ export const PROMO_DAY: DayOfWeek = 'Thu';
 /** `Evergreen_Scripts` rows whose `script_id` starts with this hold promotion copy. */
 export const PROMO_SCRIPT_PREFIX = 'promo-';
 
+/** Promotion copy about a dated sky event rather than a product. */
+export const EVENT_SCRIPT_PREFIX = 'promo-event-';
+
 export function isPromoScriptId(script_id: string): boolean {
   return script_id.startsWith(PROMO_SCRIPT_PREFIX);
 }
+
+export function isEventScriptId(script_id: string): boolean {
+  return script_id.startsWith(EVENT_SCRIPT_PREFIX);
+}
+
+/**
+ * Videos on `PROMO_DAY`. Two, because one product a week would bring each of the six reports
+ * back only every sixth week; an event script takes one of the slots in the weeks it falls in.
+ */
+export const PROMO_SLOTS = 2;
 
 export const ZODIAC_SIGNS = [
   'Aries',
@@ -78,6 +91,9 @@ const ZODIAC_HOURS_TWO_MARKETS = [18, 21];
 
 /** Local posting time of the one theme video a day. */
 const THEME_HOUR = 18;
+
+/** Local posting hours of the `PROMO_SLOTS` videos on `PROMO_DAY`. */
+const PROMO_HOURS = [12, 19];
 
 export const DAY_OFFSET: Record<DayOfWeek, number> = {
   Mon: 0,
@@ -208,4 +224,15 @@ export function scheduledPostTime(
   const [timeZone, hour] = postingSlot(lang, day, slot);
   const date = new Date(weekStart.getTime() + DAY_OFFSET[day] * MS_PER_DAY);
   return localTimeToUtc(date, hour, 0, timeZone).toISOString();
+}
+
+/**
+ * ISO timestamp of the `slot`-th promotion video on `PROMO_DAY`, hours apart so the two do not
+ * compete for the same audience. A two-market language gives each market one of them.
+ */
+export function promoPostTime(weekStart: Date, lang: Language, slot: number): string {
+  const markets = AUDIENCE_MARKETS[lang];
+  const timeZone = markets[slot % markets.length];
+  const date = new Date(weekStart.getTime() + DAY_OFFSET[PROMO_DAY] * MS_PER_DAY);
+  return localTimeToUtc(date, PROMO_HOURS[slot % PROMO_HOURS.length], 0, timeZone).toISOString();
 }

@@ -9,7 +9,8 @@
     "lint": "next lint",
     "check:titles": "tsx scripts/check-youtube-title.ts",
     "check:thumbnails": "tsx scripts/check-youtube-thumbnails.ts",
-    "lint:scripts": "tsx scripts/lint-scripts.ts"
+    "lint:scripts": "tsx scripts/lint-scripts.ts",
+    "load:evergreen": "tsx scripts/load-evergreen.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
