@@ -5,10 +5,13 @@ import { buildTransitReference } from '@/lib/ephemeris';
 import { plannedLanguages } from '@/lib/plan-languages';
 import {
   DayOfWeek,
+  isEventScriptId,
   isoWeekId,
   isPromoScriptId,
   nextWeekStart,
   PROMO_DAY,
+  PROMO_SLOTS,
+  promoPostTime,
   scheduledPostTime,
   THEME_DAYS,
   ZODIAC_DAYS,
@@ -43,10 +46,34 @@ function pickScript(
       (script) =>
         script.day_of_week === day &&
         isPromoScriptId(script.script_id) === promo &&
+        !script.week_id &&
         (!series || parseSignThemeId(script.script_id)?.series === series) &&
         !taken.has(script.script_id),
     )
     .sort((a, b) => a.last_used_week.localeCompare(b.last_used_week))[0];
+}
+
+/**
+ * The scripts for `PROMO_DAY`: the event of the week, when the language has one, plus product
+ * copy for the remaining slots. A language without an event script for the week runs products
+ * in both slots, which is how the festival scripts stay English-only.
+ */
+function pickPromoScripts(
+  scripts: EvergreenScript[],
+  weekId: string,
+  taken: Set<string>,
+): EvergreenScript[] {
+  const event = scripts.find(
+    (script) => isEventScriptId(script.script_id) && script.week_id === weekId,
+  );
+  const picked = event ? [event] : [];
+  while (picked.length < PROMO_SLOTS) {
+    const product = pickScript(scripts, PROMO_DAY, taken, true);
+    if (!product) break;
+    taken.add(product.script_id);
+    picked.push(product);
+  }
+  return picked;
 }
 
 /**
@@ -79,7 +106,8 @@ function baseTask(
 }
 
 /**
- * Fills next week's `Content_Queue`: evergreen themes Monday to Thursday of that week, then
+ * Fills next week's `Content_Queue`: evergreen themes Monday to Wednesday, two report
+ * promotions on Thursday once `PROMO_ENABLED` is on (the week's sky event takes one of them), then
  * the twelve Moon-sign readings spread over the Friday to Sunday before it, and computes the week's
  * transit reference the readings are written from. Re-running is safe; tasks that
  * already exist for the week are skipped and an existing transit row is kept, so a
@@ -100,9 +128,13 @@ export async function GET(request: Request) {
     // the slot itself is what must stay unique.
     const filledThemeSlots = new Set(
       plannedTasks
-        .filter((task) => task.target_type === 'Theme' || task.target_type === 'Promo')
+        .filter((task) => task.target_type === 'Theme')
         .map((task) => `${task.lang_code}/${task.day_of_week}`),
     );
+    const promoCounts = new Map<Language, number>();
+    for (const task of plannedTasks.filter((task) => task.target_type === 'Promo')) {
+      promoCounts.set(task.lang_code, (promoCounts.get(task.lang_code) ?? 0) + 1);
+    }
 
     const recompute = new URL(request.url).searchParams.get('recompute') === '1';
     const storedTransit = await sheets.getWeeklyTransits(weekId);
@@ -123,10 +155,10 @@ export async function GET(request: Request) {
       const taken = new Set<string>();
 
       for (const day of THEME_DAYS) {
+        if (promoEnabled() && day === PROMO_DAY) continue;
         if (filledThemeSlots.has(`${lang}/${day}`)) continue;
 
-        const promo = promoEnabled() && day === PROMO_DAY;
-        const theme = pickScript(themes, day, taken, promo);
+        const theme = pickScript(themes, day, taken, false);
         if (!theme) {
           skippedDays.push(`${lang}/${day}`);
           continue;
@@ -139,7 +171,7 @@ export async function GET(request: Request) {
         const task: ContentQueue = {
           ...baseTask(weekId, day, weekStart, lang),
           task_id: `${weekId}-${lang}-${theme.script_id}`,
-          target_type: promo ? 'Promo' : 'Theme',
+          target_type: 'Theme',
           theme_id: theme.script_id,
           zodiac_sign: signTheme?.sign,
         };
@@ -147,6 +179,27 @@ export async function GET(request: Request) {
 
         pending.push(task);
         themeUses.push({ scriptId: theme.script_id, lang_code: lang, weekId });
+      }
+
+      if (promoEnabled()) {
+        const planned = promoCounts.get(lang) ?? 0;
+        const promos = pickPromoScripts(themes, weekId, taken).slice(planned);
+        if (planned + promos.length < PROMO_SLOTS) skippedDays.push(`${lang}/${PROMO_DAY}`);
+
+        promos.forEach((promo, index) => {
+          const slot = planned + index;
+          const task: ContentQueue = {
+            ...baseTask(weekId, PROMO_DAY, weekStart, lang),
+            scheduled_post_time: promoPostTime(weekStart, lang, slot),
+            task_id: `${weekId}-${lang}-${promo.script_id}`,
+            target_type: 'Promo',
+            theme_id: promo.script_id,
+          };
+          if (existing.has(task.task_id)) return;
+
+          pending.push(task);
+          themeUses.push({ scriptId: promo.script_id, lang_code: lang, weekId });
+        });
       }
 
       for (const { day, signs } of ZODIAC_DAYS) {
