@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "check:titles": "tsx scripts/check-youtube-title.ts"
+    "check:titles": "tsx scripts/check-youtube-title.ts",
+    "check:thumbnails": "tsx scripts/check-youtube-thumbnails.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
