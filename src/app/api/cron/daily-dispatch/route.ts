@@ -4,7 +4,7 @@ import { buildDescription, followUpLink, playlistDescription, youtubeComment } f
 import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { optionalEnv } from '@/lib/env';
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
-import { weekPeriodLabel } from '@/lib/period';
+import { weekPeriodLabel, weekPeriodTitleLabel } from '@/lib/period';
 import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
 import { runWatchdog } from '@/lib/watchdog-run';
@@ -78,6 +78,13 @@ function isConnected(channel: Channel | null): channel is Channel {
 function postPeriod(task: ContentQueue): string | undefined {
   return task.target_type === 'Zodiac_Sign'
     ? weekPeriodLabel(task.week_id, task.lang_code)
+    : undefined;
+}
+
+/** The same week inside the 100 characters of a YouTube title, where the hook competes for room. */
+function titlePeriod(task: ContentQueue): string | undefined {
+  return task.target_type === 'Zodiac_Sign'
+    ? weekPeriodTitleLabel(task.week_id, task.lang_code)
     : undefined;
 }
 
@@ -318,7 +325,7 @@ export async function GET(request: Request) {
             lang: post.lang_code,
             zodiacSign: signName,
             hook: script30s.hook_text,
-            period,
+            period: titlePeriod(post),
             series,
           });
 

@@ -154,11 +154,59 @@ export interface TitleParams {
 /** Shortest hook worth keeping; below this it reads as a cut-off fragment. */
 const MIN_HOOK = 12;
 
+/**
+ * Words that cannot end a phrase in the eight languages: conjunctions, prepositions and
+ * articles, which all promise a word that the character limit cut off.
+ */
+const DANGLING_WORDS = new Set([
+  // en
+  'and', 'or', 'but', 'while', 'about', 'with', 'of', 'to', 'in', 'on', 'for', 'as', 'at',
+  'that', 'the', 'a', 'an', 'is', 'are', 'your', 'you',
+  // es / pt
+  'y', 'e', 'o', 'u', 'pero', 'mas', 'que', 'de', 'del', 'da', 'do', 'en', 'em', 'con', 'com',
+  'por', 'para', 'sin', 'sem', 'el', 'la', 'los', 'las', 'um', 'uma', 'se', 'ou', 'no', 'na',
+  // id
+  'dan', 'atau', 'tapi', 'tetapi', 'dengan', 'untuk', 'pada', 'dari', 'yang', 'ke', 'di',
+  // fr
+  'et', 'ou', 'mais', 'dans', 'avec', 'sans', 'pour', 'sur', 'du', 'des', 'le', 'les', 'un',
+  'une', 'qui', 'vos', 'votre',
+  // de
+  'und', 'oder', 'aber', 'mit', 'ohne', 'für', 'auf', 'an', 'im', 'in', 'der', 'die', 'das',
+  'den', 'dem', 'ein', 'eine', 'als', 'zu', 'von', 'bei', 'sich', 'ihre', 'ihr',
+  // ar
+  'و', 'أو', 'في', 'من', 'على', 'إلى', 'مع', 'عن', 'أن', 'التي', 'الذي',
+]);
+
+/** Marks a reader accepts as the end of a thought, in every script the languages use. */
+const CLAUSE_END = /[?!.\u061F\u3002\uFF1F\uFF01]/g;
+
+/**
+ * A hook that does not fit is cut at the last clause that does, and marked with an ellipsis
+ * when it stops mid-sentence: cutting at a space leaves titles like `is your mind racing
+ * about`, which reads as a broken sentence rather than a question the viewer can answer.
+ */
 function trimHook(hook: string, room: number): string {
   if (hook.length <= room) return hook;
-  const cut = hook.slice(0, room);
+
+  let clause = 0;
+  CLAUSE_END.lastIndex = 0;
+  for (let match = CLAUSE_END.exec(hook); match; match = CLAUSE_END.exec(hook)) {
+    const end = match.index + match[0].length;
+    if (end > room) break;
+    clause = end;
+  }
+  if (clause >= MIN_HOOK) return hook.slice(0, clause).trim();
+
+  const cut = hook.slice(0, room - 1);
   const space = cut.lastIndexOf(' ');
-  return (space >= MIN_HOOK ? cut.slice(0, space) : cut).trim();
+  let kept = (space >= MIN_HOOK ? cut.slice(0, space) : cut).trim();
+  // A phrase ending on a conjunction or preposition reads as a dropped sentence even with an
+  // ellipsis, so those words are given back until the last one carries meaning on its own.
+  for (let last = kept.lastIndexOf(' '); last >= MIN_HOOK; last = kept.lastIndexOf(' ')) {
+    if (!DANGLING_WORDS.has(kept.slice(last + 1).toLowerCase())) break;
+    kept = kept.slice(0, last);
+  }
+  return `${kept.replace(/[,;:\u060C\u3001\uFF0C]$/, '')}\u2026`;
 }
 
 /**

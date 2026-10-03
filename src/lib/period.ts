@@ -54,6 +54,44 @@ export function weekPeriodLabel(weekId: string, lang: Language): string | undefi
 }
 
 /**
+ * The same week in the fewest characters it can be written in: `Oct 5–11`, or `10/5〜10/11`
+ * in Japanese. A YouTube title has 100 characters for the sign, the search phrase, the dates,
+ * the hook and the moon-sign note, and the year of a week that is on screen now buys nothing.
+ * Weeks that cross a month keep both month names.
+ */
+export function weekPeriodTitleLabel(weekId: string, lang: Language): string | undefined {
+  const start = weekStartFromId(weekId);
+  if (!start) return undefined;
+  const end = new Date(start.getTime() + 6 * MS_PER_DAY);
+  const sameMonth = start.getUTCMonth() === end.getUTCMonth();
+
+  if (lang === 'ja') {
+    const day = (date: Date) => `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
+    return `${day(start)}〜${day(end)}`;
+  }
+
+  const locale = LOCALES[lang];
+  const full = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  if (!sameMonth) return `${full.format(start)} – ${full.format(end)}`;
+
+  // The month is written once, on the side the locale puts it: `Oct 5–11`, but `5–11 Okt.`.
+  const parts = full.formatToParts(start);
+  const monthAt = parts.findIndex((part) => part.type === 'month');
+  if (monthAt < parts.findIndex((part) => part.type === 'day')) {
+    const dayOnly = new Intl.DateTimeFormat(locale, { day: 'numeric', timeZone: 'UTC' });
+    return `${full.format(start)}–${dayOnly.format(end)}`;
+  }
+  // Keeps whatever the locale attaches to the day itself, such as the German ordinal dot in `5.`.
+  const [startDay] = parts
+    .slice(0, monthAt)
+    .map((part) => part.value)
+    .join('')
+    .trim()
+    .split(' ');
+  return `${startDay}–${full.format(end)}`;
+}
+
+/**
  * The same week written the way it is read aloud: `September 28 to October 4`, or
  * `9月28日から10月4日` in Japanese. The narration opens on this, so a viewer who only listens
  * still hears which week the reading covers.
