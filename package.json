@@ -11,7 +11,8 @@
     "check:thumbnails": "tsx scripts/check-youtube-thumbnails.ts",
     "lint:scripts": "tsx scripts/lint-scripts.ts",
     "load:evergreen": "tsx scripts/load-evergreen.ts",
-    "refresh:seo": "tsx scripts/refresh-youtube-seo.ts"
+    "refresh:seo": "tsx scripts/refresh-youtube-seo.ts",
+    "diagnose:reach": "tsx scripts/diagnose-youtube-reach.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
