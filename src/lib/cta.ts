@@ -30,6 +30,30 @@ function siteLink(source: string): string {
   return `${SITE_URL}/?utm_source=${source}&utm_medium=caption`;
 }
 
+/**
+ * Daily reading subscription, the recurring product: a weekly video is a reason to come back once,
+ * the daily page is a reason to come back every morning.
+ */
+const DAILY_CTA: Record<Language, string> = {
+  ja: '▼ 今日のあなたの運勢を毎日読む',
+  en: '▼ Read your own reading, every day',
+  es: '▼ Lee tu lectura personal cada día',
+  pt: '▼ Leia a sua leitura pessoal todos os dias',
+  id: '▼ Baca ramalan harian Anda setiap hari',
+  ar: '▼ اقرأ قراءتك الشخصية كل يوم',
+  fr: '▼ Lisez votre lecture personnelle chaque jour',
+  de: '▼ Lies deine eigene Tagesdeutung, jeden Tag',
+};
+
+/** The premium section of the member page; the fragment stays last so it survives the query. */
+function dailyLink(lang: Language, source: string, medium: string): string {
+  return `${SITE_URL}/${lang}/mypage?utm_source=${source}&utm_medium=${medium}#premium`;
+}
+
+export function dailyCta(lang: Language, source: string, medium = 'caption'): string {
+  return `${DAILY_CTA[lang]}\n${dailyLink(lang, source, medium)}`;
+}
+
 /** Shorts descriptions render URLs as plain text, so the profile link is the only tappable route. */
 export function descriptionCta(lang: Language, source: string): string {
   return `${CTA_HEADLINE[lang]}\n${CTA_NOTES[lang]}\n${siteLink(source)}`;
@@ -72,11 +96,11 @@ export function playlistDescription(lang: Language): string {
 }
 
 /**
- * Threads collapses a long caption and Facebook hides it behind "See more", so the link is
- * repeated in the first reply, which stays visible under the video.
+ * Threads collapses a long caption and Facebook hides it behind "See more", so the reply carries
+ * the daily reading: it is the one surface under the video that stays visible and tappable.
  */
 export function followUpLink(lang: Language, source: 'threads' | 'facebook'): string {
-  return `${CTA_HEADLINE[lang]}\n${SITE_URL}/?utm_source=${source}&utm_medium=reply`;
+  return dailyCta(lang, source, 'reply');
 }
 
 /** Comments render the URL as a tappable link, unlike a Shorts description. */
@@ -107,7 +131,11 @@ function subscribeBlock(lang: Language, channelId: string): string {
  * is out of our reach and the watermark does not render on Shorts.
  */
 export function youtubeComment(lang: Language, channelId?: string): string {
-  return [YOUTUBE_COMMENT[lang], channelId ? subscribeBlock(lang, channelId) : undefined]
+  return [
+    YOUTUBE_COMMENT[lang],
+    dailyCta(lang, 'youtube', 'comment'),
+    channelId ? subscribeBlock(lang, channelId) : undefined,
+  ]
     .filter(Boolean)
     .join('\n\n');
 }
@@ -212,6 +240,13 @@ export function buildDescription({
       : platform === 'threads' || platform === 'facebook'
         ? linkCta(lang, platform)
         : descriptionCta(lang, platform === 'instagram' ? 'instagram' : 'youtube');
+  // Threads cuts the text at 500 characters, so there the daily reading rides the reply instead.
+  const daily =
+    platform === 'threads'
+      ? undefined
+      : platform === 'tiktok'
+        ? `${DAILY_CTA[lang]}\n${SITE_DOMAIN}/${lang}/mypage`
+        : dailyCta(lang, platform ?? 'youtube');
   const subscribe = subscribeChannelId ? subscribeBlock(lang, subscribeChannelId) : undefined;
   const tags = captionHashtags(lang, hashtags, platform === 'instagram' ? 6 : 4);
   // A feed shows only the first line, so the sign and the week lead and the note follows the body.
@@ -221,6 +256,7 @@ export function buildDescription({
     body,
     moonSign ? MOON_SIGN_CAPTION[lang] : undefined,
     cta,
+    daily,
     subscribe,
     tags,
   ]
