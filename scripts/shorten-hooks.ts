@@ -8,6 +8,7 @@
  */
 import { GoogleGenAI, Type } from '@google/genai';
 import { HOOK_BOUNDS, describeIssues, lintScript, scriptLength } from '@/lib/script-lint';
+import { isTransientGeminiError } from '@/services/gemini';
 import { GoogleSheetsService, LANGUAGES, type EvergreenScript, type Language } from '@/services/sheets';
 
 const BUDGET: Record<Language, string> = {
@@ -56,21 +57,39 @@ function hookIssues(script: EvergreenScript, hook: string): string {
   return issues.length ? describeIssues(issues) : '';
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** The endpoint sheds load during long runs; a rejected attempt must not lose the whole language. */
+async function askGemini(ai: GoogleGenAI, contents: string): Promise<string> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-flash-latest',
+        contents,
+        config: { responseMimeType: 'application/json', responseSchema: SCHEMA },
+      });
+      return response.text ?? '{}';
+    } catch (error) {
+      if (attempt >= 5 || !isTransientGeminiError(error)) throw error;
+      await sleep(2_000 * 2 ** (attempt - 1));
+    }
+  }
+}
+
 async function shorten(ai: GoogleGenAI, script: EvergreenScript): Promise<string> {
   let feedback: string | undefined;
   let last = script.hook;
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
-      contents: prompt(script, feedback),
-      config: { responseMimeType: 'application/json', responseSchema: SCHEMA },
-    });
-    const { hook_text: hook } = JSON.parse(response.text ?? '{}') as { hook_text: string };
+    const text = await askGemini(ai, prompt(script, feedback));
+    const { hook_text: hook } = JSON.parse(text) as { hook_text: string };
     last = hook.trim();
     feedback = hookIssues(script, last);
     if (!feedback) return last;
   }
-  throw new Error(`${script.script_id} (${script.lang_code}): ${feedback}`);
+  console.warn(`${script.script_id} (${script.lang_code}) kept as is: ${feedback}`);
+  return script.hook;
 }
 
 async function main() {
@@ -90,12 +109,13 @@ async function main() {
     const updates: { scriptId: string; lang_code: Language; hook: string }[] = [];
     for (const script of long) {
       const hook = await shorten(ai, script);
+      if (hook === script.hook) continue;
       console.log(`${language} ${script.script_id}\n  - ${script.hook}\n  + ${hook}`);
       updates.push({ scriptId: script.script_id, lang_code: language, hook });
     }
     if (apply) await sheets.updateEvergreenHooks(updates);
     console.log(
-      `${language}: ${long.length}/${scripts.length} over ${HOOK_BOUNDS[language]}` +
+      `${language}: ${updates.length}/${long.length} of ${scripts.length} shortened` +
         `${apply ? ' (written)' : ' (dry run)'}`,
     );
   }
