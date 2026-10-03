@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isAdminAuthorized } from '@/lib/admin-auth';
 import { isCronAuthorized } from '@/lib/auth';
 import { dispatchLanguages, isDispatchEnabled } from '@/lib/dispatch-gate';
 import { ContentQueue, GoogleSheetsService } from '@/services/sheets';
@@ -52,7 +53,7 @@ function blockedReason(task: ContentQueue): string | null {
  * posting gates. Read-only, so it never advances the queue.
  */
 export async function GET(request: NextRequest) {
-  if (!isCronAuthorized(request)) {
+  if (!isCronAuthorized(request) && !isAdminAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
