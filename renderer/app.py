@@ -132,6 +132,7 @@ def render_video():
         max_body_segments=_optional_int(payload.get("max_body_segments")),
         tempo=float(payload.get("tempo", 1.05)),
         output_path=payload.get("output_path"),
+        theme=payload.get("theme") or "dark",
         target_min=_optional_float(payload.get("target_min")),
         target_max=_optional_float(payload.get("target_max")),
     )

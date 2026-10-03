@@ -17,6 +17,27 @@ GOLD = (240, 205, 130, 255)
 INK = (18, 13, 6, 255)
 CREAM = (253, 246, 231, 255)
 PANEL = (10, 7, 18, 150)
+SLATE = (28, 44, 70, 255)
+LIGHT_PANEL = (253, 248, 236, 205)
+
+DARK = "dark"
+LIGHT = "light"
+
+
+class Palette:
+    """Colours of one theme: `dark` suits footage, `light` suits pale illustrated art."""
+
+    def __init__(self, theme: str) -> None:
+        light = theme == LIGHT
+        self.heading = SLATE if light else GOLD
+        self.text = SLATE if light else CREAM
+        self.panel = LIGHT_PANEL if light else PANEL
+        self.panel_text = SLATE if light else GOLD
+        self.shadow = not light
+        self.scrim_color = (255, 252, 244) if light else (6, 4, 12)
+        """Alpha of the veil at the top, at the bottom and across the middle."""
+        self.scrim_alpha = (80, 95, 0) if light else (150, 165, 40)
+
 
 PERIOD_CENTER_Y = 300
 HOOK_CENTER_Y = 500
@@ -115,19 +136,21 @@ def _draw_block(
     return total
 
 
-def scrim(path: str) -> tuple[str, int, int]:
-    """Darkens the top and bottom so text keeps contrast over any footage."""
+def scrim(path: str, theme: str = DARK) -> tuple[str, int, int]:
+    """Veils the top and bottom for contrast: darkening footage, lifting pale artwork."""
+    palette = Palette(theme)
+    top, bottom, base = palette.scrim_alpha
     img = _blank()
     draw = ImageDraw.Draw(img)
     for y in range(HEIGHT):
         t = y / HEIGHT
-        alpha = int(150 * max(0.0, 1 - t / 0.45) + 165 * max(0.0, (t - 0.55) / 0.45) + 40)
-        draw.line([(0, y), (WIDTH, y)], fill=(6, 4, 12, min(alpha, 210)))
+        alpha = int(top * max(0.0, 1 - t / 0.45) + bottom * max(0.0, (t - 0.55) / 0.45) + base)
+        draw.line([(0, y), (WIDTH, y)], fill=(*palette.scrim_color, min(alpha, 210)))
     img.save(path)
     return path, 0, 0
 
 
-def period(path: str, text: str, language: str) -> tuple[str, int, int]:
+def period(path: str, text: str, language: str, theme: str = DARK) -> tuple[str, int, int]:
     """
     Labels the reading above the hook with the sign it is for and the week it covers, so a
     viewer scrolling past knows whose reading it is and an older post still dates itself.
@@ -153,7 +176,7 @@ def period(path: str, text: str, language: str) -> tuple[str, int, int]:
             PERIOD_CENTER_Y + half_height,
         ],
         radius=min(46, half_height),
-        fill=PANEL,
+        fill=Palette(theme).panel,
     )
     top = PERIOD_CENTER_Y - line_height * len(lines) / 2 - font.size * 0.20
     for index, line in enumerate(lines):
@@ -162,25 +185,31 @@ def period(path: str, text: str, language: str) -> tuple[str, int, int]:
             ((WIDTH - widths[index]) / 2, top + line_height * index),
             line,
             font,
-            GOLD,
+            Palette(theme).panel_text,
             language,
         )
     return _save_cropped(img, path)
 
 
-def hook(path: str, text: str, language: str) -> tuple[str, int, int]:
+def hook(path: str, text: str, language: str, theme: str = DARK) -> tuple[str, int, int]:
+    palette = Palette(theme)
     img = _blank()
     draw = ImageDraw.Draw(img)
     font, lines = _fit_font(draw, text, language, "display", 82, WIDTH * 0.86, 2)
-    total = _draw_block(img, lines, font, HOOK_CENTER_Y, language, GOLD, 1.35, True)
+    total = _draw_block(
+        img, lines, font, HOOK_CENTER_Y, language, palette.heading, 1.35, palette.shadow
+    )
     underline_y = HOOK_CENTER_Y + total // 2 + 44
     draw.rounded_rectangle(
-        [WIDTH / 2 - 150, underline_y, WIDTH / 2 + 150, underline_y + 8], radius=4, fill=GOLD
+        [WIDTH / 2 - 150, underline_y, WIDTH / 2 + 150, underline_y + 8],
+        radius=4,
+        fill=palette.heading,
     )
     return _save_cropped(img, path)
 
 
-def body(path: str, text: str, language: str) -> tuple[str, int, int]:
+def body(path: str, text: str, language: str, theme: str = DARK) -> tuple[str, int, int]:
+    palette = Palette(theme)
     img = _blank()
     draw = ImageDraw.Draw(img)
     font, lines = _fit_font(draw, text, language, "body", 58, WIDTH * 0.80, 6)
@@ -195,9 +224,9 @@ def body(path: str, text: str, language: str) -> tuple[str, int, int]:
             BODY_CENTER_Y + total / 2 + padding,
         ],
         radius=44,
-        fill=PANEL,
+        fill=palette.panel,
     )
-    _draw_block(img, lines, font, BODY_CENTER_Y, language, CREAM, 1.62, False)
+    _draw_block(img, lines, font, BODY_CENTER_Y, language, palette.text, 1.62, False)
     return _save_cropped(img, path)
 
 
@@ -223,9 +252,10 @@ def cta(path: str, text: str, language: str) -> tuple[str, int, int]:
     return _save_cropped(img, path)
 
 
-def note(path: str, text: str, language: str) -> tuple[str, int, int]:
+def note(path: str, text: str, language: str, theme: str = DARK) -> tuple[str, int, int]:
+    palette = Palette(theme)
     img = _blank()
     draw = ImageDraw.Draw(img)
     font, lines = _fit_font(draw, text, language, "body", 40, WIDTH * 0.8, 2)
-    _draw_block(img, lines, font, NOTE_CENTER_Y, language, CREAM, 1.3, True)
+    _draw_block(img, lines, font, NOTE_CENTER_Y, language, palette.text, 1.3, palette.shadow)
     return _save_cropped(img, path)

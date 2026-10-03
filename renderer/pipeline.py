@@ -45,6 +45,8 @@ class RenderRequest:
     max_body_segments: int | None = None
     tempo: float = TEMPO
     output_path: str | None = None
+    """`dark` for footage backgrounds, `light` for pale illustrated ones."""
+    theme: str = overlays.DARK
     target_min: float | None = None
     target_max: float | None = None
 
@@ -136,9 +138,14 @@ def render(request: RenderRequest) -> RenderResult:
 
         background = _download(request.background_url, os.path.join(work, "background.mp4"))
         layers: list[tuple[str, int, int, float, float]] = [
-            (*overlays.scrim(os.path.join(work, "scrim.png")), 0.0, total),
+            (*overlays.scrim(os.path.join(work, "scrim.png"), request.theme), 0.0, total),
             (
-                *overlays.hook(os.path.join(work, "hook.png"), request.hook, request.language),
+                *overlays.hook(
+                    os.path.join(work, "hook.png"),
+                    request.hook,
+                    request.language,
+                    request.theme,
+                ),
                 starts["hook"] - 0.5,
                 total,
             ),
@@ -147,7 +154,10 @@ def render(request: RenderRequest) -> RenderResult:
             layers.append(
                 (
                     *overlays.period(
-                        os.path.join(work, "period.png"), request.period, request.language
+                        os.path.join(work, "period.png"),
+                        request.period,
+                        request.language,
+                        request.theme,
                     ),
                     0.0,
                     total,
@@ -158,7 +168,12 @@ def render(request: RenderRequest) -> RenderResult:
             duration = next(clip[2] for clip in clips if clip[0] == name)
             layers.append(
                 (
-                    *overlays.body(os.path.join(work, f"{name}.png"), text, request.language),
+                    *overlays.body(
+                        os.path.join(work, f"{name}.png"),
+                        text,
+                        request.language,
+                        request.theme,
+                    ),
                     # A caption fades in exactly where the previous one finished fading
                     # out, so two body texts are never legible at once.
                     starts[name] - (GAP_SECONDS - video.FADE_OUT),
@@ -194,7 +209,10 @@ def render(request: RenderRequest) -> RenderResult:
             layers.append(
                 (
                     *overlays.note(
-                        os.path.join(work, "note.png"), request.note, request.language
+                        os.path.join(work, "note.png"),
+                        request.note,
+                        request.language,
+                        request.theme,
                     ),
                     starts["cta0"] - 0.4,
                     total,

@@ -13,6 +13,8 @@ export interface RendererRequest {
   note?: string;
   /** Dated week a sign reading covers, drawn above the hook; omitted for evergreen themes. */
   period?: string;
+  /** Text palette: `dark` over footage, `light` over pale illustrated backgrounds. */
+  theme?: 'dark' | 'light';
   /** Duration window the renderer fits the speaking rate to. */
   target: { min: number; max: number };
   /** When set, the renderer answers immediately and posts the result here when done. */
@@ -140,6 +142,7 @@ export class RendererService {
           cta: request.script.cta_text,
           note: request.note,
           period: request.period,
+          theme: request.theme,
           output_path: `renders/${request.taskId}-${request.pattern}.mp4`,
           queue_task_id: request.taskId,
           pattern: request.pattern,
