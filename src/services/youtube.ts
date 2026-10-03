@@ -63,6 +63,22 @@ export class YouTubeService {
     return `${found.snippet?.title ?? found.id} (${found.id})`;
   }
 
+  /**
+   * Reads the channel's feature eligibility. A custom thumbnail needs the same phone
+   * verification as long uploads, so `longUploadsStatus` says whether `setThumbnail` can work
+   * before a post spends quota on a call the API would reject.
+   */
+  async featureStatus(channel: Channel): Promise<{ title: string; longUploadsStatus: string }> {
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    const response = await youtube.channels.list({ part: ['snippet', 'status'], mine: true });
+    const found = response.data.items?.[0];
+    if (!found?.id) throw new Error('YouTube returned no channel for these credentials');
+    return {
+      title: found.snippet?.title ?? found.id,
+      longUploadsStatus: found.status?.longUploadsStatus ?? 'unknown',
+    };
+  }
+
   async uploadVideo(params: YouTubeUploadParams): Promise<string> {
     const auth = authorize(params.channel);
 
