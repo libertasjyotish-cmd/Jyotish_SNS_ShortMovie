@@ -31,6 +31,8 @@ interface RenderOnceBody {
   note?: string;
   /** Sign name and covered week, as the zodiac renders show them. */
   period?: string;
+  /** `light` keeps pale illustrated backgrounds bright instead of veiling them. */
+  theme?: "dark" | "light";
   /** Renders through Creatomate even when the Cloud Run renderer is configured. */
   useCreatomate?: boolean;
 }
@@ -110,6 +112,7 @@ export async function POST(req: NextRequest) {
         backgroundUrl,
         note: payload.note,
         period: payload.period,
+        theme: payload.theme,
         target: DURATION_BOUNDS[pattern],
       });
       return NextResponse.json({ status: "succeeded", ...rendered });
