@@ -6,9 +6,11 @@ import { runRenderBatch } from '@/lib/render-batch';
 import { isoWeekId, nextWeekStart } from '@/lib/schedule';
 import {
   MAX_RENDER_ATTEMPTS,
+  MAX_SCRIPT_ATTEMPTS,
   findBlockedTasks,
   findIncompletePlan,
   planRenderRecovery,
+  planScriptRecovery,
 } from '@/lib/watchdog';
 import { CreatomateService } from '@/services/creatomate';
 import { GoogleSheetsService } from '@/services/sheets';
@@ -21,7 +23,9 @@ export interface WatchdogResult {
   renderFailed: number;
   renderErrors: string[];
   pendingScripts: number;
+  requeuedScripts: number;
   generationResumed: boolean;
+  replanTriggered: boolean;
   alerts: string[];
   alerted: boolean;
 }
@@ -53,16 +57,36 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
   const requeued = recoveries.filter((recovery) => recovery.action === 'Pending').length;
   const batch = requeued > 0 ? await runRenderBatch(sheets, new CreatomateService()) : undefined;
 
-  alerts.push(
-    ...findBlockedTasks(tasks, now, {
-      isDispatchEnabledFor,
-    }),
-    ...findIncompletePlan(tasks, isoWeekId(nextWeekStart(now)), plannedLanguages()),
-  );
+  // A failed generation is never looked at again by the generator, so it is put back in the
+  // queue here until the attempt limit says the failure is not transient.
+  const scriptRecoveries = planScriptRecovery(tasks);
+  const requeuedScripts = scriptRecoveries.filter((recovery) => recovery.action === 'Pending');
+  await sheets.requeueScripts(requeuedScripts);
+  for (const recovery of scriptRecoveries) {
+    if (recovery.action === 'Error') {
+      alerts.push(
+        `${recovery.taskId}: script generation failed ${MAX_SCRIPT_ATTEMPTS} times`,
+      );
+    }
+  }
+
+  alerts.push(...findBlockedTasks(tasks, now, { isDispatchEnabledFor }));
+
+  // A plan that died partway through leaves the week short of slots. Planning is idempotent,
+  // so running it again fills the gap instead of waiting for next Monday's cron.
+  const languages = plannedLanguages();
+  const nextWeekId = isoWeekId(nextWeekStart(now));
+  const planGaps = findIncompletePlan(tasks, nextWeekId, languages);
+  const replanTriggered =
+    planGaps.length > 0 ? await triggerNextBatch('/api/cron/weekly-plan', 0) : false;
+  // The current week can no longer be filled by planning, so what is missing there is reported.
+  alerts.push(...findIncompletePlan(tasks, isoWeekId(now), languages));
+
   // The generation chain hands its remainder to a fresh invocation, so a single lost
   // invocation leaves the week half written until the next weekly cron. Restarting it here
   // picks the backlog up the same day.
-  const pendingScripts = tasks.filter((task) => task.script_status === 'Pending').length;
+  const pendingScripts =
+    tasks.filter((task) => task.script_status === 'Pending').length + requeuedScripts.length;
   const generationResumed =
     pendingScripts > 0 ? await triggerNextBatch('/api/cron/weekly-generate', 0) : false;
 
@@ -78,7 +102,9 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
     renderFailed: batch?.failed ?? 0,
     renderErrors: batch?.errors ?? [],
     pendingScripts,
+    requeuedScripts: requeuedScripts.length,
     generationResumed,
+    replanTriggered,
     alerts,
     alerted,
   };

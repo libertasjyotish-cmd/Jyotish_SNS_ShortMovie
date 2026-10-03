@@ -9,6 +9,8 @@ export const SLOTS_PER_LANGUAGE =
 export const RENDER_STALE_MINUTES = 30;
 /** Renders retried this many times are left as `Error` for a human to look at. */
 export const MAX_RENDER_ATTEMPTS = 3;
+/** Script generations retried this many times are left as `Error` for a human to look at. */
+export const MAX_SCRIPT_ATTEMPTS = 3;
 /** A post is only reported as missed once it is this far past its scheduled time. */
 export const POST_OVERDUE_MINUTES = 90;
 
@@ -20,6 +22,27 @@ export interface RenderRecovery {
   attempts: number;
   /** `Pending` re-queues the render; `Error` gives up on it. */
   action: Extract<RenderStatus, 'Pending' | 'Error'>;
+}
+
+export interface ScriptRecovery {
+  taskId: string;
+  attempts: number;
+  /** `Pending` puts the task back in front of the generator; `Error` gives up on it. */
+  action: 'Pending' | 'Error';
+}
+
+/**
+ * Finds generations that failed. Nothing else ever looks at them again, so a transient Gemini
+ * error silently costs the week a video unless they are put back in the queue here.
+ */
+export function planScriptRecovery(tasks: ContentQueue[]): ScriptRecovery[] {
+  return tasks
+    .filter((task) => task.script_status === 'Error')
+    .map((task) => ({
+      taskId: task.task_id,
+      attempts: task.script_attempts + 1,
+      action: task.script_attempts >= MAX_SCRIPT_ATTEMPTS ? ('Error' as const) : ('Pending' as const),
+    }));
 }
 
 function elapsedMinutes(since: string | undefined, now: Date): number | undefined {
@@ -100,8 +123,10 @@ export function findIncompletePlan(
 }
 
 /**
- * Queue rows a human has to deal with, because retrying will not fix them. While posting is
- * disabled every due row is overdue by design, so that check only runs once dispatch is on.
+ * Queue rows a human has to deal with, because retrying will not fix them. A failed post is not
+ * one of them: the next dispatch picks `Error` rows up again, so only a row still unposted long
+ * after its slot is reported. While posting is disabled every due row is overdue by design, so
+ * that check only runs once dispatch is on.
  */
 export function findBlockedTasks(
   tasks: ContentQueue[],
@@ -111,16 +136,10 @@ export function findBlockedTasks(
   const blocked: string[] = [];
 
   for (const task of tasks) {
-    if (task.script_status === 'Error') {
-      blocked.push(`${task.task_id}: script generation failed`);
-    }
-    if (task.post_status === 'Error') {
-      blocked.push(`${task.task_id}: posting failed`);
-    }
     const overdue = elapsedMinutes(task.scheduled_post_time, now);
     if (
       options.isDispatchEnabledFor(task.lang_code) &&
-      task.post_status === 'Pending' &&
+      ['Pending', 'Error'].includes(task.post_status) &&
       overdue !== undefined &&
       overdue >= POST_OVERDUE_MINUTES
     ) {
