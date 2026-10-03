@@ -57,6 +57,8 @@ export interface ContentQueue {
   /** Set on `Theme` and `Promo` tasks; points at a row of `Evergreen_Scripts`. */
   theme_id?: string;
   script_status: ScriptStatus;
+  /** How many times generation has been handed this task; blank before the first try. */
+  script_attempts: number;
   render_status_30s: RenderStatus;
   render_status_65s: RenderStatus;
   /** ISO timestamp the current render was handed to the renderer; blank before the first try. */
@@ -87,6 +89,7 @@ export interface ExpirablePost {
 }
 
 const POSTED_REFS_COLUMN = 'posted_refs';
+const SCRIPT_ATTEMPTS_COLUMN = 'script_attempts';
 const EXPIRED_AT_COLUMN = 'expired_at';
 /** Platforms that take the video asynchronously, and where their pending container is kept. */
 const CONTAINER_COLUMNS = {
@@ -446,6 +449,7 @@ export class GoogleSheetsService {
       zodiac_sign: values.zodiac_sign || undefined,
       theme_id: values.theme_id || undefined,
       script_status: (values.script_status || 'Pending') as ScriptStatus,
+      script_attempts: toNumber(values[SCRIPT_ATTEMPTS_COLUMN]) ?? 0,
       render_status_30s: (values.render_status_30s || 'Pending') as RenderStatus,
       render_status_65s: (values.render_status_65s || 'Pending') as RenderStatus,
       render_started_at_30s: values.render_started_at_30s || undefined,
@@ -638,6 +642,25 @@ export class GoogleSheetsService {
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
       script_status: status,
     });
+  }
+
+  /**
+   * Puts failed generations back in the queue in one request, counting the attempt so a task
+   * that keeps failing is eventually left alone instead of being retried forever.
+   */
+  async requeueScripts(updates: { taskId: string; attempts: number }[]): Promise<void> {
+    if (updates.length === 0) return;
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [SCRIPT_ATTEMPTS_COLUMN]);
+    const patches = await Promise.all(
+      updates.map(async ({ taskId, attempts }) => {
+        const row = await this.findQueueRow(taskId);
+        return {
+          rowNumber: row.rowNumber,
+          patch: { script_status: 'Pending', [SCRIPT_ATTEMPTS_COLUMN]: String(attempts) },
+        };
+      }),
+    );
+    await this.patchRows(SHEET_NAMES.contentQueue, patches);
   }
 
   async saveScriptOutput(output: ScriptOutput): Promise<void> {

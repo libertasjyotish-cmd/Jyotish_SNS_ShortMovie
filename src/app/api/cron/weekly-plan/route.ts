@@ -96,6 +96,7 @@ function baseTask(
     day_of_week: day,
     lang_code: lang,
     script_status: 'Pending' as const,
+    script_attempts: 0,
     render_status_30s: 'Pending' as const,
     render_status_65s: 'Pending' as const,
     render_attempts_30s: 0,
