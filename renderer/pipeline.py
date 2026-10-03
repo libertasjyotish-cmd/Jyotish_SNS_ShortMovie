@@ -19,12 +19,16 @@ from tts import Narrator
 CHARS_PER_SEGMENT = {"ja": 70, "default": 150}
 MAX_BODY_SEGMENTS = 6
 MIN_BODY_SEGMENTS = 2
-"""Lead-in before the narration, so the opening word is never clipped."""
-LEAD_SECONDS = 1.0
+"""Lead-in before the narration, so the opening word is never clipped.
+
+Short on purpose: a short-form feed decides whether to keep showing the video on the first
+two seconds, and silence over a background spends them saying nothing.
+"""
+LEAD_SECONDS = 0.2
 """Silence between spoken segments; also the window each body caption swaps in."""
 GAP_SECONDS = 0.5
-"""Silent tail after the narration ends."""
-TAIL_SECONDS = 1.6
+"""Silent tail after the narration ends; kept short so the clip loops straight back into the hook."""
+TAIL_SECONDS = 0.6
 """Slightly faster than the synthesized rate; keeps the delivery from dragging."""
 TEMPO = 1.05
 """How far the speaking rate may be pushed up to land inside the target duration."""
@@ -146,7 +150,7 @@ def render(request: RenderRequest) -> RenderResult:
                     request.language,
                     request.theme,
                 ),
-                starts["hook"] - 0.5,
+                0.0,
                 total,
             ),
         ]

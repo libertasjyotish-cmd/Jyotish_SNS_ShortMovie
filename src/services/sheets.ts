@@ -568,6 +568,28 @@ export class GoogleSheetsService {
     await this.patchRows(SHEET_NAMES.evergreenScripts, patches);
   }
 
+  /** Replaces the opening line of evergreen scripts, leaving body and CTA untouched. */
+  async updateEvergreenHooks(
+    updates: { scriptId: string; lang_code: Language; hook: string }[],
+  ): Promise<void> {
+    if (updates.length === 0) return;
+
+    const { rows } = await this.loadTable(SHEET_NAMES.evergreenScripts);
+    const patches = updates.map(({ scriptId, lang_code, hook }) => {
+      const row = rows.find(
+        (candidate) =>
+          candidate.values.script_id === scriptId && candidate.values.lang_code === lang_code,
+      );
+      if (!row) {
+        throw new Error(
+          `script_id "${scriptId}" (${lang_code}) not found in ${SHEET_NAMES.evergreenScripts}`,
+        );
+      }
+      return { rowNumber: row.rowNumber, patch: { hook } };
+    });
+    await this.patchRows(SHEET_NAMES.evergreenScripts, patches);
+  }
+
   async getQueueTasks(weekId: string): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows
