@@ -96,11 +96,13 @@ export function playlistDescription(lang: Language): string {
 }
 
 /**
- * Threads collapses a long caption and Facebook hides it behind "See more", so the reply carries
- * the daily reading: it is the one surface under the video that stays visible and tappable.
+ * Threads collapses a long caption and Facebook hides it behind "See more", so the link is
+ * repeated in the first reply, which stays visible under the video.
  */
-export function followUpLink(lang: Language, source: 'threads' | 'facebook'): string {
-  return dailyCta(lang, source, 'reply');
+export function followUpLink(lang: Language, source: 'threads' | 'facebook', daily = false): string {
+  return daily
+    ? dailyCta(lang, source, 'reply')
+    : `${CTA_HEADLINE[lang]}\n${SITE_URL}/?utm_source=${source}&utm_medium=reply`;
 }
 
 /** Comments render the URL as a tappable link, unlike a Shorts description. */
@@ -130,10 +132,10 @@ function subscribeBlock(lang: Language, channelId: string): string {
  * The subscribe link is the only tappable subscribe surface a Short has: the player's own button
  * is out of our reach and the watermark does not render on Shorts.
  */
-export function youtubeComment(lang: Language, channelId?: string): string {
+export function youtubeComment(lang: Language, channelId?: string, daily = false): string {
   return [
     YOUTUBE_COMMENT[lang],
-    dailyCta(lang, 'youtube', 'comment'),
+    daily ? dailyCta(lang, 'youtube', 'comment') : undefined,
     channelId ? subscribeBlock(lang, channelId) : undefined,
   ]
     .filter(Boolean)
@@ -222,6 +224,11 @@ export interface DescriptionParams {
    * description, where the body script alone never names the sign or the format.
    */
   keywordLine?: string;
+  /**
+   * Sends the viewer to the daily reading instead of the one-off report. A sign reading repeats
+   * every day on the site, so it carries the subscription; the Thursday report promo does not.
+   */
+  daily?: boolean;
 }
 
 export function buildDescription({
@@ -233,6 +240,7 @@ export function buildDescription({
   subscribeChannelId,
   moonSign,
   keywordLine,
+  daily: toDaily,
 }: DescriptionParams): string {
   const cta =
     platform === 'tiktok'
@@ -241,8 +249,9 @@ export function buildDescription({
         ? linkCta(lang, platform)
         : descriptionCta(lang, platform === 'instagram' ? 'instagram' : 'youtube');
   // Threads cuts the text at 500 characters, so there the daily reading rides the reply instead.
-  const daily =
-    platform === 'threads'
+  const daily = !toDaily
+    ? undefined
+    : platform === 'threads'
       ? undefined
       : platform === 'tiktok'
         ? `${DAILY_CTA[lang]}\n${SITE_DOMAIN}/${lang}/mypage`

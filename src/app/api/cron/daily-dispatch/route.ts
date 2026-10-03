@@ -158,7 +158,7 @@ async function addChannelSurfaces(args: {
     await youtubeService.postComment(
       channel,
       videoId,
-      youtubeComment(task.lang_code, subscribeChannelId),
+      youtubeComment(task.lang_code, subscribeChannelId, Boolean(signName)),
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -350,6 +350,7 @@ export async function GET(request: Request) {
                     period: captionLead,
                     subscribeChannelId,
                     moonSign: Boolean(signName),
+                    daily: Boolean(signName),
                     keywordLine: youtubeTitle,
                   }),
                   videoUrl,
@@ -389,6 +390,7 @@ export async function GET(request: Request) {
                           period: captionLead,
                           platform: 'instagram',
                           moonSign: Boolean(signName),
+                          daily: Boolean(signName),
                         }),
                         videoUrl,
                       }),
@@ -429,6 +431,7 @@ export async function GET(request: Request) {
                           period: captionLead,
                           platform: 'threads',
                           moonSign: Boolean(signName),
+                          daily: Boolean(signName),
                         }),
                         videoUrl,
                       }),
@@ -440,7 +443,7 @@ export async function GET(request: Request) {
                       threadsService.replyWithText(
                         threadsChannel,
                         postId,
-                        followUpLink(post.lang_code, 'threads'),
+                        followUpLink(post.lang_code, 'threads', Boolean(signName)),
                       ),
                   },
                 }),
@@ -456,6 +459,7 @@ export async function GET(request: Request) {
               period: captionLead,
               platform: 'facebook',
               moonSign: Boolean(signName),
+              daily: Boolean(signName),
             });
             uploads.push({
               platform: 'Facebook',
@@ -479,7 +483,7 @@ export async function GET(request: Request) {
                       facebookService.commentOnVideo(
                         facebookChannel,
                         videoId,
-                        followUpLink(post.lang_code, 'facebook'),
+                        followUpLink(post.lang_code, 'facebook', Boolean(signName)),
                       ),
                   },
                 }),
