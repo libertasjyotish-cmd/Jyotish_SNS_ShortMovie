@@ -10,6 +10,7 @@ export interface ScriptIssue {
     | 'missing_recognition'
     | 'missing_individual_difference'
     | 'hook_not_addressed'
+    | 'hook_too_long'
     | 'discouraged_wording'
     | 'weak_cta'
     | 'contains_url'
@@ -181,6 +182,22 @@ const SIGN_ALLOWANCE: Record<Language, number> = {
 };
 
 /**
+ * Longest hook that is still spoken inside the first two seconds, in the unit that language
+ * counts. A short-form feed decides on those two seconds whether to keep showing the video, so a
+ * hook that is still being read at second five is scrolled past before it lands.
+ */
+export const HOOK_BOUNDS: Record<Language, number> = {
+  ja: 24,
+  en: 8,
+  es: 9,
+  pt: 9,
+  id: 9,
+  ar: 9,
+  fr: 9,
+  de: 8,
+};
+
+/**
  * Length the narration has to land in to fit its pattern. Derived from measured Google Cloud
  * TTS output at the default speaking rate, with the margin the re-synthesis loop can absorb.
  */
@@ -271,6 +288,15 @@ export function lintScript(
       field: 'hook_text',
       code: 'hook_not_addressed',
       detail: 'the hook announces a topic instead of naming what the viewer lives with',
+    });
+  }
+
+  const hookLength = scriptLength(hook, language);
+  if (hookLength > HOOK_BOUNDS[language]) {
+    issues.push({
+      field: 'hook_text',
+      code: 'hook_too_long',
+      detail: `${hookLength} > ${HOOK_BOUNDS[language]}; not spoken within the first two seconds`,
     });
   }
 

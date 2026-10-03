@@ -81,8 +81,11 @@ def build(
             if hide_at >= total
             else f",fade=t=out:st={max(span - FADE_OUT, 0):.2f}:d={FADE_OUT}:alpha=1"
         )
+        # A layer that opens the video is on screen from the first frame: fading it in would
+        # spend the seconds the feed uses to decide whether to keep showing the clip.
+        fade_in = "" if start <= 0 else f",fade=t=in:st=0:d={FADE_IN}:alpha=1"
         chain.append(
-            f"[{stream}:v]format=rgba,fade=t=in:st=0:d={FADE_IN}:alpha=1{fade_out},"
+            f"[{stream}:v]format=rgba{fade_in}{fade_out},"
             f"setpts=PTS+{start:.2f}/TB[o{index}]"
         )
         chain.append(

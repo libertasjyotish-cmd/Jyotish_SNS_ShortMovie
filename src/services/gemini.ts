@@ -53,6 +53,8 @@ interface LanguageProfile {
   name: string;
   /** How the tradition is named on screen; "Vedic astrology" reads as a sect in Japanese. */
   tradition: string;
+  /** Longest hook still spoken inside the first two seconds; must match HOOK_BOUNDS in script-lint. */
+  hook: string;
   /** Narration length targets, expressed in the unit natural for the script. */
   length30s: string;
   length65s: string;
@@ -65,14 +67,16 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   ja: {
     name: '日本語',
     tradition: 'インド占星術（ジョーティシュ）',
+    hook: '24文字以内',
     length30s: '合計165〜183文字',
     length65s: '合計390〜420文字',
     body65s: '320〜350文字',
-    note: 'Japanese wording: call the chart 「ホロスコープ」. Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. End cta_text with exactly: 「を調べるには、12の太陽星座ではなく、108の区分とダシャー期を組み合わせた鑑定が必要です。リンクから無料で確認できます。」, preceded only by the one thing this video left unanswered (for example 「あなたの木星がどの部屋を通るか」). That CTA is about 80 characters on its own, so in script_30s hook_text must stay under 40 characters and body_script must be a single sentence under 70 characters; count the characters of all three fields before answering.',
+    note: 'Japanese wording: call the chart 「ホロスコープ」. Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. End cta_text with exactly: 「を調べるには、12の太陽星座ではなく、108の区分とダシャー期を組み合わせた鑑定が必要です。リンクから無料で確認できます。」, preceded only by the one thing this video left unanswered (for example 「あなたの木星がどの部屋を通るか」). That CTA is about 80 characters on its own, so in script_30s hook_text must stay within 24 characters and body_script must be a single sentence under 70 characters; count the characters of all three fields before answering.',
   },
   en: {
     name: 'English',
     tradition: 'Indian (Vedic) astrology, Jyotish',
+    hook: '8 words or fewer',
     /** English is read at ~2.2 words per second at the default speaking rate. */
     length30s: '52-62 words in total',
     length65s: '160-180 words in total',
@@ -81,6 +85,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   es: {
     name: 'Español',
     tradition: 'la astrología india (Jyotish)',
+    hook: '9 palabras como máximo',
     length30s: '70-85 palabras en total',
     length65s: '160-180 palabras en total',
     body65s: '130-150 palabras',
@@ -88,6 +93,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   pt: {
     name: 'Português',
     tradition: 'a astrologia indiana (Jyotish)',
+    hook: 'no máximo 9 palavras',
     length30s: '70-85 palavras no total',
     length65s: '160-180 palavras no total',
     body65s: '130-150 palavras',
@@ -95,6 +101,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   id: {
     name: 'Bahasa Indonesia',
     tradition: 'astrologi India (Jyotish)',
+    hook: 'maksimal 9 kata',
     length30s: 'total 70-85 kata',
     length65s: 'total 160-180 kata',
     body65s: '130-150 kata',
@@ -102,6 +109,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   ar: {
     name: 'العربية',
     tradition: 'التنجيم الهندي (جيوتيش)',
+    hook: '9 كلمات كحد أقصى',
     length30s: '70-85 كلمة إجمالاً',
     length65s: '160-180 كلمة إجمالاً',
     body65s: '130-150 كلمة',
@@ -110,6 +118,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   fr: {
     name: 'Français',
     tradition: "l'astrologie indienne (le Jyotish)",
+    hook: '9 mots au maximum',
     length30s: '65-80 mots au total',
     length65s: '160-200 mots au total',
     body65s: '130-160 mots',
@@ -117,6 +126,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   de: {
     name: 'Deutsch',
     tradition: 'die indische Astrologie (Jyotisch)',
+    hook: 'höchstens 8 Wörter',
     length30s: 'insgesamt 60-75 Wörter',
     length65s: 'insgesamt 145-180 Wörter',
     body65s: '120-150 Wörter',
@@ -268,7 +278,7 @@ function buildPrompt(request: GenerationRequest): string {
       ? `7. Keep the tone calm and specific. The twelve signs of this week are each given a different opening so they never read as one template, and this one opens on ${assignment.angle}. Take the concrete everyday example from ${assignment.domain}. Both still have to follow from the transit below; if the transit cannot support this opening, choose the nearest one it does support rather than falling back on plans going wrong.`
       : '7. Keep the tone calm and specific, and never open on plans or schedules going wrong, which is the opening these scripts fall into by default.',
     `8. Name the tradition in the first sentence of body_script, exactly as "${profile.tradition}". Viewers do not know what a nakshatra or a sidereal Moon sign is, so never open on a technical term without saying which system it comes from.`,
-    '9. hook_text is one short line that either names something the viewer already lives with and asks whether it is happening to them, or contradicts what they believe ("that is not your fault", "you are looking at the wrong planet"). Never announce the video or the topic ("here is this week\'s movement of the stars"), and never answer the hook in the hook itself.',
+    `9. hook_text is spoken in the first two seconds, which is all a short-video feed gives the clip before deciding whether to keep showing it, so it is ${profile.hook}: one sentence, no clause leading up to the point, and nothing before the word that stops the scroll. It either names something the viewer already lives with and asks whether it is happening to them, or contradicts what they believe ("that is not your fault", "you are looking at the wrong planet"). Never announce the video or the topic ("here is this week\'s movement of the stars"), and never answer the hook in the hook itself.`,
     '10. In script_30s the fixed CTA already spends about a third of the budget, so hook_text is one short line and body_script is at most two sentences. The length limits are hard limits. Count before answering — characters excluding spaces for Japanese, words for the other languages — and cut adjectives or add a concrete everyday detail until the total is inside the range.',
     '11. body_script contains one sentence that lets the viewer decide for themselves whether the transit is acting on them, phrased as what it looks like in the people it reaches ("the ones it reaches find that ..."). Describe everyday actions, never symptoms, luck or loss.',
     '12. cta_text has three parts in this order: (a) "to find out <the one thing this video left unanswered about the viewer>"; (b) the reason the generic twelve sun signs cannot settle it, because Jyotish combines finer divisions — the 108 subdivisions (27 lunar mansions x 4 padas) and the dasha periods — to reach one person\'s answer; (c) an invitation to check it free through the link. Never require the viewer to know their birth time, never disparage Western astrology, never write a URL, and never close on a definitive statement about the individual viewer.',
