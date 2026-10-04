@@ -14,6 +14,7 @@ export const ABOUT: Record<Language, string> = {
   de: 'Dein wahres Sternzeichen nach indischer Astrologie (siderisch, Lahiri). Tägliche Deutung und wöchentliche Videos je Zeichen. Kostenloser Zeichen-Check auf der Website. Nur zur Unterhaltung.',
 };
 
+/** The top page carries both the free check and the reports, and `/<lang>` keeps the language. */
 export function website(lang: Language): string {
-  return `${SITE_URL}/${lang}/mypage?utm_source=facebook&utm_medium=profile#premium`;
+  return `${SITE_URL}/${lang}?utm_source=facebook&utm_medium=profile`;
 }

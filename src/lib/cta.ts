@@ -26,8 +26,9 @@ const CTA_HEADLINE: Record<Language, string> = {
   de: '▼ Finde dein wahres siderisches Sternzeichen',
 };
 
-function siteLink(source: string): string {
-  return `${SITE_URL}/?utm_source=${source}&utm_medium=caption`;
+/** The site serves the top page in Japanese, so every link carries the language of the post. */
+function siteLink(lang: Language, source: string, medium = 'caption'): string {
+  return `${SITE_URL}/${lang}?utm_source=${source}&utm_medium=${medium}`;
 }
 
 /**
@@ -56,7 +57,7 @@ export function dailyCta(lang: Language, source: string, medium = 'caption'): st
 
 /** Shorts descriptions render URLs as plain text, so the profile link is the only tappable route. */
 export function descriptionCta(lang: Language, source: string): string {
-  return `${CTA_HEADLINE[lang]}\n${CTA_NOTES[lang]}\n${siteLink(source)}`;
+  return `${CTA_HEADLINE[lang]}\n${CTA_NOTES[lang]}\n${siteLink(lang, source)}`;
 }
 
 /**
@@ -64,35 +65,31 @@ export function descriptionCta(lang: Language, source: string): string {
  * a Shorts description, so those two get the site link itself instead of the profile detour.
  */
 function linkCta(lang: Language, source: 'threads' | 'facebook'): string {
-  return `${CTA_HEADLINE[lang]}\n${siteLink(source)}`;
+  return `${CTA_HEADLINE[lang]}\n${siteLink(lang, source)}`;
 }
 
-/** TikTok profile links need 1,000 followers, so the domain is spelled out instead. */
-export const TIKTOK_DESCRIPTION_CTA: Record<Language, string> = {
-  ja: `▼ あなたの本当の星座を調べる
-検索: ${SITE_DOMAIN}`,
-  en: `▼ Find your true sidereal sign
-Search: ${SITE_DOMAIN}`,
-  es: `▼ Descubre tu verdadero signo sideral
-Busca: ${SITE_DOMAIN}`,
-  pt: `▼ Descubra seu verdadeiro signo sideral
-Busque: ${SITE_DOMAIN}`,
-  id: `▼ Temukan zodiak sideralmu yang sebenarnya
-Cari: ${SITE_DOMAIN}`,
-  ar: `▼ اكتشف برجك الحقيقي
-ابحث عن: ${SITE_DOMAIN}`,
-  fr: `▼ Découvrez votre véritable signe sidéral
-Recherchez : ${SITE_DOMAIN}`,
-  de: `▼ Finde dein wahres siderisches Sternzeichen
-Suche: ${SITE_DOMAIN}`,
+const TIKTOK_SEARCH: Record<Language, string> = {
+  ja: '▼ あなたの本当の星座を調べる\n検索: ',
+  en: '▼ Find your true sidereal sign\nSearch: ',
+  es: '▼ Descubre tu verdadero signo sideral\nBusca: ',
+  pt: '▼ Descubra seu verdadeiro signo sideral\nBusque: ',
+  id: '▼ Temukan zodiak sideralmu yang sebenarnya\nCari: ',
+  ar: '▼ اكتشف برجك الحقيقي\nابحث عن: ',
+  fr: '▼ Découvrez votre véritable signe sidéral\nRecherchez : ',
+  de: '▼ Finde dein wahres siderisches Sternzeichen\nSuche: ',
 };
+
+/** TikTok profile links need 1,000 followers, so the domain is spelled out instead. */
+export function tiktokDescriptionCta(lang: Language): string {
+  return `${TIKTOK_SEARCH[lang]}${SITE_DOMAIN}/${lang}`;
+}
 
 /**
  * A playlist page is indexed and carries a tappable link, so the description says what the sign
  * means here and sends the viewer to the site.
  */
 export function playlistDescription(lang: Language): string {
-  return `${MOON_SIGN_CAPTION[lang]}\n\n${CTA_HEADLINE[lang]}\n${siteLink('youtube-playlist')}`;
+  return `${MOON_SIGN_CAPTION[lang]}\n\n${CTA_HEADLINE[lang]}\n${siteLink(lang, 'youtube-playlist')}`;
 }
 
 /**
@@ -102,11 +99,13 @@ export function playlistDescription(lang: Language): string {
 export function followUpLink(lang: Language, source: 'threads' | 'facebook', daily = false): string {
   return daily
     ? dailyCta(lang, source, 'reply')
-    : `${CTA_HEADLINE[lang]}\n${SITE_URL}/?utm_source=${source}&utm_medium=reply`;
+    : `${CTA_HEADLINE[lang]}\n${siteLink(lang, source, 'reply')}`;
 }
 
 /** Comments render the URL as a tappable link, unlike a Shorts description. */
-export const COMMENT_URL = `${SITE_URL}/?utm_source=youtube&utm_medium=comment`;
+export function commentUrl(lang: Language): string {
+  return siteLink(lang, 'youtube', 'comment');
+}
 
 /** Opens the subscribe confirmation dialog of the channel, so one tap subscribes. */
 export function subscribeUrl(channelId: string): string {
@@ -134,7 +133,7 @@ function subscribeBlock(lang: Language, channelId: string): string {
  */
 export function youtubeComment(lang: Language, channelId?: string, daily = false): string {
   return [
-    YOUTUBE_COMMENT[lang],
+    youtubeNote(lang),
     daily ? dailyCta(lang, 'youtube', 'comment') : undefined,
     channelId ? subscribeBlock(lang, channelId) : undefined,
   ]
@@ -146,16 +145,20 @@ export function youtubeComment(lang: Language, channelId?: string, daily = false
  * Posted under every upload. It names what the sign in the video actually is, so a viewer who
  * only knows their Western sun sign has a reason to look their own up.
  */
-export const YOUTUBE_COMMENT: Record<Language, string> = {
-  ja: `この動画の星座は、インド占星術（ジョーティシュ）で使うサイデリアル月星座です。生まれた瞬間の月の位置で決まるので、あなたが知っている西洋占星術の星座とは違うことがよくあります。\n▼ あなたの本当の月星座を無料で確認\n${COMMENT_URL}`,
-  en: `The sign in this video is your sidereal Moon sign, the one Jyotish (Indian astrology) reads. It comes from where the Moon stood at your birth, so it is often not the Western sun sign you know.\n▼ Check your real Moon sign free\n${COMMENT_URL}`,
-  es: `El signo de este video es tu signo lunar sideral, el que lee el Jyotish (astrología india). Depende de dónde estaba la Luna al nacer, así que muchas veces no coincide con el signo solar occidental que conoces.\n▼ Consulta gratis tu verdadero signo lunar\n${COMMENT_URL}`,
-  pt: `O signo deste vídeo é o seu signo lunar sideral, o que o Jyotish (astrologia indiana) lê. Ele vem de onde a Lua estava no seu nascimento, por isso muitas vezes não é o signo solar ocidental que você conhece.\n▼ Veja gratuitamente o seu verdadeiro signo lunar\n${COMMENT_URL}`,
-  id: `Zodiak dalam video ini adalah zodiak bulan sideral, yang dibaca dalam Jyotish (astrologi India). Zodiak ini ditentukan posisi Bulan saat Anda lahir, jadi sering berbeda dari zodiak matahari versi Barat yang Anda kenal.\n▼ Cek gratis zodiak bulan Anda yang sebenarnya\n${COMMENT_URL}`,
-  ar: `البرج في هذا الفيديو هو برج القمر الفلكي الذي يعتمده الجيوتيش (التنجيم الهندي). يُحدَّد بموضع القمر لحظة ميلادك، ولذلك يختلف كثيرًا عن برج الشمس الغربي الذي تعرفه.\n▼ تعرّف مجانًا على برج القمر الحقيقي الخاص بك\n${COMMENT_URL}`,
-  fr: `Le signe de cette vidéo est votre signe lunaire sidéral, celui que lit le Jyotish (astrologie indienne). Il dépend de la position de la Lune à votre naissance, il diffère donc souvent du signe solaire occidental que vous connaissez.\n▼ Vérifiez gratuitement votre vrai signe lunaire\n${COMMENT_URL}`,
-  de: `Das Sternzeichen in diesem Video ist dein siderisches Mondzeichen, das im Jyotish (indische Astrologie) gelesen wird. Es ergibt sich aus dem Stand des Mondes bei deiner Geburt und weicht deshalb oft von deinem westlichen Sonnenzeichen ab.\n▼ Dein echtes Mondzeichen kostenlos prüfen\n${COMMENT_URL}`,
+const YOUTUBE_NOTE: Record<Language, string> = {
+  ja: 'この動画の星座は、インド占星術（ジョーティシュ）で使うサイデリアル月星座です。生まれた瞬間の月の位置で決まるので、あなたが知っている西洋占星術の星座とは違うことがよくあります。\n▼ あなたの本当の月星座を無料で確認',
+  en: 'The sign in this video is your sidereal Moon sign, the one Jyotish (Indian astrology) reads. It comes from where the Moon stood at your birth, so it is often not the Western sun sign you know.\n▼ Check your real Moon sign free',
+  es: 'El signo de este video es tu signo lunar sideral, el que lee el Jyotish (astrología india). Depende de dónde estaba la Luna al nacer, así que muchas veces no coincide con el signo solar occidental que conoces.\n▼ Consulta gratis tu verdadero signo lunar',
+  pt: 'O signo deste vídeo é o seu signo lunar sideral, o que o Jyotish (astrologia indiana) lê. Ele vem de onde a Lua estava no seu nascimento, por isso muitas vezes não é o signo solar ocidental que você conhece.\n▼ Veja gratuitamente o seu verdadeiro signo lunar',
+  id: 'Zodiak dalam video ini adalah zodiak bulan sideral, yang dibaca dalam Jyotish (astrologi India). Zodiak ini ditentukan posisi Bulan saat Anda lahir, jadi sering berbeda dari zodiak matahari versi Barat yang Anda kenal.\n▼ Cek gratis zodiak bulan Anda yang sebenarnya',
+  ar: 'البرج في هذا الفيديو هو برج القمر الفلكي الذي يعتمده الجيوتيش (التنجيم الهندي). يُحدَّد بموضع القمر لحظة ميلادك، ولذلك يختلف كثيرًا عن برج الشمس الغربي الذي تعرفه.\n▼ تعرّف مجانًا على برج القمر الحقيقي الخاص بك',
+  fr: 'Le signe de cette vidéo est votre signe lunaire sidéral, celui que lit le Jyotish (astrologie indienne). Il dépend de la position de la Lune à votre naissance, il diffère donc souvent du signe solaire occidental que vous connaissez.\n▼ Vérifiez gratuitement votre vrai signe lunaire',
+  de: 'Das Sternzeichen in diesem Video ist dein siderisches Mondzeichen, das im Jyotish (indische Astrologie) gelesen wird. Es ergibt sich aus dem Stand des Mondes bei deiner Geburt und weicht deshalb oft von deinem westlichen Sonnenzeichen ab.\n▼ Dein echtes Mondzeichen kostenlos prüfen',
 };
+
+export function youtubeNote(lang: Language): string {
+  return `${YOUTUBE_NOTE[lang]}\n${commentUrl(lang)}`;
+}
 
 /**
  * Hashtag search only surfaces an account that keeps using the same tags, so captions lead with a
@@ -244,7 +247,7 @@ export function buildDescription({
 }: DescriptionParams): string {
   const cta =
     platform === 'tiktok'
-      ? TIKTOK_DESCRIPTION_CTA[lang]
+      ? tiktokDescriptionCta(lang)
       : platform === 'threads' || platform === 'facebook'
         ? linkCta(lang, platform)
         : descriptionCta(lang, platform === 'instagram' ? 'instagram' : 'youtube');
