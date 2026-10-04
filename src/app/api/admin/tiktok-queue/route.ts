@@ -103,6 +103,8 @@ export async function GET(request: NextRequest) {
           body: script.hook_text,
           hashtags: scriptOutput.hashtags,
           platform: 'tiktok',
+          zodiacSign: task.zodiac_sign || undefined,
+          variantSeed: task.task_id,
           period:
             task.target_type === 'Zodiac_Sign'
               ? weekPeriodLabel(task.week_id, task.lang_code)
