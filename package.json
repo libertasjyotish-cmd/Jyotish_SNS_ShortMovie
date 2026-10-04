@@ -14,7 +14,8 @@
     "refresh:seo": "tsx scripts/refresh-youtube-seo.ts",
     "diagnose:reach": "tsx scripts/diagnose-youtube-reach.ts",
     "shorten:hooks": "tsx scripts/shorten-hooks.ts",
-    "sync:facebook-profiles": "tsx scripts/sync-facebook-profiles.ts"
+    "sync:facebook-profiles": "tsx scripts/sync-facebook-profiles.ts",
+    "print:facebook-profiles": "tsx scripts/print-facebook-profiles.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",

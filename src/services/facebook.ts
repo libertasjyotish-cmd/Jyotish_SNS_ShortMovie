@@ -10,16 +10,14 @@ const STATUS_POLL_INTERVAL_MS = 5000;
 const STATUS_POLL_ATTEMPTS = 4;
 
 /**
- * `pages_manage_posts` is what allows publishing a Reel to a page, `pages_manage_engagement` what
- * allows commenting on it as the page, `pages_manage_metadata` what allows editing the page's
- * public profile (description, website).
+ * `pages_manage_posts` is what allows publishing a Reel to a page. `pages_manage_engagement` and
+ * `pages_manage_metadata` are rejected by this app as `Invalid Scopes`, which makes the whole
+ * consent dialog fail, so page profile edits stay manual.
  */
 export const FACEBOOK_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
-  'pages_manage_engagement',
-  'pages_manage_metadata',
 ];
 
 export interface FacebookUploadParams {
