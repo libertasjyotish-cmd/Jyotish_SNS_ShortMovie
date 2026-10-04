@@ -196,6 +196,28 @@ export class FacebookService {
     return comment.id;
   }
 
+  /**
+   * Sets the still the Reel is listed with. The thumbnails edge only exists once the video does,
+   * so this runs after publishing, and `is_preferred` is what promotes the upload over the frames
+   * Facebook picked itself. The image is uploaded as a file: the edge takes no URL.
+   */
+  async setThumbnail(channel: Channel, videoId: string, imageUrl: string): Promise<void> {
+    const { accessToken } = credentials(channel);
+    const image = await fetch(imageUrl, { cache: 'no-store' });
+    if (!image.ok) {
+      throw new Error(`Cover ${imageUrl} could not be read (${image.status})`);
+    }
+
+    const form = new FormData();
+    form.set('is_preferred', 'true');
+    form.set('access_token', accessToken);
+    form.set('source', await image.blob(), 'cover.jpg');
+    await graphRequest<{ id: string }>(`${GRAPH_BASE}/${videoId}/thumbnails`, {
+      method: 'POST',
+      body: form,
+    });
+  }
+
   /** Takes down a reading whose week has passed; the video node is deleted with the page token. */
   async deleteVideo(channel: Channel, videoId: string): Promise<void> {
     const { accessToken } = credentials(channel);

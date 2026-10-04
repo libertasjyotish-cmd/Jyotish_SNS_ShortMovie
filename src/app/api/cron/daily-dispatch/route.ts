@@ -8,16 +8,17 @@ import { weekPeriodLabel, weekPeriodTitleLabel } from '@/lib/period';
 import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
 import { runWatchdog } from '@/lib/watchdog-run';
+import { resolveBackgroundUrl } from '@/lib/render';
 import {
   buildCaptionLead,
-  buildThumbnailText,
+  buildCoverText,
   buildYouTubeTitle,
   signPlaylistTitle,
 } from '@/lib/youtube-seo';
 import { FacebookService } from '@/services/facebook';
 import { GeneratedScript } from '@/services/gemini';
 import { InstagramService } from '@/services/instagram';
-import { isRendererConfigured, RendererService } from '@/services/renderer';
+import { CoverResult, isRendererConfigured, RendererService } from '@/services/renderer';
 import {
   Channel,
   ContainerPlatform,
@@ -114,8 +115,46 @@ async function playlistIds(args: {
 }
 
 /**
+ * The still every platform lists the video with, drawn once per task on the same background its
+ * video uses. Instagram wants a URL while the container is created, YouTube and Facebook accept
+ * one only after the upload, so the cover is built up front and handed to all three.
+ *
+ * A cover is decoration: when it cannot be drawn the post goes out with whatever frame the
+ * platform picks for itself.
+ */
+async function buildCover(args: {
+  sheetsService: GoogleSheetsService;
+  task: ContentQueue;
+  signName?: string;
+  period?: string;
+  series?: SignThemeSeries;
+}): Promise<CoverResult | undefined> {
+  const { sheetsService, task, signName, period, series } = args;
+  if (!isRendererConfigured()) return undefined;
+  try {
+    const backgroundUrl = await resolveBackgroundUrl(sheetsService, {
+      taskId: task.task_id,
+      language: task.lang_code,
+      pattern: '30s',
+      dayOfWeek: task.day_of_week,
+    });
+    if (!backgroundUrl) return undefined;
+    return await new RendererService().cover({
+      taskId: task.task_id,
+      language: task.lang_code,
+      backgroundUrl,
+      ...buildCoverText({ lang: task.lang_code, zodiacSign: signName, period, series }),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`${task.task_id} cover failed:`, message);
+    return undefined;
+  }
+}
+
+/**
  * In-channel follow-ups that must never cost the post itself: the upload joins the playlists it
- * belongs to so viewers can walk the rest of the channel, gets the thumbnail it is listed with
+ * belongs to so viewers can walk the rest of the channel, gets the cover it is listed with
  * outside the Shorts feed, and the site link is repeated as a comment because Shorts hide the
  * description, together with the subscribe link that is the only tappable one a Short can carry.
  * Any of them failing leaves the video published.
@@ -125,11 +164,10 @@ async function addChannelSurfaces(args: {
   channel: Channel;
   task: ContentQueue;
   videoId: string;
-  videoUrl: string;
+  coverUrl?: string;
   signName?: string;
-  series?: SignThemeSeries;
 }): Promise<void> {
-  const { youtubeService, channel, task, videoId, videoUrl, signName, series } = args;
+  const { youtubeService, channel, task, videoId, coverUrl, signName } = args;
   try {
     for (const playlistId of await playlistIds({ youtubeService, channel, task, signName })) {
       await youtubeService.addToPlaylist(channel, playlistId, videoId);
@@ -138,16 +176,9 @@ async function addChannelSurfaces(args: {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error(`${task.task_id} playlist failed:`, message);
   }
-  if (isRendererConfigured()) {
+  if (coverUrl) {
     try {
-      const text = buildThumbnailText({ lang: task.lang_code, zodiacSign: signName, series });
-      const imageUrl = await new RendererService().thumbnail({
-        taskId: task.task_id,
-        language: task.lang_code,
-        videoUrl,
-        ...text,
-      });
-      await youtubeService.setThumbnail(channel, videoId, imageUrl);
+      await youtubeService.setThumbnail(channel, videoId, coverUrl);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       console.error(`${task.task_id} thumbnail failed:`, message);
@@ -326,6 +357,14 @@ export async function GET(request: Request) {
               ),
             );
 
+          const cover = await buildCover({
+            sheetsService,
+            task: post,
+            signName,
+            period,
+            series,
+          });
+
           const youtubeTitle = buildYouTubeTitle({
             lang: post.lang_code,
             zodiacSign: signName,
@@ -370,9 +409,8 @@ export async function GET(request: Request) {
                   channel: youtubeChannel,
                   task: post,
                   videoId,
-                  videoUrl,
+                  coverUrl: cover?.wide_url,
                   signName,
-                  series,
                 });
                 return videoId;
               },
@@ -404,6 +442,7 @@ export async function GET(request: Request) {
                           variantSeed: post.task_id,
                         }),
                         videoUrl,
+                        coverUrl: cover?.url,
                       }),
                     waitUntilFinished: (containerId) =>
                       instagramService.waitUntilFinished(instagramChannel, containerId),
@@ -496,12 +535,16 @@ export async function GET(request: Request) {
                       facebookService.waitUntilUploaded(facebookChannel, videoId),
                     publishContainer: (videoId) =>
                       facebookService.publishVideo(facebookChannel, videoId, description),
-                    afterPublish: (videoId) =>
-                      facebookService.commentOnVideo(
+                    afterPublish: async (videoId) => {
+                      if (cover) {
+                        await facebookService.setThumbnail(facebookChannel, videoId, cover.url);
+                      }
+                      await facebookService.commentOnVideo(
                         facebookChannel,
                         videoId,
                         followUpLink(post.lang_code, 'facebook', Boolean(signName), linkTag),
-                      ),
+                      );
+                    },
                   },
                 }),
             });

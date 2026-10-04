@@ -8,8 +8,8 @@ import urllib.request
 
 from flask import Flask, jsonify, request
 
+import cover
 import storage
-import thumbnail
 import video
 from pipeline import RenderRequest, render
 
@@ -69,18 +69,18 @@ def _render_and_notify(build: RenderRequest, callback_url: str, meta: dict) -> N
     _notify(callback_url, {**meta, "url": result.url, "duration": result.duration})
 
 
-@app.post("/thumbnail")
-def build_thumbnail():
-    """Renders the listing thumbnail of an already finished video.
+@app.post("/cover")
+def build_cover():
+    """Renders the still every platform lists the video with, in both shapes they ask for.
 
-    Kept apart from /render so a video that was rendered before thumbnails existed still gets
-    one, and so a failed thumbnail never costs a render.
+    Drawn from the background asset of the video rather than the finished file, so the cover
+    carries none of the burnt-in narration text and can be built before the video exists.
     """
     if not _authorized():
         return jsonify({"error": "Unauthorized"}), 401
 
     payload = request.get_json(silent=True) or {}
-    missing = [f for f in ("task_id", "language", "video_url", "title") if not payload.get(f)]
+    missing = [f for f in ("task_id", "language", "background_url", "sign") if not payload.get(f)]
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
     if payload["language"] not in LANGUAGES:
@@ -88,24 +88,36 @@ def build_thumbnail():
 
     with tempfile.TemporaryDirectory() as work:
         try:
-            source = os.path.join(work, "source.mp4")
-            with urllib.request.urlopen(payload["video_url"]) as response, open(source, "wb") as f:
+            source = os.path.join(work, "background")
+            with urllib.request.urlopen(payload["background_url"]) as response, open(
+                source, "wb"
+            ) as f:
                 f.write(response.read())
             frame = video.extract_frame(source, os.path.join(work, "frame.png"))
-            image = thumbnail.build(
-                os.path.join(work, "thumbnail.jpg"),
-                frame,
-                payload["title"],
-                payload.get("subtitle", ""),
-                payload["language"],
-            )
-            destination = payload.get("output_path") or f"thumbnails/{payload['task_id']}.jpg"
-            url = storage.upload(image, destination, content_type="image/jpeg")
+            base = payload.get("output_path") or f"covers/{payload['task_id']}"
+            urls = {}
+            for key, size, suffix in (
+                ("url", cover.VERTICAL, ""),
+                ("wide_url", cover.WIDE, "-wide"),
+            ):
+                image = cover.build(
+                    os.path.join(work, f"cover{suffix}.jpg"),
+                    frame,
+                    payload["sign"],
+                    payload.get("period", ""),
+                    payload["language"],
+                    payload.get("theme") or "dark",
+                    payload.get("note", ""),
+                    size,
+                )
+                urls[key] = storage.upload(
+                    image, f"{base}{suffix}.jpg", content_type="image/jpeg"
+                )
         except Exception as error:  # noqa: BLE001 - the caller decides whether to retry
-            app.logger.exception("Thumbnail failed")
+            app.logger.exception("Cover failed")
             return jsonify({"error": str(error)}), 500
 
-    return jsonify({"url": url})
+    return jsonify(urls)
 
 
 @app.post("/render")
