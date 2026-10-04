@@ -1,29 +1,17 @@
 /**
- * Keeps the eight Facebook pages' public profile (short description and website) identical to the
- * copy below, so paid traffic always lands on the language's own daily reading page.
+ * Reports how the eight Facebook pages' public profile (short description and website) differs
+ * from the wanted copy, so paid traffic always lands on the language's own daily reading page.
+ *
+ * `--apply` currently fails with `(#283) Requires pages_manage_metadata`: that scope is an
+ * `Invalid Scope` for this app, so the diff has to be pasted by hand — `npm run print:facebook-profiles`
+ * renders it as a sheet.
  *
  * Usage: `npm run sync:facebook-profiles` (dry run) / `-- --apply` (writes).
  */
-import { SITE_URL } from '@/lib/cta';
-import { GoogleSheetsService, LANGUAGES, Language } from '@/services/sheets';
+import { ABOUT, website } from './facebook-profile-copy';
+import { GoogleSheetsService, LANGUAGES } from '@/services/sheets';
 
 const GRAPH_BASE = 'https://graph.facebook.com/v21.0';
-
-/** Facebook caps the short description at 255 characters. */
-const ABOUT: Record<Language, string> = {
-  ja: 'インド占星術（サイデリアル・Lahiri）で読む、あなたの本当の星座。毎日の運勢と、星座別の週間動画を配信しています。無料の星座チェックと毎日の鑑定はサイトから。娯楽目的のコンテンツです。',
-  en: 'Your true sign, read with Indian astrology (sidereal, Lahiri). Daily readings plus weekly videos for every sign. Free sign check and the daily reading on our site. For entertainment purposes.',
-  es: 'Tu signo verdadero según la astrología india (sideral, Lahiri). Lectura diaria y vídeos semanales de cada signo. Consulta gratis tu signo en la web. Contenido de entretenimiento.',
-  pt: 'Seu signo verdadeiro pela astrologia indiana (sideral, Lahiri). Leitura diária e vídeos semanais de cada signo. Descubra seu signo gratuitamente no site. Conteúdo de entretenimento.',
-  id: 'Zodiak aslimu menurut astrologi India (sideral, Lahiri). Ramalan harian dan video mingguan tiap zodiak. Cek zodiakmu gratis di situs kami. Konten hiburan.',
-  ar: 'برجك الحقيقي وفق علم التنجيم الهندي (الفلكي، لاهيري). قراءة يومية وفيديوهات أسبوعية لكل برج. تحقّق من برجك مجانًا على موقعنا. محتوى للترفيه.',
-  fr: 'Votre vrai signe selon l’astrologie indienne (sidérale, Lahiri). Lecture quotidienne et vidéos hebdomadaires pour chaque signe. Signe gratuit sur notre site. Contenu de divertissement.',
-  de: 'Dein wahres Sternzeichen nach indischer Astrologie (siderisch, Lahiri). Tägliche Deutung und wöchentliche Videos je Zeichen. Kostenloser Zeichen-Check auf der Website. Nur zur Unterhaltung.',
-};
-
-function website(lang: Language): string {
-  return `${SITE_URL}/${lang}/mypage?utm_source=facebook&utm_medium=profile#premium`;
-}
 
 async function graph(
   path: string,
