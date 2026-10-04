@@ -12,6 +12,11 @@ export interface InstagramUploadParams {
   channel: Channel;
   caption: string;
   videoUrl: string;
+  /**
+   * Still the Reel is listed with. Left out, Instagram picks a frame of the video, which is
+   * rarely one that names the sign; the profile grid and search show nothing else.
+   */
+  coverUrl?: string;
 }
 
 interface GraphError {
@@ -88,6 +93,7 @@ export class InstagramService {
       body: JSON.stringify({
         media_type: 'REELS',
         video_url: params.videoUrl,
+        ...(params.coverUrl ? { cover_url: params.coverUrl } : {}),
         caption: params.caption.slice(0, 2200),
         share_to_feed: (optionalEnv('INSTAGRAM_SHARE_TO_FEED') ?? 'true') === 'true',
         access_token: accessToken,

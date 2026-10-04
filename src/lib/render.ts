@@ -194,6 +194,22 @@ export function pickBackground(
   return urls[(Number(week[1]) * SLOTS_PER_WEEK + slot) % urls.length];
 }
 
+/**
+ * Background a task's video is built on. The pick is derived from the task alone, so asking
+ * again after the render - to draw the cover on the same artwork - returns the same asset.
+ */
+export async function resolveBackgroundUrl(
+  sheets: GoogleSheetsService,
+  params: { taskId: string; language: Language; pattern: Pattern; dayOfWeek?: string },
+): Promise<string | undefined> {
+  const assets = await sheets.getBackgroundAssets({
+    lang_code: params.language,
+    day_of_week: params.dayOfWeek,
+    pattern: params.pattern,
+  });
+  return pickBackground(params.taskId, assets, params.dayOfWeek);
+}
+
 /** Where the renderer reports a finished video; empty when the base URL is unknown. */
 export function rendererCallbackUrl(): string | undefined {
   const base = optionalEnv('PUBLIC_BASE_URL');
@@ -216,12 +232,7 @@ async function renderOnCloudRun(
     period?: string;
   },
 ): Promise<void> {
-  const assets = await sheets.getBackgroundAssets({
-    lang_code: params.language,
-    day_of_week: params.dayOfWeek,
-    pattern: params.pattern,
-  });
-  const backgroundUrl = pickBackground(params.taskId, assets, params.dayOfWeek);
+  const backgroundUrl = await resolveBackgroundUrl(sheets, params);
   if (!backgroundUrl) {
     throw new Error(`No background asset available for "${params.language}"`);
   }

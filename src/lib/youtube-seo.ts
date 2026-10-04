@@ -109,21 +109,20 @@ export function signPlaylistTitle({ lang, zodiacSign }: { lang: Language; zodiac
 }
 
 /**
- * Text of the thumbnail. A Short is shown with a thumbnail in search, on the channel and in
- * playlists, where the title is truncated: the sign has to be readable from the image alone.
+ * Text of the cover a video is listed with, where every title around it is truncated: the sign,
+ * the zodiac it belongs to and the week it reads have to come from the image alone.
  */
-export function buildThumbnailText({ lang, zodiacSign, series }: TagParams): {
-  title: string;
-  subtitle: string;
+export function buildCoverText({ lang, zodiacSign, series, period }: CaptionLeadParams): {
+  sign: string;
+  note: string;
+  period: string;
 } {
   const keywords = TITLE_KEYWORDS[lang];
   return {
-    title: zodiacSign ?? keywords.theme,
-    subtitle: zodiacSign
-      ? series
-        ? SERIES_KEYWORDS[lang][series]
-        : keywords.weekly
-      : BRAND,
+    sign: zodiacSign ?? keywords.theme,
+    note: zodiacSign ? MOON_SIGN_NOTE[lang] : BRAND,
+    // An evergreen series carries no dates, so it names itself where the week would sit.
+    period: (series ? SERIES_KEYWORDS[lang][series] : period) ?? '',
   };
 }
 
