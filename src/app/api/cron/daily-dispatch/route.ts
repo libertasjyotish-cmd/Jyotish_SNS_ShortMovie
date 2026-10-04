@@ -307,6 +307,11 @@ export async function GET(request: Request) {
           const script30s: GeneratedScript = JSON.parse(scriptOutput.script_30s_json);
           const period = postPeriod(post);
           const signName = zodiacName(post.zodiac_sign, post.lang_code);
+          // Names the video in utm_content, so each post reports its own traffic.
+          const linkTag = [post.zodiac_sign || post.target_type, post.week_id]
+            .filter(Boolean)
+            .join('-')
+            .toLowerCase();
           const series = post.theme_id ? parseSignThemeId(post.theme_id)?.series : undefined;
           const captionLead = buildCaptionLead({
             lang: post.lang_code,
@@ -352,6 +357,9 @@ export async function GET(request: Request) {
                     moonSign: Boolean(signName),
                     daily: Boolean(signName),
                     keywordLine: youtubeTitle,
+                    zodiacSign: signName,
+                    linkTag,
+                    variantSeed: post.task_id,
                   }),
                   videoUrl,
                   zodiacSign: signName,
@@ -391,6 +399,9 @@ export async function GET(request: Request) {
                           platform: 'instagram',
                           moonSign: Boolean(signName),
                           daily: Boolean(signName),
+                          zodiacSign: signName,
+                          linkTag,
+                          variantSeed: post.task_id,
                         }),
                         videoUrl,
                       }),
@@ -432,6 +443,9 @@ export async function GET(request: Request) {
                           platform: 'threads',
                           moonSign: Boolean(signName),
                           daily: Boolean(signName),
+                          zodiacSign: signName,
+                          linkTag,
+                          variantSeed: post.task_id,
                         }),
                         videoUrl,
                       }),
@@ -443,7 +457,7 @@ export async function GET(request: Request) {
                       threadsService.replyWithText(
                         threadsChannel,
                         postId,
-                        followUpLink(post.lang_code, 'threads', Boolean(signName)),
+                        followUpLink(post.lang_code, 'threads', Boolean(signName), linkTag),
                       ),
                   },
                 }),
@@ -460,6 +474,9 @@ export async function GET(request: Request) {
               platform: 'facebook',
               moonSign: Boolean(signName),
               daily: Boolean(signName),
+              zodiacSign: signName,
+              linkTag,
+              variantSeed: post.task_id,
             });
             uploads.push({
               platform: 'Facebook',
@@ -483,7 +500,7 @@ export async function GET(request: Request) {
                       facebookService.commentOnVideo(
                         facebookChannel,
                         videoId,
-                        followUpLink(post.lang_code, 'facebook', Boolean(signName)),
+                        followUpLink(post.lang_code, 'facebook', Boolean(signName), linkTag),
                       ),
                   },
                 }),
