@@ -1,6 +1,8 @@
 /**
- * Prints the wanted Facebook page profile text per language as an HTML sheet, for pasting by hand:
- * the Graph API rejects `pages_manage_metadata` for this app, so profiles cannot be synced.
+ * Prints the wanted Facebook page profile text per language for pasting by hand: the Graph API
+ * rejects `pages_manage_metadata` for this app, so profiles cannot be synced.
+ *
+ * Writes plain text when the output path ends in `.txt`, an HTML sheet otherwise.
  */
 import { writeFileSync } from 'node:fs';
 
@@ -23,12 +25,31 @@ function escape(value: string): string {
 }
 
 async function main(): Promise<void> {
+  const out = process.argv[2] ?? 'facebook-profiles.html';
+  const asText = out.endsWith('.txt');
   const sheets = new GoogleSheetsService();
   const sections: string[] = [];
 
   for (const lang of LANGUAGES) {
     const channel = await sheets.getChannelConfig(lang, 'Facebook');
     const pageId = channel?.fb_page_id ?? '';
+    if (asText) {
+      sections.push(
+        [
+          `===== ${LABEL[lang]} (${lang}) =====`,
+          pageId
+            ? `編集: https://www.facebook.com/${pageId}/settings/?tab=page_info`
+            : 'ページ未設定',
+          '',
+          '【紹介文】',
+          ABOUT[lang],
+          '',
+          '【ウェブサイト】',
+          website(lang),
+        ].join('\n'),
+      );
+      continue;
+    }
     sections.push(`<section${lang === 'ar' ? ' dir="rtl"' : ''}>
   <h2>${LABEL[lang]} <span>${lang}</span></h2>
   <p class="page">${
@@ -41,6 +62,17 @@ async function main(): Promise<void> {
   <h3>ウェブサイト (website)</h3>
   <pre>${escape(website(lang))}</pre>
 </section>`);
+  }
+
+  if (asText) {
+    writeFileSync(
+      out,
+      `Facebookページ プロフィール文（8言語）\n各ページの「ページ情報」で、紹介文とウェブサイトを以下のとおり貼り付けてください。\n\n${sections.join(
+        '\n\n',
+      )}\n`,
+    );
+    console.log(out);
+    return;
   }
 
   const html = `<!doctype html>
@@ -62,7 +94,6 @@ async function main(): Promise<void> {
 ${sections.join('\n')}
 </html>
 `;
-  const out = process.argv[2] ?? 'facebook-profiles.html';
   writeFileSync(out, html);
   console.log(out);
 }
