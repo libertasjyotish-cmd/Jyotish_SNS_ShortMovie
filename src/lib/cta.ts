@@ -15,7 +15,7 @@ export const CTA_NOTES: Record<Language, string> = {
   de: 'Tippe auf den Link in unserem Profil',
 };
 
-const CTA_HEADLINE: Record<Language, string> = {
+export const CTA_HEADLINE: Record<Language, string> = {
   ja: '▼ あなたの本当の星座を調べる',
   en: '▼ Find your true sidereal sign',
   es: '▼ Descubre tu verdadero signo sideral',
