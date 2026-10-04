@@ -11,13 +11,15 @@ const STATUS_POLL_ATTEMPTS = 4;
 
 /**
  * `pages_manage_posts` is what allows publishing a Reel to a page, `pages_manage_engagement` what
- * allows commenting on it as the page.
+ * allows commenting on it as the page, `pages_manage_metadata` what allows editing the page's
+ * public profile (description, website).
  */
 export const FACEBOOK_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
   'pages_manage_engagement',
+  'pages_manage_metadata',
 ];
 
 export interface FacebookUploadParams {
