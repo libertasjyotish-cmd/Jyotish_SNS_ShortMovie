@@ -827,6 +827,10 @@ export class GoogleSheetsService {
   /**
    * Tasks still owed a post. `Error` rows come back too: a run that posted to some platforms and
    * then failed stores what it did in `posted_refs`, so the next run finishes the rest.
+   *
+   * Only the 30s render gates a post, because that is the video every platform publishes. The 65s
+   * cut is picked up separately for the manual TikTok queue, so waiting for it here would let one
+   * failed render silently cost the slot its post everywhere.
    */
   async getPendingPosts(): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
@@ -836,11 +840,7 @@ export class GoogleSheetsService {
           row.values.task_id &&
           ['Pending', 'Error'].includes(row.values.post_status || 'Pending'),
       )
-      .filter(
-        (row) =>
-          row.values.render_status_30s === 'Rendered' &&
-          row.values.render_status_65s === 'Rendered',
-      )
+      .filter((row) => row.values.render_status_30s === 'Rendered')
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
 
