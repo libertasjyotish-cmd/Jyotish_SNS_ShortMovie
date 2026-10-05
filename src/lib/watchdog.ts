@@ -1,3 +1,4 @@
+import { SCHEDULED_PATTERNS } from '@/lib/patterns';
 import { THEME_DAYS, ZODIAC_DAYS } from '@/lib/schedule';
 import { ContentQueue, Language, Pattern, RenderStatus } from '@/services/sheets';
 
@@ -69,7 +70,8 @@ function renderState(task: ContentQueue, pattern: Pattern) {
 /**
  * Finds renders that will never finish on their own: rows stuck on `Rendering` because the
  * Cloud Run callback never arrived, and rows already marked `Error`. Each one is re-queued
- * until `MAX_RENDER_ATTEMPTS` is reached, after which it is left as `Error`.
+ * until `MAX_RENDER_ATTEMPTS` is reached, after which it is left as `Error`. Patterns the
+ * pipeline does not render are left alone: nothing is waiting for them.
  */
 export function planRenderRecovery(tasks: ContentQueue[], now: Date): RenderRecovery[] {
   const recoveries: RenderRecovery[] = [];
@@ -77,7 +79,7 @@ export function planRenderRecovery(tasks: ContentQueue[], now: Date): RenderReco
   for (const task of tasks) {
     if (task.script_status !== 'Script_Done') continue;
 
-    for (const pattern of ['30s', '65s'] as Pattern[]) {
+    for (const pattern of SCHEDULED_PATTERNS) {
       const { status, startedAt, attempts } = renderState(task, pattern);
       // A row without a start stamp predates the watchdog, so it is stuck by definition.
       const minutes = elapsedMinutes(startedAt, now);

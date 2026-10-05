@@ -715,14 +715,14 @@ export class GoogleSheetsService {
     };
   }
 
-  async getPendingRenders(): Promise<ContentQueue[]> {
+  async getPendingRenders(patterns: Pattern[] = ['30s', '65s']): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows
       .filter((row) => row.values.task_id && row.values.script_status === 'Script_Done')
-      .filter(
-        (row) =>
-          (row.values.render_status_30s || 'Pending') === 'Pending' ||
-          (row.values.render_status_65s || 'Pending') === 'Pending',
+      .filter((row) =>
+        patterns.some(
+          (pattern) => (row.values[RENDER_COLUMNS[pattern].status] || 'Pending') === 'Pending',
+        ),
       )
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }

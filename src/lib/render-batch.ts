@@ -1,3 +1,4 @@
+import { SCHEDULED_PATTERNS } from '@/lib/patterns';
 import { weekPeriodLabel } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
 import { startRender } from '@/lib/render';
@@ -34,13 +35,18 @@ export const MAX_RENDERS_PER_BATCH = 20;
  */
 export const RENDERER_CAPACITY = 8;
 
+export interface RenderBatchOptions {
+  limit?: number;
+  patterns?: Pattern[];
+}
+
 /** Hands `Pending` renders of script-complete tasks to the renderer, up to the batch limit. */
 export async function runRenderBatch(
   sheets: GoogleSheetsService,
   creatomate: CreatomateService,
-  limit = MAX_RENDERS_PER_BATCH,
+  { limit = MAX_RENDERS_PER_BATCH, patterns = SCHEDULED_PATTERNS }: RenderBatchOptions = {},
 ): Promise<RenderBatchResult> {
-  const pendingRenders = await sheets.getPendingRenders();
+  const pendingRenders = await sheets.getPendingRenders(patterns);
   const running = await sheets.countRunningRenders();
   const effectiveLimit = Math.max(0, Math.min(limit, RENDERER_CAPACITY - running));
   let triggered = 0;
@@ -55,7 +61,7 @@ export async function runRenderBatch(
     }
     const scriptOutput = await sheets.getScriptOutput(task.task_id);
 
-    for (const pattern of ['30s', '65s'] as Pattern[]) {
+    for (const pattern of patterns) {
       const status = pattern === '30s' ? task.render_status_30s : task.render_status_65s;
       if (status !== 'Pending') continue;
 
