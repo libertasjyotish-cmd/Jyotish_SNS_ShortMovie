@@ -489,6 +489,7 @@ export class GeminiService {
     lang_code: Language,
     issues: string[],
     pattern: Pattern,
+    requirements: string[] = [],
   ): Promise<GeneratedScript> {
     const profile = LANGUAGE_PROFILES[lang_code];
     const prompt = [
@@ -503,6 +504,12 @@ export class GeminiService {
       profile.note ?? '',
       '',
       issues.length > 0 ? `A reviewer rejected it for: ${issues.join('; ')}.` : '',
+      requirements.length > 0
+        ? [
+            'The rewrite is checked automatically and every one of these has to hold at the same time; fixing one by dropping another is rejected:',
+            ...requirements.map((requirement, index) => `${index + 1}. ${requirement}`),
+          ].join('\n')
+        : '',
       '',
       `hook: ${target.hook}`,
       `body: ${target.body}`,

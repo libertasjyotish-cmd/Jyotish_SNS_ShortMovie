@@ -3,7 +3,7 @@ import { isCronAuthorized } from '@/lib/auth';
 import { numberEnv, runWithinBudget, triggerNextBatch } from '@/lib/batch';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
-import { describeIssues, lintScript } from '@/lib/script-lint';
+import { describeIssues, lintRequirements, lintScript } from '@/lib/script-lint';
 import { GeminiService, GeneratedScript, isTransientGeminiError } from '@/services/gemini';
 import { ContentQueue, GoogleSheetsService, WeeklyTransit } from '@/services/sheets';
 
@@ -127,10 +127,58 @@ export async function GET(request: Request) {
             }
           }
 
-          for (const issue of issues) {
-            const warning = `${task.task_id} ${issue}`;
-            console.warn(`Script lint: ${warning}`);
-            lintWarnings.push(warning);
+          // The lint measures length and required wording; it cannot tell whether the narration is
+          // a sentence a person would say. The 30s script is the one that ships, so it is also
+          // proofread here and rewritten until both checks pass — a script that reads like a bad
+          // translation is published to every platform otherwise.
+          const proofread = async (script: GeneratedScript) =>
+            (
+              await geminiService.reviewScripts(
+                [
+                  {
+                    id: task.task_id,
+                    hook: script.hook_text,
+                    body: script.body_script,
+                    cta: script.cta_text,
+                  },
+                ],
+                task.lang_code,
+              )
+            )[0];
+
+          let verdict = await proofread(scriptData.script_30s);
+          const requirements = lintRequirements(task.lang_code, '30s', spokenPeriod, signName);
+          const maxRepairs = numberEnv('WEEKLY_GENERATE_MAX_REPAIRS', 2);
+          for (let pass = 1; issues.length > 0 || verdict?.verdict !== 'ok'; pass += 1) {
+            if (pass > maxRepairs) {
+              throw new Error(
+                `script still reads badly after ${maxRepairs} rewrites: ${[
+                  ...issues,
+                  verdict?.verdict !== 'ok' ? (verdict?.reason ?? 'reviewer gave no verdict') : '',
+                ]
+                  .filter(Boolean)
+                  .join('; ')}`,
+              );
+            }
+
+            const repaired = await geminiService.repairScript(
+              {
+                id: task.task_id,
+                hook: scriptData.script_30s.hook_text,
+                body: scriptData.script_30s.body_script,
+                cta: scriptData.script_30s.cta_text,
+              },
+              task.lang_code,
+              [
+                ...issues,
+                ...(verdict && verdict.verdict !== 'ok' ? [verdict.reason] : []),
+              ],
+              '30s',
+              requirements,
+            );
+            scriptData = { ...scriptData, script_30s: repaired };
+            issues = lint(scriptData).filter((issue) => issue.startsWith('(30s)'));
+            verdict = await proofread(repaired);
           }
 
           await sheetsService.saveScriptOutput({

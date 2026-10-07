@@ -389,6 +389,49 @@ export function lintScript(
   return issues;
 }
 
+/** Wordings the checks accept, written out so a rewrite is told the target instead of guessing it. */
+function accepted(pattern: RegExp): string {
+  return pattern.source.replace(/\\b|\(\?:|[()]/g, '').replace(/\|/g, ' / ');
+}
+
+/**
+ * The checks a script has to satisfy, phrased as instructions. A rewrite that is only told what
+ * was wrong loops between two failures — fixing the recognition sentence by dropping the CTA
+ * contrast and back — because the checks themselves were never stated to it.
+ */
+export function lintRequirements(
+  language: Language,
+  pattern: Pattern,
+  period?: string,
+  signName?: string,
+): string[] {
+  const bounds = LENGTH_BOUNDS[pattern][language];
+  const allowance = period ? SIGN_ALLOWANCE[language] : 0;
+  const unit = CHARACTER_COUNTED.includes(language) ? 'characters excluding spaces' : 'words';
+
+  return [
+    `hook_text + body_script + cta_text together: ${bounds.min + allowance}-${bounds.max + allowance} ${unit}; hook_text alone at most ${HOOK_BOUNDS[language]}.`,
+    `hook_text speaks to the viewer (one of: ${accepted(HOOK_ADDRESSED_PATTERNS[language])}) and never announces the topic.`,
+    `body_script contains one natural sentence that lets the viewer tell whether this reaches them, using one of: ${accepted(RECOGNITION_PATTERNS[language])}.`,
+    `cta_text names what the generic twelve sun signs cannot settle (one of: ${accepted(CTA_DIFFERENTIATION_PATTERNS[language])}) and sends the viewer to look it up (one of: ${accepted(CTA_ACTION_PATTERNS[language])}).`,
+    `cta_text leaves the personal answer to the chart (one of: ${accepted(INDIVIDUAL_DIFFERENCE_PATTERNS[language])}).`,
+    'No URL, domain or email in any field.',
+    ...(period
+      ? [`body_script says the week out loud exactly as "${period}", including its numbers.`]
+      : []),
+    ...(signName
+      ? [
+          `hook_text or the first sentence of body_script says the sign exactly as "${signName}", and body_script counts the house as an ordinal, never "a certain house".`,
+        ]
+      : []),
+    ...(language === 'ja'
+      ? [
+          'Each sentence has one subject and a predicate that says something about that subject. Never close a sentence about a person on a noun phrase about the chart (「〜人はこの部屋が出ています」 is broken), and never write 出生図 / 出生時間 / チャート / ネイタル.',
+        ]
+      : []),
+  ];
+}
+
 export function describeIssues(issues: ScriptIssue[]): string {
   return issues.map((issue) => `${issue.field}/${issue.code}: ${issue.detail}`).join('; ');
 }
