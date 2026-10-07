@@ -8,7 +8,7 @@
 | ------------------- | ----------------- | ---------------------------------- |
 | 月 17:00            | weekly-plan       | 翌週の128枠をキューに作る          |
 | 月 18:00            | weekly-generate   | 原稿を生成する                     |
-| 月 20:00 ＋ 3時間毎 | render-batch      | 動画をレンダリングする             |
+| 月 20:00 ＋ 3時間毎 | render-batch      | 30s動画をレンダリングする          |
 | 15分毎              | daily-dispatch    | 時刻の来た枠を投稿する             |
 | 毎日 03:20          | watchdog          | 止まったレンダー・原稿を再投入する |
 | 毎日 03:40          | health-check      | 接続・トークン失効を点検する       |
@@ -48,4 +48,10 @@ npm run refresh:seo -- <lang...> [week...] [--apply]  # 既投稿のタグ・説
 
 - YouTube Data APIのクォータは8チャンネル共有です。`refresh:seo --apply` は当日の投稿が終わってから少量ずつ実行します（リセットは日本時間16:00）。
 - レンダリングは課金されます。投稿済み・レンダー済みのものを作り直さないでください。
+- 自動レンダリングは30sだけです。65sは手動TikTok用なので、必要になったときだけ次を実行します（`/api/admin/tiktok-queue` は65sがレンダー済みの枠だけを返します）。
+
+  ```bash
+  curl -H "Authorization: Bearer $CRON_SECRET" \
+    "https://admin.libertas-jyotish.com/api/cron/render-batch?patterns=65s"
+  ```
 - レンダラー（`renderer/`）はVercelではデプロイされません。変更したときだけ `renderer/README.md` の `gcloud run deploy` を実行します。

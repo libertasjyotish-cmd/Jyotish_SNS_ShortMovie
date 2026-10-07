@@ -28,10 +28,16 @@ interface QueueStatus {
 }
 
 /** Every button is a scheduled job, described by what it fixes rather than by its cron name. */
-const JOBS: { job: string; label: string; note: string }[] = [
+const JOBS: { job: string; label: string; note: string; params?: Record<string, string> }[] = [
   { job: 'weekly-plan', label: '今週分の枠を作る', note: '週の128枠をキューに作る（週1回・月曜に自動実行）' },
   { job: 'weekly-generate', label: '原稿を作る', note: '原稿が無い枠だけ生成する（Geminiを使う）' },
-  { job: 'render-batch', label: '動画を作る', note: '原稿済みで未レンダーの枠をレンダリングする' },
+  { job: 'render-batch', label: '動画を作る', note: '原稿済みで未レンダーの枠を30sでレンダリングする' },
+  {
+    job: 'render-batch',
+    label: '65s動画を作る',
+    note: '手動TikTok用。自動では作らないので、アップロードする週だけ押す',
+    params: { patterns: '65s' },
+  },
   { job: 'daily-dispatch', label: '投稿する', note: '投稿時刻を過ぎた枠をYouTube・Instagram等へ投稿する' },
   { job: 'watchdog', label: '詰まりを直す', note: '止まったレンダー・原稿を検知して再投入する' },
   { job: 'expire-weekly', label: '先週分を取り下げる', note: '期限切れの週次投稿を非公開にする' },
@@ -85,12 +91,13 @@ export default function AdminDashboard() {
     await loadStatus();
   }
 
-  async function run(job: string, label: string) {
+  async function run(job: string, label: string, params: Record<string, string> = {}) {
     if (!window.confirm(`${label} を実行します。よろしいですか。`)) return;
-    setRunning(job);
+    setRunning(label);
     setMessage(`${label} を実行中…`);
     try {
-      const response = await fetch(`/api/admin/run?job=${job}`, { method: 'POST' });
+      const query = new URLSearchParams({ job, ...params });
+      const response = await fetch(`/api/admin/run?${query}`, { method: 'POST' });
       const body = (await response.json()) as { error?: string; result?: unknown };
       setMessage(
         response.ok
@@ -164,9 +171,13 @@ export default function AdminDashboard() {
           <p>どのボタンも自動実行と同じ処理です。二重に押しても未処理の枠だけが進みます。</p>
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {JOBS.map((item) => (
-              <li key={item.job} style={{ marginBottom: 12 }}>
-                <button type="button" disabled={running !== ''} onClick={() => void run(item.job, item.label)}>
-                  {running === item.job ? '実行中…' : item.label}
+              <li key={item.label} style={{ marginBottom: 12 }}>
+                <button
+                  type="button"
+                  disabled={running !== ''}
+                  onClick={() => void run(item.job, item.label, item.params)}
+                >
+                  {running === item.label ? '実行中…' : item.label}
                 </button>{' '}
                 <span style={{ color: '#555' }}>{item.note}</span>
               </li>
