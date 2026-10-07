@@ -1,9 +1,9 @@
-import { SCHEDULED_PATTERNS } from '@/lib/patterns';
-import { weekPeriodLabel } from '@/lib/period';
-import { zodiacName } from '@/lib/zodiac-names';
-import { startRender } from '@/lib/render';
-import { CreatomateService } from '@/services/creatomate';
-import { GoogleSheetsService, Pattern } from '@/services/sheets';
+import { SCHEDULED_PATTERNS } from "@/lib/patterns";
+import { weekPeriodLabel } from "@/lib/period";
+import { zodiacName } from "@/lib/zodiac-names";
+import { startRender } from "@/lib/render";
+import { CreatomateService } from "@/services/creatomate";
+import { GoogleSheetsService, Pattern } from "@/services/sheets";
 
 export interface RenderBatchResult {
   processed: number;
@@ -19,7 +19,9 @@ export interface RenderBatchResult {
  * `Pending` and are retried on the next run instead of counting an attempt against them.
  */
 function isTransient(message: string): boolean {
-  return /quota|rate limit|429|503|ECONNRESET|ETIMEDOUT|aborted|timeout/i.test(message);
+  return /quota|rate limit|429|503|ECONNRESET|ETIMEDOUT|aborted|timeout/i.test(
+    message,
+  );
 }
 
 /**
@@ -38,17 +40,33 @@ export const RENDERER_CAPACITY = 8;
 export interface RenderBatchOptions {
   limit?: number;
   patterns?: Pattern[];
+  /**
+   * Renders only these tasks. Pending renders are taken in sheet order, so a slot that is
+   * needed tomorrow but was appended after a whole planned week would otherwise wait for
+   * every earlier row to clear.
+   */
+  taskIds?: string[];
 }
 
 /** Hands `Pending` renders of script-complete tasks to the renderer, up to the batch limit. */
 export async function runRenderBatch(
   sheets: GoogleSheetsService,
   creatomate: CreatomateService,
-  { limit = MAX_RENDERS_PER_BATCH, patterns = SCHEDULED_PATTERNS }: RenderBatchOptions = {},
+  {
+    limit = MAX_RENDERS_PER_BATCH,
+    patterns = SCHEDULED_PATTERNS,
+    taskIds,
+  }: RenderBatchOptions = {},
 ): Promise<RenderBatchResult> {
-  const pendingRenders = await sheets.getPendingRenders(patterns);
+  const all = await sheets.getPendingRenders(patterns);
+  const pendingRenders = taskIds
+    ? all.filter((task) => taskIds.includes(task.task_id))
+    : all;
   const running = await sheets.countRunningRenders();
-  const effectiveLimit = Math.max(0, Math.min(limit, RENDERER_CAPACITY - running));
+  const effectiveLimit = Math.max(
+    0,
+    Math.min(limit, RENDERER_CAPACITY - running),
+  );
   let triggered = 0;
   let failed = 0;
   let skipped = 0;
@@ -62,8 +80,9 @@ export async function runRenderBatch(
     const scriptOutput = await sheets.getScriptOutput(task.task_id);
 
     for (const pattern of patterns) {
-      const status = pattern === '30s' ? task.render_status_30s : task.render_status_65s;
-      if (status !== 'Pending') continue;
+      const status =
+        pattern === "30s" ? task.render_status_30s : task.render_status_65s;
+      if (status !== "Pending") continue;
 
       try {
         if (!scriptOutput) {
@@ -79,24 +98,30 @@ export async function runRenderBatch(
           period:
             [
               zodiacName(task.zodiac_sign, task.lang_code),
-              task.target_type === 'Zodiac_Sign'
+              task.target_type === "Zodiac_Sign"
                 ? weekPeriodLabel(task.week_id, task.lang_code)
                 : undefined,
             ]
               .filter(Boolean)
-              .join('\n') || undefined,
+              .join("\n") || undefined,
           script: JSON.parse(
-            pattern === '30s' ? scriptOutput.script_30s_json : scriptOutput.script_65s_json,
+            pattern === "30s"
+              ? scriptOutput.script_30s_json
+              : scriptOutput.script_65s_json,
           ),
         });
         triggered += 1;
       } catch (taskError) {
         failed += 1;
-        const message = taskError instanceof Error ? taskError.message : 'Unknown error';
-        console.error(`Render trigger failed for ${task.task_id} (${pattern}):`, message);
+        const message =
+          taskError instanceof Error ? taskError.message : "Unknown error";
+        console.error(
+          `Render trigger failed for ${task.task_id} (${pattern}):`,
+          message,
+        );
         errors.push(`${task.task_id} (${pattern}): ${message}`);
         if (!isTransient(message)) {
-          await sheets.updateRenderStatus(task.task_id, pattern, 'Error');
+          await sheets.updateRenderStatus(task.task_id, pattern, "Error");
         }
       }
     }
