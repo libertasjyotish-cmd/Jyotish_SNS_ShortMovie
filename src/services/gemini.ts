@@ -1,5 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { optionalEnv, requireEnv } from '@/lib/env';
+import { fixedCta } from '@/lib/fixed-cta';
+import { narrationBudget } from '@/lib/script-lint';
 import { hookAssignment } from '@/lib/hook-angles';
 import { weekPeriodLabel, weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
@@ -185,18 +187,16 @@ const RESPONSE_SCHEMA = {
       properties: {
         hook_text: { type: Type.STRING },
         body_script: { type: Type.STRING },
-        cta_text: { type: Type.STRING },
       },
-      required: ['hook_text', 'body_script', 'cta_text'],
+      required: ['hook_text', 'body_script'],
     },
     script_65s: {
       type: Type.OBJECT,
       properties: {
         hook_text: { type: Type.STRING },
         body_script: { type: Type.STRING },
-        cta_text: { type: Type.STRING },
       },
-      required: ['hook_text', 'body_script', 'cta_text'],
+      required: ['hook_text', 'body_script'],
     },
     hashtags: { type: Type.STRING },
   },
@@ -227,9 +227,8 @@ const LONG_SCRIPT_SCHEMA = {
   properties: {
     hook_text: { type: Type.STRING },
     body_script: { type: Type.STRING },
-    cta_text: { type: Type.STRING },
   },
-  required: ['hook_text', 'body_script', 'cta_text'],
+  required: ['hook_text', 'body_script'],
 } as const;
 
 export interface ReviewTarget {
@@ -265,7 +264,8 @@ Each script is read out loud by a synthetic voice, so it must sound like a fluen
 Judge the language and these two things only; never the astrology and never the length.
 Mark "broken" when a sentence is not grammatical ${profile.name}: a missing subject, a predicate that does not agree with its subject, particles or articles that do not connect, or a noun phrase that carries no meaning.
 Mark "awkward" when it parses but no fluent speaker would say it that way, including stitched-together clauses and mixed registers.
-Mark "awkward" as well when the body gives the viewer nothing to recognise in their own life, or when the close does not invite them to look their own reading up. Any natural wording counts; there is no phrase that has to appear.
+Mark "awkward" as well when the body gives the viewer nothing to recognise in their own life. Any natural wording counts; there is no phrase that has to appear.
+Judge the hook and the body only. Every video closes with the same approved sentences, which the app appends and which you are not reviewing: "${fixedCta(lang_code)}" Treat the body as awkward if it repeats what that closing says or if the closing could not follow on from it.
 Mark "ok" only when you would read it aloud unchanged.
 
 These are real scripts that shipped and had to be withdrawn; every one of them is "broken":
@@ -279,10 +279,7 @@ In "reason", quote the offending span and say what is wrong, in English, in one 
 Return one entry per script, with the same id.
 
 ${targets
-    .map(
-      (target) =>
-        `id: ${target.id}\nhook: ${target.hook}\nbody: ${target.body}\ncta: ${target.cta}`,
-    )
+    .map((target) => `id: ${target.id}\nhook: ${target.hook}\nbody: ${target.body}`)
     .join('\n\n')}`;
 }
 
@@ -307,23 +304,29 @@ function stripUrls(text: string): string {
     .trim();
 }
 
+/**
+ * The closing line is never taken from the model: it is the same approved sentence in every
+ * video, so the model writes the hook and the body only and the CTA is appended here.
+ */
 function assertScript(
   script: Partial<GeneratedScript> | undefined,
   label: string,
+  lang_code: Language,
 ): GeneratedScript {
-  if (!script?.hook_text || !script.body_script || !script.cta_text) {
+  if (!script?.hook_text || !script.body_script) {
     throw new Error(`Gemini returned an incomplete ${label}`);
   }
   return {
     hook_text: stripUrls(script.hook_text),
     body_script: stripUrls(script.body_script),
-    cta_text: stripUrls(script.cta_text),
+    cta_text: fixedCta(lang_code),
   };
 }
 
 /** Stretches a hand-written theme script to the 65s pattern without adding new claims. */
 function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language): string {
   const profile = LANGUAGE_PROFILES[lang_code];
+  const budget = narrationBudget(lang_code, '65s');
   return [
     'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
     'You are given a finished 30-second script. Rewrite it as a longer version of the same video.',
@@ -337,7 +340,7 @@ function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language)
     '4. Keep the hook close to the original wording; it is what stops the scroll.',
     `5. Name the tradition in the first sentence of body_script, exactly as "${profile.tradition}", unless the source script already names it.`,
     "6. Stop short of the personal answer: elaborate on the general principle, and leave the viewer's own case (their chart, their Moon sign, their period) to the site. Never let the viewer feel the video already covered their own case.",
-    '7. The CTA keeps inviting viewers to look up their own chart on the Libertas Jyotish site. Never write a URL, a domain name or an email address in any field; the link lives in the profile and the description.',
+    '7. You do not write the closing: the app appends the same approved closing sentences after your body_script. Never mention the link yourself, and never write a URL, a domain name or an email address.',
     '',
     `Write everything in ${profile.name}.`,
     profile.note ?? '',
@@ -345,9 +348,8 @@ function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language)
     'Source script:',
     `hook_text: ${script.hook_text}`,
     `body_script: ${script.body_script}`,
-    `cta_text: ${script.cta_text}`,
     '',
-    `Produce one script spoken in 61-68 seconds, ${profile.length65s} (hook_text + body_script + cta_text combined), of which body_script carries ${profile.body65s}.`,
+    `Produce one script whose hook_text + body_script together run ${budget.min}-${budget.max} ${budget.unit}, which is the 61-68 second pattern minus the fixed closing.`,
     'Return only the JSON object; no markdown fences, no commentary.',
   ]
     .filter(Boolean)
@@ -373,6 +375,8 @@ function buildPrompt(request: GenerationRequest): string {
     request.target_type === 'Zodiac_Sign'
       ? hookAssignment(request.week_id, request.zodiac_sign)
       : undefined;
+  const budget30 = narrationBudget(request.lang_code, '30s', spokenPeriod);
+  const budget65 = narrationBudget(request.lang_code, '65s', spokenPeriod);
 
   return [
     'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
@@ -388,23 +392,23 @@ function buildPrompt(request: GenerationRequest): string {
     '2. Base every statement solely on the supplied transit reference and its house relationship to the target Moon sign. Never invent transits, dates, planetary positions, proper nouns, or numbers that are not present in the reference.',
     '3. Never add original interpretations that contradict classical Jyotish (dasha, nakshatra, planetary rulership).',
     '4. Explain exactly one planetary movement, plainly. Orbital periods, degrees and cycle lengths may appear once as evidence, never as the subject of the video; the subject is what the viewer experiences in work, money, relationships, mood, home or timing.',
-    '5. The CTA invites viewers to the Libertas Jyotish site for their personal reading. Never write a URL, a domain name or an email address in any field; the link lives in the profile and the description.',
+    '5. Never write a URL, a domain name or an email address in any field; the link lives in the profile and the description.',
     '6. Never give definitive medical, mental-health, financial, investment or legal advice, and never predict illness, death, pregnancy, accidents, lawsuits, or specific gains and losses of money. Phrase practical suggestions as everyday actions (rest, planning, communication), not as diagnoses or instructions.',
     assignment
       ? `7. Keep the tone calm and specific. The twelve signs of this week are each given a different opening so they never read as one template, and this one opens on ${assignment.angle}. Take the concrete everyday example from ${assignment.domain}. Both still have to follow from the transit below; if the transit cannot support this opening, choose the nearest one it does support rather than falling back on plans going wrong.`
       : '7. Keep the tone calm and specific, and never open on plans or schedules going wrong, which is the opening these scripts fall into by default.',
     `8. Name the tradition in the first sentence of body_script, exactly as "${profile.tradition}". Viewers do not know what a nakshatra or a sidereal Moon sign is, so never open on a technical term without saying which system it comes from.`,
     `9. hook_text is spoken in the first two seconds, which is all a short-video feed gives the clip before deciding whether to keep showing it, so it is ${profile.hook}: one sentence, no clause leading up to the point, and nothing before the word that stops the scroll. It either names something the viewer already lives with and asks whether it is happening to them, or contradicts what they believe ("that is not your fault", "you are looking at the wrong planet"). Never announce the video or the topic ("here is this week\'s movement of the stars"), and never answer the hook in the hook itself.`,
-    '10. The length limits are hard limits, but they are a budget, not a reason to drop words out of a sentence: every sentence must still be complete and idiomatic when read aloud, and a script that only fits because particles, subjects or verbs were cut is rejected. Count before answering — characters excluding spaces for Japanese, words for the other languages — and when the total is over, remove a whole detail or shorten the CTA rather than squeezing a sentence.',
+    '10. The length limits are hard limits, but they are a budget, not a reason to drop words out of a sentence: every sentence must still be complete and idiomatic when read aloud, and a script that only fits because particles, subjects or verbs were cut is rejected. Count before answering — characters excluding spaces for Japanese, words for the other languages — and when the total is over, remove a whole detail rather than squeezing a sentence.',
     '11. body_script contains one sentence that lets the viewer decide for themselves whether the transit is acting on them, by describing what it looks like in everyday actions, never symptoms, luck or loss. Say it the way a person speaks; do not reach for the same "the ones it reaches find that ..." frame every time, and never attach that condition to a predicate that describes the chart instead of the person.',
-    '12. cta_text is two short spoken sentences: the one thing this video left unanswered about the viewer, and an invitation to check it free through the link. Only add why a shared forecast cannot settle it — that the answer is read from the finer divisions of their own chart and the period they are in — when it still fits the budget naturally; it is better left out than crammed in, and the numbers 108 or 27 are never required. Word it freshly for this video; a CTA that reads like the same boilerplate appended to every script is rejected. Never require the viewer to know their birth time, never disparage Western astrology, never write a URL, and never close on a definitive statement about the individual viewer.',
+    `12. You do not write the closing. Every video ends with one approved sentence pair that the app appends after your body_script, and it already says that the personal answer needs the viewer's own Moon sign, the 108 divisions and the planetary period, and that the reading is free through the link: "${fixedCta(request.lang_code)}" Write the body so that closing follows on naturally, never repeat what it says, never mention the link yourself, and leave the personal answer to it.`,
     '13. Never create urgency through fear. Do not use danger, warning, running out of time, misfortune, or "if you do not do this" framings, and never promise that something will certainly happen.',
     '14. Never let the video close its own loop: state the general principle and the individual variation, and stop before the viewer could conclude what their own case is. The unanswered question is what takes them to the site.',
     spokenPeriod
       ? `15. The reading covers one week and stays on the feed long afterwards, so body_script opens by saying the dates out loud, exactly as "${spokenPeriod}", in the same sentence that names the tradition. Write them as they are read, never as a week number, and say them in both scripts.`
       : '15. This video is not tied to a week, so never state dates or a period in any field.',
     request.target_type === 'Zodiac_Sign'
-      ? `16. This reading is for the sidereal Moon sign ${request.zodiac_sign}, which is usually not the sign the viewer knows from Western astrology, so cta_text says in one clause that the sign meant here is the Moon sign of Indian astrology and that the viewer can check their own free through the link, before or inside part (c) of rule 12.`
+      ? `16. This reading is for the sidereal Moon sign ${request.zodiac_sign}, which is usually not the sign the viewer knows from Western astrology, so body_script says once that the sign meant here is the Moon sign of Indian astrology. The appended closing then tells them where to check their own.`
       : '16. This video is for every Moon sign, so never tell the viewer to look up which sign they are.',
     localSign
       ? `17. Twelve readings are published the same week and a viewer scrolling past has seconds to tell whether this one is theirs, so the sign is said out loud, written exactly as "${localSign}", in hook_text or in the first sentence of body_script.`
@@ -422,14 +426,13 @@ function buildPrompt(request: GenerationRequest): string {
     `Transit reference (the only allowed factual source):\n${request.transit_reference}`,
     '',
     'Produce two narration scripts for the same content:',
-    `- script_30s: spoken in about 30 seconds, ${profile.length30s}${spokenPeriod ? ` plus the dates of rule 15` : ''} (hook_text + body_script + cta_text combined). Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence that opens on ${spokenPeriod ? 'the dates, then names' : 'naming'} Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them; (d) the CTA of rule 12. Do not add a fourth body sentence: the total would break the limit.`,
-    `- script_65s: spoken in 61-68 seconds, ${profile.length65s} (hook_text + body_script + cta_text combined). This one is long: body_script alone carries ${profile.body65s} and needs five or six sentences. Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution, app CTA.`,
+    `- script_30s: hook_text + body_script together ${budget30.min}-${budget30.max} ${budget30.unit}, which is what is left of the 30 seconds once the fixed closing is added. Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence that opens on ${spokenPeriod ? 'the dates, then names' : 'naming'} Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them. Do not add a fourth body sentence: the total would break the limit.`,
+    `- script_65s: hook_text + body_script together ${budget65.min}-${budget65.max} ${budget65.unit}, again without the fixed closing. This one is long: body_script needs five or six sentences. Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution.`,
     '',
     '',
     'Worked example of the structure (English, different topic; copy the shape, not the words):',
     'hook_text: "Told this was a good year for you and nothing happened? You were not looking at the right place."',
     'body_script: "In Jyotish, a transit is read by the house it passes through in your own chart, not by the sign it sits in. The same year lands on work for one person and on the home for another, which is why a shared forecast fits almost no one. If the year felt flat to you, the movement was simply expanding somewhere you were not watching."',
-    'cta_text: "Which part of your life it is expanding is read from your own chart, not from your sun sign. Check yours free through the link."',
     '',
     'hashtags: 4-6 space-separated hashtags suitable for the target language, always including #LibertasJyotish.',
     request.lint_feedback
@@ -470,8 +473,8 @@ export class GeminiService {
       target_type: request.target_type,
       zodiac_sign: request.zodiac_sign,
       transit_reference: request.transit_reference,
-      script_30s: assertScript(raw.script_30s, 'script_30s'),
-      script_65s: assertScript(raw.script_65s, 'script_65s'),
+      script_30s: assertScript(raw.script_30s, 'script_30s', request.lang_code),
+      script_65s: assertScript(raw.script_65s, 'script_65s', request.lang_code),
       hashtags: (raw.hashtags || '').trim(),
     };
   }
@@ -481,7 +484,7 @@ export class GeminiService {
       buildThemeExpansionPrompt(script, lang_code),
       LONG_SCRIPT_SCHEMA,
     );
-    return assertScript(raw, 'theme script_65s');
+    return assertScript(raw, 'theme script_65s', lang_code);
   }
 
   /**
@@ -496,15 +499,17 @@ export class GeminiService {
     requirements: string[] = [],
   ): Promise<GeneratedScript> {
     const profile = LANGUAGE_PROFILES[lang_code];
+    const budget = narrationBudget(lang_code, pattern);
     const prompt = [
       `You are a native ${profile.name} writer fixing narration for a short video about ${profile.tradition}.`,
       'The script below says the right thing but is written badly. Rewrite it so a fluent speaker would read it aloud unchanged.',
       '',
-      'What must not change: the astrological content. Keep the same house, the same planet, the same part of life, the same promise. Never add a transit, a number, a date or a term that is not already there, and never remove the invitation to check their own reading free through the link.',
+      'What must not change: the astrological content. Keep the same house, the same planet, the same part of life, the same promise. Never add a transit, a number, a date or a term that is not already there.',
       '',
       'What must change: anything that is not natural speech. One subject per sentence, a predicate that says something about that subject, no clause stitched to a clause with a different subject, no noun phrase standing in for a predicate, consistent register throughout.',
       '',
-      `Lengths (hard limits, hook + body + cta combined): ${pattern === '30s' ? profile.length30s : profile.length65s}. hook_text is ${profile.hook} and is spoken in the first two seconds. If it does not fit, drop a whole detail rather than squeezing a sentence until words are missing.`,
+      `Lengths (hard limits, hook_text + body_script together, the fixed closing excluded): ${budget.min}-${budget.max} ${budget.unit}. hook_text is ${profile.hook} and is spoken in the first two seconds. If it does not fit, drop a whole detail rather than squeezing a sentence until words are missing.`,
+      `You do not rewrite the closing: the app appends "${fixedCta(lang_code)}" after your body_script, so never mention the link yourself and never repeat what that closing says.`,
       profile.note ?? '',
       '',
       issues.length > 0 ? `A reviewer rejected it for: ${issues.join('; ')}.` : '',
@@ -517,7 +522,6 @@ export class GeminiService {
       '',
       `hook: ${target.hook}`,
       `body: ${target.body}`,
-      `cta: ${target.cta}`,
       '',
       'Return only the JSON object; no markdown fences, no commentary.',
     ]
@@ -530,7 +534,7 @@ export class GeminiService {
       DEFAULT_REVIEW_MODELS,
       REVIEW_TIMEOUT_MS,
     );
-    return assertScript(raw, 'repaired script');
+    return assertScript(raw, 'repaired script', lang_code);
   }
 
   /** Flags scripts that pass the lint but do not read as fluent prose in their language. */
