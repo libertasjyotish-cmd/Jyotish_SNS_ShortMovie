@@ -112,18 +112,57 @@ export function signPlaylistTitle({ lang, zodiacSign }: { lang: Language; zodiac
  * Text of the cover a video is listed with, where every title around it is truncated: the sign,
  * the zodiac it belongs to and the week it reads have to come from the image alone.
  */
-export function buildCoverText({ lang, zodiacSign, series, period }: CaptionLeadParams): {
+export function buildCoverText({ lang, zodiacSign, series, period, hook }: CoverTextParams): {
   sign: string;
   note: string;
   period: string;
 } {
   const keywords = TITLE_KEYWORDS[lang];
+  // A video with no sign has nothing of its own to put on the cover but what it is about, so its
+  // own hook is the headline: the category name alone lists every such video under one still.
+  const headline = zodiacSign ?? coverHook(hook, lang) ?? keywords.theme;
   return {
-    sign: zodiacSign ?? keywords.theme,
-    note: zodiacSign ? MOON_SIGN_NOTE[lang] : BRAND,
+    sign: headline,
+    note: zodiacSign ? MOON_SIGN_NOTE[lang] : keywords.theme,
     // An evergreen series carries no dates, so it names itself where the week would sit.
     period: (series ? SERIES_KEYWORDS[lang][series] : period) ?? '',
   };
+}
+
+/**
+ * Trims a hook to what a cover plate holds without shrinking to an unreadable size, cutting at a
+ * clause and never mid-word: a headline ending on a preposition reads as a broken image.
+ */
+function coverHook(hook: string | undefined, lang: Language): string | undefined {
+  const text = hook?.trim().replace(/[。.!?！？]+$/, '');
+  if (!text) return undefined;
+  const limit = COVER_HOOK_LIMIT[lang];
+  if (text.length <= limit) return text;
+
+  const clause = text.slice(0, limit).split(/[、,:：—–]/)[0].trim();
+  if (clause.length >= limit / 3) return clause;
+  const words = text.slice(0, limit).trim();
+  return words.includes(' ') ? words.slice(0, words.lastIndexOf(' ')) : words;
+}
+
+/**
+ * Room on the plate, measured in characters of the language: a script says in ~28 Japanese
+ * characters what the Latin-script languages need about twice as many of.
+ */
+const COVER_HOOK_LIMIT: Record<Language, number> = {
+  ja: 28,
+  en: 60,
+  es: 60,
+  pt: 60,
+  id: 60,
+  ar: 50,
+  fr: 60,
+  de: 60,
+};
+
+export interface CoverTextParams extends CaptionLeadParams {
+  /** Opening line of the narration, used as the headline when the video has no sign. */
+  hook?: string;
 }
 
 export interface CaptionLeadParams {

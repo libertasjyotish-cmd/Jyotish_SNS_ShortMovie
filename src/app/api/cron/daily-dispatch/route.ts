@@ -128,8 +128,9 @@ async function buildCover(args: {
   signName?: string;
   period?: string;
   series?: SignThemeSeries;
+  hook: string;
 }): Promise<CoverResult | undefined> {
-  const { sheetsService, task, signName, period, series } = args;
+  const { sheetsService, task, signName, period, series, hook } = args;
   if (!isRendererConfigured()) return undefined;
   try {
     const backgroundUrl = await resolveBackgroundUrl(sheetsService, {
@@ -143,7 +144,7 @@ async function buildCover(args: {
       taskId: task.task_id,
       language: task.lang_code,
       backgroundUrl,
-      ...buildCoverText({ lang: task.lang_code, zodiacSign: signName, period, series }),
+      ...buildCoverText({ lang: task.lang_code, zodiacSign: signName, period, series, hook }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
@@ -363,6 +364,7 @@ export async function GET(request: Request) {
             signName,
             period,
             series,
+            hook: script30s.hook_text,
           });
 
           const youtubeTitle = buildYouTubeTitle({
