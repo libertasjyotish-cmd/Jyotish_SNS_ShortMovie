@@ -3,12 +3,16 @@ import { optionalEnv, requireEnv } from '@/lib/env';
 import { hookAssignment } from '@/lib/hook-angles';
 import { weekPeriodLabel, weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
-import { Language, TargetType } from './sheets';
+import { Language, Pattern, TargetType } from './sheets';
 
 const DEFAULT_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+/** Proofreading needs the stronger model: flash passed sentences a native speaker rejects. */
+const DEFAULT_REVIEW_MODELS = ['gemini-3.1-pro-preview', 'gemini-flash-latest'];
 const MAX_ATTEMPTS = 3;
 const BASE_BACKOFF_MS = 2_000;
 const ATTEMPT_TIMEOUT_MS = 25_000;
+/** Proofreading runs on the reasoning model, which needs far longer than a generation call. */
+const REVIEW_TIMEOUT_MS = 180_000;
 
 /** 429 / 5xx from the Gemini endpoint are load related and worth retrying. */
 export function isTransientGeminiError(error: unknown): boolean {
@@ -71,7 +75,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
     length30s: '合計165〜183文字',
     length65s: '合計390〜420文字',
     body65s: '320〜350文字',
-    note: 'Japanese wording: call the chart 「ホロスコープ」. Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. End cta_text with exactly: 「を調べるには、12の太陽星座ではなく、108の区分とダシャー期を組み合わせた鑑定が必要です。リンクから無料で確認できます。」, preceded only by the one thing this video left unanswered (for example 「あなたの木星がどの部屋を通るか」). That CTA is about 80 characters on its own, so in script_30s hook_text must stay within 24 characters and body_script must be a single sentence under 70 characters; count the characters of all three fields before answering.',
+    note: 'Japanese wording: call the chart 「ホロスコープ」. Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. Write every sentence as a Japanese speaker would say it out loud: one subject per sentence, and a predicate that says something about that subject. Never end a sentence about a person with a noun phrase about the chart — 「〜と感じる人は容量の出方です」「〜人はこの部屋が出ています」「〜人ほど、ここです」 are all broken, because 容量の出方 / 部屋 / ここ say nothing about the person. Never join two clauses whose subjects differ (「ここが強い人ほど…、忙しいと感じる人は…」) with a comma: split them into two sentences. Keep 敬体 throughout and never mix in 「〜さん」 or 「〜よね？」. Prefer dropping a detail over compressing a sentence until particles disappear.',
   },
   en: {
     name: 'English',
@@ -160,6 +164,25 @@ const RESPONSE_SCHEMA = {
   required: ['script_30s', 'script_65s', 'hashtags'],
 } as const;
 
+const REVIEW_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    reviews: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          verdict: { type: Type.STRING, enum: ['ok', 'awkward', 'broken'] },
+          reason: { type: Type.STRING },
+        },
+        required: ['id', 'verdict', 'reason'],
+      },
+    },
+  },
+  required: ['reviews'],
+} as const;
+
 const LONG_SCRIPT_SCHEMA = {
   type: Type.OBJECT,
   properties: {
@@ -169,6 +192,56 @@ const LONG_SCRIPT_SCHEMA = {
   },
   required: ['hook_text', 'body_script', 'cta_text'],
 } as const;
+
+export interface ReviewTarget {
+  id: string;
+  hook: string;
+  body: string;
+  cta: string;
+}
+
+export interface ReviewVerdict {
+  id: string;
+  verdict: 'ok' | 'awkward' | 'broken';
+  reason: string;
+}
+
+interface RawReview {
+  reviews?: Partial<ReviewVerdict>[];
+}
+
+/**
+ * The lint only measures length and required keywords, so a script can pass it and still
+ * be unreadable out loud. This asks a native speaker of the language to judge the prose
+ * itself: dropped subjects, particles that do not agree, noun phrases that mean nothing.
+ */
+function buildReviewPrompt(targets: ReviewTarget[], lang_code: Language): string {
+  const profile = LANGUAGE_PROFILES[lang_code];
+  return `You are a native ${profile.name} speaker proofreading narration for short videos about ${profile.tradition}.
+Each script is read out loud by a synthetic voice, so it must sound like a fluent person speaking, not like a translation.
+
+Judge ONLY the language, never the astrology, never the length, never whether a call to action is persuasive.
+Mark "broken" when a sentence is not grammatical ${profile.name}: a missing subject, a predicate that does not agree with its subject, particles or articles that do not connect, or a noun phrase that carries no meaning.
+Mark "awkward" when it parses but no fluent speaker would say it that way, including stitched-together clauses and mixed registers.
+Mark "ok" only when you would read it aloud unchanged.
+
+These are real scripts that shipped and had to be withdrawn; every one of them is "broken":
+- 「ここが強い人ほど仕事が集まりやすく、いつも忙しいと感じる人は弱さではなく容量の出方です。」 two clauses describe different people, and 「容量の出方です」 is a noun phrase that states nothing about the subject.
+- 「ここが強い人は抱えすぎてから離しやすく、手放すのが苦手だと感じる人はこの部屋が出ています。」 the subject changes mid sentence and 「この部屋が出ています」 does not say what happens to the person.
+- 「相手の気分が自分のものになると感じる人ほど、ここです。」 「ここです」 cannot serve as the predicate of 「人ほど」.
+Be as strict with every script below. Sentences that merely sound like a horoscope are fine; sentences whose subject and predicate do not belong together are not.
+
+In "reason", quote the offending span and say what is wrong, in English, in one sentence. For "ok", leave "reason" empty.
+
+Return one entry per script, with the same id.
+
+${targets
+    .map(
+      (target) =>
+        `id: ${target.id}\nhook: ${target.hook}\nbody: ${target.body}\ncta: ${target.cta}`,
+    )
+    .join('\n\n')}`;
+}
 
 interface RawGeneration {
   script_30s?: Partial<GeneratedScript>;
@@ -279,9 +352,9 @@ function buildPrompt(request: GenerationRequest): string {
       : '7. Keep the tone calm and specific, and never open on plans or schedules going wrong, which is the opening these scripts fall into by default.',
     `8. Name the tradition in the first sentence of body_script, exactly as "${profile.tradition}". Viewers do not know what a nakshatra or a sidereal Moon sign is, so never open on a technical term without saying which system it comes from.`,
     `9. hook_text is spoken in the first two seconds, which is all a short-video feed gives the clip before deciding whether to keep showing it, so it is ${profile.hook}: one sentence, no clause leading up to the point, and nothing before the word that stops the scroll. It either names something the viewer already lives with and asks whether it is happening to them, or contradicts what they believe ("that is not your fault", "you are looking at the wrong planet"). Never announce the video or the topic ("here is this week\'s movement of the stars"), and never answer the hook in the hook itself.`,
-    '10. In script_30s the fixed CTA already spends about a third of the budget, so hook_text is one short line and body_script is at most two sentences. The length limits are hard limits. Count before answering — characters excluding spaces for Japanese, words for the other languages — and cut adjectives or add a concrete everyday detail until the total is inside the range.',
-    '11. body_script contains one sentence that lets the viewer decide for themselves whether the transit is acting on them, phrased as what it looks like in the people it reaches ("the ones it reaches find that ..."). Describe everyday actions, never symptoms, luck or loss.',
-    '12. cta_text has three parts in this order: (a) "to find out <the one thing this video left unanswered about the viewer>"; (b) the reason the generic twelve sun signs cannot settle it, because Jyotish combines finer divisions — the 108 subdivisions (27 lunar mansions x 4 padas) and the dasha periods — to reach one person\'s answer; (c) an invitation to check it free through the link. Never require the viewer to know their birth time, never disparage Western astrology, never write a URL, and never close on a definitive statement about the individual viewer.',
+    '10. The length limits are hard limits, but they are a budget, not a reason to drop words out of a sentence: every sentence must still be complete and idiomatic when read aloud, and a script that only fits because particles, subjects or verbs were cut is rejected. Count before answering — characters excluding spaces for Japanese, words for the other languages — and when the total is over, remove a whole detail or shorten the CTA rather than squeezing a sentence.',
+    '11. body_script contains one sentence that lets the viewer decide for themselves whether the transit is acting on them, by describing what it looks like in everyday actions, never symptoms, luck or loss. Say it the way a person speaks; do not reach for the same "the ones it reaches find that ..." frame every time, and never attach that condition to a predicate that describes the chart instead of the person.',
+    '12. cta_text covers three things in this order: (a) the one thing this video left unanswered about the viewer; (b) the reason the generic twelve sun signs cannot settle it, because Jyotish combines finer divisions — the 108 subdivisions (27 lunar mansions x 4 padas) and the dasha periods — to reach one person\'s answer; (c) an invitation to check it free through the link. Word all three freshly for this video in natural spoken language; there is no fixed sentence to reuse, and a CTA that reads like the same boilerplate appended to every script is rejected. Never require the viewer to know their birth time, never disparage Western astrology, never write a URL, and never close on a definitive statement about the individual viewer.',
     '13. Never create urgency through fear. Do not use danger, warning, running out of time, misfortune, or "if you do not do this" framings, and never promise that something will certainly happen.',
     '14. Never let the video close its own loop: state the general principle and the individual variation, and stop before the viewer could conclude what their own case is. The unanswered question is what takes them to the site.',
     spokenPeriod
@@ -368,13 +441,89 @@ export class GeminiService {
     return assertScript(raw, 'theme script_65s');
   }
 
-  private async generate<T>(prompt: string, schema: object): Promise<T> {
+  /**
+   * Rewrites a script that reads badly, keeping what it claims about the sky and the house so
+   * the reading stays true and no new astrology is invented.
+   */
+  async repairScript(
+    target: ReviewTarget,
+    lang_code: Language,
+    issues: string[],
+    pattern: Pattern,
+  ): Promise<GeneratedScript> {
+    const profile = LANGUAGE_PROFILES[lang_code];
+    const prompt = [
+      `You are a native ${profile.name} writer fixing narration for a short video about ${profile.tradition}.`,
+      'The script below says the right thing but is written badly. Rewrite it so a fluent speaker would read it aloud unchanged.',
+      '',
+      'What must not change: the astrological content. Keep the same house, the same planet, the same part of life, the same promise. Never add a transit, a number, a date or a term that is not already there, and never remove the invitation to check their own reading free through the link.',
+      '',
+      'What must change: anything that is not natural speech. One subject per sentence, a predicate that says something about that subject, no clause stitched to a clause with a different subject, no noun phrase standing in for a predicate, consistent register throughout.',
+      '',
+      `Lengths (hard limits, hook + body + cta combined): ${pattern === '30s' ? profile.length30s : profile.length65s}. hook_text is ${profile.hook} and is spoken in the first two seconds. If it does not fit, drop a whole detail rather than squeezing a sentence until words are missing.`,
+      profile.note ?? '',
+      '',
+      issues.length > 0 ? `A reviewer rejected it for: ${issues.join('; ')}.` : '',
+      '',
+      `hook: ${target.hook}`,
+      `body: ${target.body}`,
+      `cta: ${target.cta}`,
+      '',
+      'Return only the JSON object; no markdown fences, no commentary.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const raw = await this.generate<Partial<GeneratedScript>>(
+      prompt,
+      LONG_SCRIPT_SCHEMA,
+      DEFAULT_REVIEW_MODELS,
+      REVIEW_TIMEOUT_MS,
+    );
+    return assertScript(raw, 'repaired script');
+  }
+
+  /** Flags scripts that pass the lint but do not read as fluent prose in their language. */
+  async reviewScripts(targets: ReviewTarget[], lang_code: Language): Promise<ReviewVerdict[]> {
+    if (targets.length === 0) return [];
+
+    const configured = (optionalEnv('GEMINI_REVIEW_MODEL') ?? '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean);
+    const raw = await this.generate<RawReview>(
+      buildReviewPrompt(targets, lang_code),
+      REVIEW_SCHEMA,
+      configured.length > 0 ? configured : DEFAULT_REVIEW_MODELS,
+      REVIEW_TIMEOUT_MS,
+    );
+    const byId = new Map((raw.reviews ?? []).map((review) => [review.id, review]));
+    return targets.map((target) => {
+      const review = byId.get(target.id);
+      if (!review?.verdict) {
+        return { id: target.id, verdict: 'broken', reason: 'the reviewer returned no verdict' };
+      }
+      return {
+        id: target.id,
+        verdict: review.verdict,
+        reason: (review.reason ?? '').trim(),
+      };
+    });
+  }
+
+  private async generate<T>(
+    prompt: string,
+    schema: object,
+    models?: string[],
+    timeoutMs = ATTEMPT_TIMEOUT_MS,
+  ): Promise<T> {
     let lastError: Error | undefined;
+    const candidates = models ?? this.models;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-      const model = this.models[(attempt - 1) % this.models.length];
+      const model = candidates[(attempt - 1) % candidates.length];
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), ATTEMPT_TIMEOUT_MS);
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const response = await this.ai.models.generateContent({
           model,
@@ -383,7 +532,7 @@ export class GeminiService {
             responseMimeType: 'application/json',
             responseSchema: schema,
             abortSignal: controller.signal,
-            httpOptions: { timeout: ATTEMPT_TIMEOUT_MS },
+            httpOptions: { timeout: timeoutMs },
           },
         });
 

@@ -17,6 +17,7 @@ export interface ScriptIssue {
     | 'missing_period'
     | 'missing_sign'
     | 'vague_house'
+    | 'dangling_predicate'
     | 'too_short'
     | 'too_long';
   detail: string;
@@ -64,6 +65,23 @@ const RECOGNITION_PATTERNS: Record<Language, RegExp> = {
   fr: /(remarqu|ressent|ressens|reconna|si cela vous parle|ceux que cela touche)/i,
   de: /(bemerk|sp[üu]r|erkenn|wen es trifft|vielleicht hast du)/i,
 };
+
+/**
+ * Japanese sentences that take a person as their topic and then close on the chart instead of
+ * on that person (「〜感じる人はこの部屋が出ています」). They read as a translation and shipped for
+ * months, because every other check passes: the words are all allowed and the length fits.
+ */
+const PERSON_TOPIC = /(?:人|あなた|時期)(?:は|ほど|、)/;
+const DANGLING_PREDICATES =
+  /(?:ここ|この(?:部屋|配置|周期|細かさ|偏り|二日|日)|出方|位置|形|点数|図ごとの差|結論|担当|差|月)(?:が|は|も)?(?:です|でした|です。|出ています|出ます|効いています|動いていました|働いています|当たっています|合っていません|変わります|違います|違う|替わります|離れています|ズレています|別です)。?$/;
+
+/** Sentences of Japanese narration, without the trailing empty piece. */
+function japaneseSentences(text: string): string[] {
+  return text
+    .split(/(?<=。)/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
 
 /** The CTA has to leave the personal answer to the chart, or the video closes the loop itself. */
 const INDIVIDUAL_DIFFERENCE_PATTERNS: Record<Language, RegExp> = {
@@ -268,6 +286,16 @@ export function lintScript(
     const url = text.match(URL_PATTERN);
     if (url) {
       issues.push({ field, code: 'contains_url', detail: url[0] });
+    }
+  }
+
+  if (language === 'ja') {
+    for (const { field, text } of fields) {
+      for (const sentence of japaneseSentences(text)) {
+        if (PERSON_TOPIC.test(sentence) && DANGLING_PREDICATES.test(sentence)) {
+          issues.push({ field, code: 'dangling_predicate', detail: sentence });
+        }
+      }
     }
   }
 
