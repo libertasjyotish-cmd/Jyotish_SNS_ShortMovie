@@ -1,5 +1,6 @@
+import { fixedCta } from '@/lib/fixed-cta';
 import { normalizeDigits } from '@/lib/period';
-import { GeneratedScript } from '@/services/gemini';
+import type { GeneratedScript } from '@/services/gemini';
 import { Language, Pattern } from '@/services/sheets';
 
 export interface ScriptIssue {
@@ -152,19 +153,21 @@ export const HOOK_BOUNDS: Record<Language, number> = {
 };
 
 /**
- * Length the narration has to land in to fit its pattern. Derived from measured Google Cloud
- * TTS output at the default speaking rate, with the margin the re-synthesis loop can absorb.
+ * Length the narration has to land in to fit its pattern, closing included. Derived from measured
+ * Google Cloud TTS output at the default speaking rate, with the margin the re-synthesis loop can
+ * absorb. The short pattern is read in about 38 seconds so that the fixed closing does not eat the
+ * sentences the viewer needs to recognise themselves in.
  */
 const LENGTH_BOUNDS: Record<Pattern, Record<Language, { min: number; max: number }>> = {
   '30s': {
-    ja: { min: 130, max: 185 },
-    en: { min: 45, max: 70 },
-    es: { min: 60, max: 95 },
-    pt: { min: 60, max: 95 },
-    id: { min: 60, max: 95 },
-    ar: { min: 60, max: 95 },
-    fr: { min: 60, max: 95 },
-    de: { min: 55, max: 85 },
+    ja: { min: 150, max: 213 },
+    en: { min: 52, max: 81 },
+    es: { min: 69, max: 109 },
+    pt: { min: 69, max: 109 },
+    id: { min: 69, max: 109 },
+    ar: { min: 69, max: 109 },
+    fr: { min: 69, max: 109 },
+    de: { min: 63, max: 98 },
   },
   '65s': {
     ja: { min: 350, max: 460 },
@@ -177,6 +180,26 @@ const LENGTH_BOUNDS: Record<Pattern, Record<Language, { min: number; max: number
     de: { min: 130, max: 185 },
   },
 };
+
+/**
+ * Room the generated part of the script has, once the fixed closing is taken out of the budget.
+ * The model is told this instead of the whole-script limit, so it never has to guess how much the
+ * CTA it is not writing will cost.
+ */
+export function narrationBudget(
+  language: Language,
+  pattern: Pattern,
+  period?: string,
+): { min: number; max: number; unit: string } {
+  const bounds = LENGTH_BOUNDS[pattern][language];
+  const allowance = period ? SIGN_ALLOWANCE[language] : 0;
+  const cta = scriptLength(fixedCta(language), language);
+  return {
+    min: Math.max(1, bounds.min + allowance - cta),
+    max: Math.max(1, bounds.max + allowance - cta),
+    unit: CHARACTER_COUNTED.includes(language) ? 'characters excluding spaces' : 'words',
+  };
+}
 
 export function scriptLength(text: string, language: Language): number {
   if (CHARACTER_COUNTED.includes(language)) {
@@ -303,11 +326,6 @@ export function lintScript(
   return issues;
 }
 
-/** Wordings the checks accept, written out so a rewrite is told the target instead of guessing it. */
-function accepted(pattern: RegExp): string {
-  return pattern.source.replace(/\\b|\(\?:|[()]/g, '').replace(/\|/g, ' / ');
-}
-
 /**
  * The checks a script has to satisfy, phrased as instructions. A rewrite that is only told what
  * was wrong loops between two failures — fixing the recognition sentence by dropping the CTA
@@ -319,15 +337,12 @@ export function lintRequirements(
   period?: string,
   signName?: string,
 ): string[] {
-  const bounds = LENGTH_BOUNDS[pattern][language];
-  const allowance = period ? SIGN_ALLOWANCE[language] : 0;
-  const unit = CHARACTER_COUNTED.includes(language) ? 'characters excluding spaces' : 'words';
+  const budget = narrationBudget(language, pattern, period);
 
   return [
-    `hook_text + body_script + cta_text together: ${bounds.min + allowance}-${bounds.max + allowance} ${unit}; hook_text alone at most ${HOOK_BOUNDS[language]}.`,
+    `hook_text + body_script together: ${budget.min}-${budget.max} ${budget.unit}; hook_text alone at most ${HOOK_BOUNDS[language]}. The fixed closing is added by the app on top of this and is not yours to write or to count.`,
     'hook_text names something the viewer lives with; it never opens by announcing the video or the week.',
     'body_script lets the viewer tell whether this reaches them, in whatever words read naturally.',
-    `cta_text leaves the personal answer to the chart and sends the viewer to look their own reading up (one of: ${accepted(CTA_ACTION_PATTERNS[language])}).`,
     'No URL, domain or email in any field.',
     ...(period
       ? [`body_script says the week out loud exactly as "${period}", including its numbers.`]
