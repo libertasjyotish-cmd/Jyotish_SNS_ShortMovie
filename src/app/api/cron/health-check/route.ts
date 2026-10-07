@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { sendAlert } from '@/lib/alert';
 import { isCronAuthorized } from '@/lib/auth';
 import { ChannelStatus, collectChannelStatuses } from '@/lib/channel-status';
+import { probeGeminiCredit } from '@/services/gemini';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const statuses = await collectChannelStatuses();
+    const [statuses, gemini] = await Promise.all([collectChannelStatuses(), probeGeminiCredit()]);
     // Rows without a credential are unfinished setup (e.g. Threads outside pt), not an outage.
     const disconnected = statuses.filter((status) => !status.connected && status.configured);
     const unconfigured = statuses.filter((status) => !status.configured);
@@ -34,9 +35,17 @@ export async function GET(request: Request) {
         status.expires_in_days <= EXPIRY_WARNING_DAYS,
     );
 
-    if (disconnected.length > 0 || expiring.length > 0) {
+    if (disconnected.length > 0 || expiring.length > 0 || !gemini.ok) {
       await sendAlert([
-        `Jyotish SNS channel health: ${statuses.filter((s) => s.connected).length}/${statuses.length - unconfigured.length} connected`,
+        gemini.ok
+          ? `Jyotish SNS channel health: ${statuses.filter((s) => s.connected).length}/${statuses.length - unconfigured.length} connected`
+          : 'Gemini APIが使えません（原稿生成・サイトの鑑定文が止まります）',
+        ...(gemini.ok
+          ? []
+          : [
+              `詳細: ${gemini.detail}`,
+              '前払い残高切れの場合は https://aistudio.google.com/usage で入金してください（プロジェクト libertas-jyotish-prod）。',
+            ]),
         ...disconnected.map((status) => `NG ${label(status)}: ${status.error ?? 'not connected'}`),
         ...expiring.map(
           (status) => `期限間近 ${label(status)}: あと${status.expires_in_days}日でトークン失効`,
@@ -51,6 +60,7 @@ export async function GET(request: Request) {
       disconnected: disconnected.map(label),
       unconfigured: unconfigured.map(label),
       expiring: expiring.map(label),
+      gemini,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
