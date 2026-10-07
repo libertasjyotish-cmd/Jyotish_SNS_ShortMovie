@@ -10,12 +10,51 @@ const MAX_ATTEMPTS = 3;
 const BASE_BACKOFF_MS = 2_000;
 const ATTEMPT_TIMEOUT_MS = 25_000;
 
+/**
+ * A depleted prepaid balance also comes back as RESOURCE_EXHAUSTED, but no amount of
+ * retrying fixes it: only a top-up does.
+ */
+export function isGeminiCreditError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /\b402\b|prepayment credits|billing account|FAILED_PRECONDITION/i.test(message);
+}
+
 /** 429 / 5xx from the Gemini endpoint are load related and worth retrying. */
 export function isTransientGeminiError(error: unknown): boolean {
+  if (isGeminiCreditError(error)) return false;
   const message = error instanceof Error ? error.message : String(error);
   return /\b(429|500|502|503|504)\b|RESOURCE_EXHAUSTED|UNAVAILABLE|DEADLINE_EXCEEDED|abort/i.test(
     message,
   );
+}
+
+/**
+ * Smallest possible call, used by the daily health check so a depleted balance surfaces
+ * before a weekly generation run loses the week.
+ */
+export async function probeGeminiCredit(): Promise<{ ok: boolean; detail: string }> {
+  const model = DEFAULT_MODELS[0];
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': requireEnv('GEMINI_API_KEY'),
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ contents: [{ parts: [{ text: 'ok' }] }] }),
+        signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
+      },
+    );
+    if (response.ok) return { ok: true, detail: model };
+    const body = await response.text();
+    const detail = `${model} ${response.status} ${body.slice(0, 200)}`;
+    // 429 is a per-minute quota, which clears by itself; 402 needs the owner to pay.
+    return { ok: !isGeminiCreditError(detail) && response.status === 429, detail };
+  } catch (error) {
+    return { ok: false, detail: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -394,6 +433,7 @@ export class GeminiService {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown Gemini error');
         console.error(`Gemini generation attempt ${attempt} (${model}) failed:`, lastError.message);
+        if (isGeminiCreditError(lastError)) throw lastError;
         if (attempt < MAX_ATTEMPTS) {
           // Exponential backoff with jitter so parallel workers do not retry in lockstep.
           await sleep(BASE_BACKOFF_MS * 2 ** (attempt - 1) * (0.5 + Math.random()));
