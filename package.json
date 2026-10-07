@@ -10,6 +10,8 @@
     "check:titles": "tsx scripts/check-youtube-title.ts",
     "check:thumbnails": "tsx scripts/check-youtube-thumbnails.ts",
     "lint:scripts": "tsx scripts/lint-scripts.ts",
+    "review:scripts": "tsx scripts/review-scripts.ts",
+    "rewrite:evergreen": "tsx scripts/rewrite-evergreen.ts",
     "load:evergreen": "tsx scripts/load-evergreen.ts",
     "refresh:seo": "tsx scripts/refresh-youtube-seo.ts",
     "diagnose:reach": "tsx scripts/diagnose-youtube-reach.ts",

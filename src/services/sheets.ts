@@ -590,6 +590,37 @@ export class GoogleSheetsService {
     await this.patchRows(SHEET_NAMES.evergreenScripts, patches);
   }
 
+  /** Replaces the spoken text of evergreen scripts, keeping schedule and usage columns. */
+  async updateEvergreenScripts(
+    updates: {
+      scriptId: string;
+      lang_code: Language;
+      hook: string;
+      body: string;
+      cta: string;
+      hashtags?: string;
+    }[],
+  ): Promise<void> {
+    if (updates.length === 0) return;
+
+    const { rows } = await this.loadTable(SHEET_NAMES.evergreenScripts);
+    const patches = updates.map(({ scriptId, lang_code, hook, body, cta, hashtags }) => {
+      const row = rows.find(
+        (candidate) =>
+          candidate.values.script_id === scriptId && candidate.values.lang_code === lang_code,
+      );
+      if (!row) {
+        throw new Error(
+          `script_id "${scriptId}" (${lang_code}) not found in ${SHEET_NAMES.evergreenScripts}`,
+        );
+      }
+      const patch: Record<string, string> = { hook, body, cta };
+      if (hashtags !== undefined) patch.hashtags = hashtags;
+      return { rowNumber: row.rowNumber, patch };
+    });
+    await this.patchRows(SHEET_NAMES.evergreenScripts, patches);
+  }
+
   async getQueueTasks(weekId: string): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows
