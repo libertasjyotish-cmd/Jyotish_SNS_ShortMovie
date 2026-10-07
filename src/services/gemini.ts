@@ -250,18 +250,22 @@ interface RawReview {
 }
 
 /**
- * The lint only measures length and required keywords, so a script can pass it and still
- * be unreadable out loud. This asks a native speaker of the language to judge the prose
- * itself: dropped subjects, particles that do not agree, noun phrases that mean nothing.
+ * The lint measures only what a regex can see, so a script can pass it and still be
+ * unreadable out loud. This asks a native speaker of the language to judge the prose itself —
+ * dropped subjects, particles that do not agree, noun phrases that mean nothing — and to judge
+ * the two things the lint used to enforce with word lists, which is what forced the scripts
+ * into one broken mould: that the viewer can tell whether the reading reaches them, and that
+ * the close sends them to look their own chart up.
  */
 function buildReviewPrompt(targets: ReviewTarget[], lang_code: Language): string {
   const profile = LANGUAGE_PROFILES[lang_code];
   return `You are a native ${profile.name} speaker proofreading narration for short videos about ${profile.tradition}.
 Each script is read out loud by a synthetic voice, so it must sound like a fluent person speaking, not like a translation.
 
-Judge ONLY the language, never the astrology, never the length, never whether a call to action is persuasive.
+Judge the language and these two things only; never the astrology and never the length.
 Mark "broken" when a sentence is not grammatical ${profile.name}: a missing subject, a predicate that does not agree with its subject, particles or articles that do not connect, or a noun phrase that carries no meaning.
 Mark "awkward" when it parses but no fluent speaker would say it that way, including stitched-together clauses and mixed registers.
+Mark "awkward" as well when the body gives the viewer nothing to recognise in their own life, or when the close does not invite them to look their own reading up. Any natural wording counts; there is no phrase that has to appear.
 Mark "ok" only when you would read it aloud unchanged.
 
 These are real scripts that shipped and had to be withdrawn; every one of them is "broken":
@@ -393,7 +397,7 @@ function buildPrompt(request: GenerationRequest): string {
     `9. hook_text is spoken in the first two seconds, which is all a short-video feed gives the clip before deciding whether to keep showing it, so it is ${profile.hook}: one sentence, no clause leading up to the point, and nothing before the word that stops the scroll. It either names something the viewer already lives with and asks whether it is happening to them, or contradicts what they believe ("that is not your fault", "you are looking at the wrong planet"). Never announce the video or the topic ("here is this week\'s movement of the stars"), and never answer the hook in the hook itself.`,
     '10. The length limits are hard limits, but they are a budget, not a reason to drop words out of a sentence: every sentence must still be complete and idiomatic when read aloud, and a script that only fits because particles, subjects or verbs were cut is rejected. Count before answering — characters excluding spaces for Japanese, words for the other languages — and when the total is over, remove a whole detail or shorten the CTA rather than squeezing a sentence.',
     '11. body_script contains one sentence that lets the viewer decide for themselves whether the transit is acting on them, by describing what it looks like in everyday actions, never symptoms, luck or loss. Say it the way a person speaks; do not reach for the same "the ones it reaches find that ..." frame every time, and never attach that condition to a predicate that describes the chart instead of the person.',
-    '12. cta_text covers three things in this order: (a) the one thing this video left unanswered about the viewer; (b) the reason the generic twelve sun signs cannot settle it, because Jyotish combines finer divisions — the 108 subdivisions (27 lunar mansions x 4 padas) and the dasha periods — to reach one person\'s answer; (c) an invitation to check it free through the link. Word all three freshly for this video in natural spoken language; there is no fixed sentence to reuse, and a CTA that reads like the same boilerplate appended to every script is rejected. Never require the viewer to know their birth time, never disparage Western astrology, never write a URL, and never close on a definitive statement about the individual viewer.',
+    '12. cta_text is two short spoken sentences: the one thing this video left unanswered about the viewer, and an invitation to check it free through the link. Only add why a shared forecast cannot settle it — that the answer is read from the finer divisions of their own chart and the period they are in — when it still fits the budget naturally; it is better left out than crammed in, and the numbers 108 or 27 are never required. Word it freshly for this video; a CTA that reads like the same boilerplate appended to every script is rejected. Never require the viewer to know their birth time, never disparage Western astrology, never write a URL, and never close on a definitive statement about the individual viewer.',
     '13. Never create urgency through fear. Do not use danger, warning, running out of time, misfortune, or "if you do not do this" framings, and never promise that something will certainly happen.',
     '14. Never let the video close its own loop: state the general principle and the individual variation, and stop before the viewer could conclude what their own case is. The unanswered question is what takes them to the site.',
     spokenPeriod
@@ -425,7 +429,7 @@ function buildPrompt(request: GenerationRequest): string {
     'Worked example of the structure (English, different topic; copy the shape, not the words):',
     'hook_text: "Told this was a good year for you and nothing happened? You were not looking at the right place."',
     'body_script: "In Jyotish, a transit is read by the house it passes through in your own chart, not by the sign it sits in. The same year lands on work for one person and on the home for another, which is why a shared forecast fits almost no one. If the year felt flat to you, the movement was simply expanding somewhere you were not watching."',
-    'cta_text: "To find out which house it passes through for you, twelve sun signs are not enough: Jyotish combines the 108 subdivisions with your dasha periods to reach one answer. Check yours free through the link."',
+    'cta_text: "Which part of your life it is expanding is read from your own chart, not from your sun sign. Check yours free through the link."',
     '',
     'hashtags: 4-6 space-separated hashtags suitable for the target language, always including #LibertasJyotish.',
     request.lint_feedback
@@ -489,6 +493,7 @@ export class GeminiService {
     lang_code: Language,
     issues: string[],
     pattern: Pattern,
+    requirements: string[] = [],
   ): Promise<GeneratedScript> {
     const profile = LANGUAGE_PROFILES[lang_code];
     const prompt = [
@@ -503,6 +508,12 @@ export class GeminiService {
       profile.note ?? '',
       '',
       issues.length > 0 ? `A reviewer rejected it for: ${issues.join('; ')}.` : '',
+      requirements.length > 0
+        ? [
+            'The rewrite is checked automatically and every one of these has to hold at the same time; fixing one by dropping another is rejected:',
+            ...requirements.map((requirement, index) => `${index + 1}. ${requirement}`),
+          ].join('\n')
+        : '',
       '',
       `hook: ${target.hook}`,
       `body: ${target.body}`,

@@ -7,7 +7,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
-import { lintScript, scriptLength } from '@/lib/script-lint';
+import { lintRequirements, lintScript, scriptLength } from '@/lib/script-lint';
 import {
   GeminiService,
   isTransientGeminiError,
@@ -114,7 +114,7 @@ async function main() {
     let repaired: GeneratedScript | undefined;
     for (let pass = 1; pass <= MAX_PASSES; pass += 1) {
       const candidate = await withRetry(`${script.script_id} repair`, () =>
-        gemini.repairScript(target, lang, issues, '30s'),
+        gemini.repairScript(target, lang, issues, '30s', lintRequirements(lang, '30s')),
       );
       if (!candidate) break;
 

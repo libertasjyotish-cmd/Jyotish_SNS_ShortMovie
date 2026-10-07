@@ -7,12 +7,10 @@ export interface ScriptIssue {
   code:
     | 'fear_wording'
     | 'certainty_wording'
-    | 'missing_recognition'
-    | 'missing_individual_difference'
-    | 'hook_not_addressed'
+    | 'hook_announces_topic'
     | 'hook_too_long'
     | 'discouraged_wording'
-    | 'weak_cta'
+    | 'cta_without_action'
     | 'contains_url'
     | 'missing_period'
     | 'missing_sign'
@@ -52,21 +50,6 @@ const CERTAINTY_PATTERNS: Record<Language, RegExp> = {
 };
 
 /**
- * The sentence that lets the viewer judge for themselves whether the transit reaches them.
- * Without it the script states a fact about the sky and gives the viewer nothing to check.
- */
-const RECOGNITION_PATTERNS: Record<Language, RegExp> = {
-  ja: /効い|効く|届い|届く|当てはま|出ている人|感じ|心当た|覚え|思い当た|気づ/,
-  en: /\b(the ones it reaches|if it reaches you|you may have noticed|notice|recognise|recognize)\b/i,
-  es: /\b(a quienes les llega|puede que hayas notado|has notado|te das cuenta|notas|percibes|sientes|experimentas|reconoces)\b/i,
-  pt: /\b(a quem chega|talvez tenha notado|percebe|reconhece)\b/i,
-  id: /\b(yang terkena|mungkin kamu merasa|memperhatikan|perhatikan|menyadari|sadar|terasa|kamu rasakan|mengenali)\b/i,
-  ar: /من يصله|ربما لاحظت|تلاحظ|لاحظت|تشعر|تجد|يتكرر/,
-  fr: /(remarqu|ressent|ressens|reconna|si cela vous parle|ceux que cela touche)/i,
-  de: /(bemerk|sp[üu]r|erkenn|wen es trifft|vielleicht hast du)/i,
-};
-
-/**
  * Japanese sentences that take a person as their topic and then close on the chart instead of
  * on that person (「〜感じる人はこの部屋が出ています」). They read as a translation and shipped for
  * months, because every other check passes: the words are all allowed and the length fits.
@@ -82,38 +65,6 @@ function japaneseSentences(text: string): string[] {
     .map((sentence) => sentence.trim())
     .filter(Boolean);
 }
-
-/** The CTA has to leave the personal answer to the chart, or the video closes the loop itself. */
-const INDIVIDUAL_DIFFERENCE_PATTERNS: Record<Language, RegExp> = {
-  ja: /出生時刻|生まれた時|ホロスコープ|108の区分|ダシャー|あなた|人によって|強さ|変わります/,
-  en: /\b(birth time|birth chart|horoscope|varies|depends on|108|dasha)\b/i,
-  es: /(?:^|[^a-z\u00c0-\u024f])(hora de nacimiento|carta natal|hor[óo]scopo|var[íi]a|depende|108|dasha)(?![a-z\u00c0-\u024f])/i,
-  pt: /(?:^|[^a-z\u00c0-\u024f])(hora de nascimento|carta natal|hor[óo]scopo|varia|depende|108|dasha)(?![a-z\u00c0-\u024f])/i,
-  id: /\b(waktu lahir|bagan lahir|horoskop|berbeda|tergantung|108|dasha)\b/i,
-  ar: /وقت الميلاد|خريطة الميلاد|يختلف|يعتمد|108|داشا/,
-  fr: /(heure de naissance|th[èe]me natal|carte du ciel|horoscope|varie|d[ée]pend|108|dasha)/i,
-  de: /(geburtszeit|geburtshoroskop|geburtsbild|horoskop|unterschiedlich|h[äa]ngt|je nach|108|dasha)/i,
-};
-
-/**
- * The hook either asks the viewer about their own life or contradicts what they believe, since
- * a video only earns a visit to the site when the viewer cannot settle the question alone.
- */
-const HOOK_ADDRESSED_PATTERNS: Record<Language, RegExp> = {
-  ja: /[?？]|ますか|ませんか|ですか|でしょうか|あなた|自分|なら|ではありません|ではなく|違います|人へ|人は|人、|か。/,
-  en: /\?|\byou(r|rs)?\b|\bis not\b|\bisn't\b|\bnot because\b/i,
-  /**
-   * Spanish drops the pronoun, so the second person often shows only in the verb ending;
-   * the forms listed are the ones the hooks are written with.
-   */
-  es: /[?¿]|(?:^|[^a-z\u00c0-\u024f])(tu|tus|t[úu]|te|ti|contigo|est[áa]s|llevas|eliges|sigues|sientes|notas|vuelves|ganas|puedes|tienes|quieres|haces|dices|crees|piensas|acabas|terminas)(?![a-z\u00c0-\u024f])|\bno es\b/i,
-  pt: /\?|(?:^|[^a-z\u00c0-\u024f])(voc[êe]|teu|tua|seu|sua|te|n[ãa]o [ée])(?![a-z\u00c0-\u024f])/i,
-  id: /\?|\b(kamu|anda)\b|\b\w+mu\b|\bbukan\b/i,
-  /** The trailing kaf is the second-person possessive, which is how Arabic addresses the viewer. */
-  ar: /[?؟]|أنت|لديك|عندك|ليس|تجد|تشعر|تلاحظ|كل مرة|تكرر|[ء-ي]ك(?![ء-ي])/,
-  fr: /\?|(?:^|[^a-z\u00c0-\u024f])(vous|votre|vos|tu|ton|ta|tes)(?![a-z\u00c0-\u024f])|\bn'est pas\b/i,
-  de: /\?|\b(du|dich|dir|dein|deine|deinem|deinen|deiner|euch|sie|ihr|ihre)\b|\bnicht\b/i,
-};
 
 /** Openings that announce the video instead of naming something the viewer lives with. */
 const HOOK_LECTURE_PATTERNS: Record<Language, RegExp> = {
@@ -135,22 +86,7 @@ const DISCOURAGED_PATTERNS: Partial<Record<Language, RegExp>> = {
   ja: /出生図|出生時間|チャート|ネイタル/,
 };
 
-/**
- * The CTA earns the visit by naming what the twelve sun signs cannot settle and the finer
- * divisions Jyotish reads instead; without that contrast it reads as a generic forecast.
- */
-const CTA_DIFFERENTIATION_PATTERNS: Record<Language, RegExp> = {
-  ja: /12の太陽星座|12星座|108の区分|27の宿|ダシャー/,
-  en: /\b(twelve sun signs|12 sun signs|108 divisions|27 lunar mansions|dasha)\b/i,
-  es: /\b(doce signos solares|12 signos|108 divisiones|27 mansiones|dasha)\b/i,
-  pt: /\b(doze signos solares|12 signos|108 divis[õo]es|27 mans[õo]es|dasha)\b/i,
-  id: /\b(dua belas zodiak|12 zodiak|108 pembagian|27 rasi bulan|dasha)\b/i,
-  ar: /الأبراج الشمسية الاثني عشر|١٢ برجا|108 قسم|27 منزلا|داشا/,
-  fr: /(douze signes solaires|12 signes|108 divisions|27 demeures|dasha)/i,
-  de: /(zw[öo]lf sonnenzeichen|12 sternzeichen|108 abschnitte|27 mondh[äa]user|dasha)/i,
-};
-
-/** The CTA has to send the viewer somewhere; naming the difference alone converts nobody. */
+/** The CTA has to send the viewer somewhere, or the video earns no visit to the site. */
 const CTA_ACTION_PATTERNS: Record<Language, RegExp> = {
   ja: /調べるには|確認できます|リンク|プロフィール|概要欄/,
   en: /\b(link|profile|bio|find out|check yours)\b/i,
@@ -299,23 +235,12 @@ export function lintScript(
     }
   }
 
-  if (!RECOGNITION_PATTERNS[language].test(`${script.hook_text} ${script.body_script}`)) {
-    issues.push({
-      field: 'body_script',
-      code: 'missing_recognition',
-      detail: 'no sentence lets the viewer check whether the transit reaches them',
-    });
-  }
-
   const hook = script.hook_text.trim();
-  if (
-    !HOOK_ADDRESSED_PATTERNS[language].test(hook) ||
-    HOOK_LECTURE_PATTERNS[language].test(hook)
-  ) {
+  if (HOOK_LECTURE_PATTERNS[language].test(hook)) {
     issues.push({
       field: 'hook_text',
-      code: 'hook_not_addressed',
-      detail: 'the hook announces a topic instead of naming what the viewer lives with',
+      code: 'hook_announces_topic',
+      detail: 'the hook announces the video instead of naming what the viewer lives with',
     });
   }
 
@@ -328,22 +253,11 @@ export function lintScript(
     });
   }
 
-  if (!INDIVIDUAL_DIFFERENCE_PATTERNS[language].test(script.cta_text)) {
+  if (!CTA_ACTION_PATTERNS[language].test(script.cta_text)) {
     issues.push({
       field: 'cta_text',
-      code: 'missing_individual_difference',
-      detail: 'the CTA does not leave the personal answer to the birth chart',
-    });
-  }
-
-  if (
-    !CTA_DIFFERENTIATION_PATTERNS[language].test(script.cta_text) ||
-    !CTA_ACTION_PATTERNS[language].test(script.cta_text)
-  ) {
-    issues.push({
-      field: 'cta_text',
-      code: 'weak_cta',
-      detail: 'the CTA does not contrast the twelve sun signs and send the viewer to look it up',
+      code: 'cta_without_action',
+      detail: 'the CTA never sends the viewer to look their own reading up',
     });
   }
 
@@ -387,6 +301,48 @@ export function lintScript(
   }
 
   return issues;
+}
+
+/** Wordings the checks accept, written out so a rewrite is told the target instead of guessing it. */
+function accepted(pattern: RegExp): string {
+  return pattern.source.replace(/\\b|\(\?:|[()]/g, '').replace(/\|/g, ' / ');
+}
+
+/**
+ * The checks a script has to satisfy, phrased as instructions. A rewrite that is only told what
+ * was wrong loops between two failures — fixing the recognition sentence by dropping the CTA
+ * contrast and back — because the checks themselves were never stated to it.
+ */
+export function lintRequirements(
+  language: Language,
+  pattern: Pattern,
+  period?: string,
+  signName?: string,
+): string[] {
+  const bounds = LENGTH_BOUNDS[pattern][language];
+  const allowance = period ? SIGN_ALLOWANCE[language] : 0;
+  const unit = CHARACTER_COUNTED.includes(language) ? 'characters excluding spaces' : 'words';
+
+  return [
+    `hook_text + body_script + cta_text together: ${bounds.min + allowance}-${bounds.max + allowance} ${unit}; hook_text alone at most ${HOOK_BOUNDS[language]}.`,
+    'hook_text names something the viewer lives with; it never opens by announcing the video or the week.',
+    'body_script lets the viewer tell whether this reaches them, in whatever words read naturally.',
+    `cta_text leaves the personal answer to the chart and sends the viewer to look their own reading up (one of: ${accepted(CTA_ACTION_PATTERNS[language])}).`,
+    'No URL, domain or email in any field.',
+    ...(period
+      ? [`body_script says the week out loud exactly as "${period}", including its numbers.`]
+      : []),
+    ...(signName
+      ? [
+          `hook_text or the first sentence of body_script says the sign exactly as "${signName}", and body_script counts the house as an ordinal, never "a certain house".`,
+        ]
+      : []),
+    ...(language === 'ja'
+      ? [
+          'Each sentence has one subject and a predicate that says something about that subject. Never close a sentence about a person on a noun phrase about the chart (「〜人はこの部屋が出ています」 is broken), and never write 出生図 / 出生時間 / チャート / ネイタル.',
+        ]
+      : []),
+  ];
 }
 
 export function describeIssues(issues: ScriptIssue[]): string {
