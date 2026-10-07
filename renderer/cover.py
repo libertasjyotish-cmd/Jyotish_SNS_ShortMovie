@@ -20,6 +20,7 @@ VEIL_STRENGTH = 0.3
 PLATE_RADIUS = 0.036
 PLATE_PADDING = 0.027
 SIGN_SIZE = 0.071
+SIGN_LINES = 3
 CAPTION_SIZE = 0.041
 RULE_WIDTH = 0.125
 RULE_HEIGHT = 0.004
@@ -69,8 +70,10 @@ def build(
     layer = Image.new("RGBA", size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
 
-    sign_font, _ = _fit_font(
-        draw, sign, language, "button", round(scale * SIGN_SIZE), width * 0.78, 1
+    # A headline that names the subject rather than a sign is a sentence, so it wraps instead of
+    # shrinking to one unreadable line.
+    sign_font, sign_lines = _fit_font(
+        draw, sign, language, "button", round(scale * SIGN_SIZE), width * 0.78, SIGN_LINES
     )
     captions = [line for line in (note, period) if line]
     caption_font, _ = _fit_font(
@@ -83,7 +86,10 @@ def build(
         1,
     )
 
-    rows = [(sign, sign_font), *((caption, caption_font) for caption in captions)]
+    rows = [
+        *((line, sign_font) for line in sign_lines),
+        *((caption, caption_font) for caption in captions),
+    ]
     heights = [round(font.size * 1.3) for _, font in rows]
     plate_width = min(
         width * 0.90,
