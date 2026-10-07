@@ -380,7 +380,6 @@ export class GeminiService {
           model,
           contents: prompt,
           config: {
-            temperature: 0.7,
             responseMimeType: 'application/json',
             responseSchema: schema,
             abortSignal: controller.signal,
