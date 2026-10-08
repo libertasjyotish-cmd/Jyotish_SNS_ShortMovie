@@ -2,7 +2,7 @@ import { CTA_NOTES } from '@/lib/cta';
 import { optionalEnv } from '@/lib/env';
 import { mp3DurationSeconds } from '@/lib/mp3';
 import { applyReadingHints } from '@/lib/reading';
-import { DAY_OFFSET, DayOfWeek } from '@/lib/schedule';
+import { DAY_OFFSET, DayOfWeek, PROMO_SCRIPT_PREFIX } from '@/lib/schedule';
 import { SIGN_THEME_SERIES } from '@/lib/sign-themes';
 import { ZODIAC_SIGNS } from '@/lib/zodiac-names';
 import { CreatomateService } from '@/services/creatomate';
@@ -110,6 +110,18 @@ function stableHash(value: string): number {
 /** Slots a week takes up: the four theme days plus the twelve sign readings. */
 const SLOTS_PER_WEEK = 16;
 
+/** A task id ends in the script id it was planned from, so a promotion is told apart by it. */
+function isPromoTaskId(taskId: string): boolean {
+  return taskId.includes(`-${PROMO_SCRIPT_PREFIX}`);
+}
+
+/** Place of a promotion among the promotions its day publishes, counted in task id order. */
+function promoOrdinal(taskId: string, daySiblings: string[] | undefined): number {
+  const ids = [taskId, ...(daySiblings ?? [])].filter(isPromoTaskId);
+  const promos = ids.filter((id, index) => ids.indexOf(id) === index).sort();
+  return Math.max(promos.indexOf(taskId), 0);
+}
+
 /** Traits that decide how a background looks: its `visual_group` and how bright it is. */
 function traitsOf(asset: BackgroundAsset): string[] {
   const brightness = asset.brightness ?? 0;
@@ -174,6 +186,8 @@ export function pickBackground(
   taskId: string,
   assets: BackgroundAsset[],
   dayOfWeek?: string,
+  /** Task ids of the other videos the same language publishes on the same day. */
+  daySiblings?: string[],
 ): string | undefined {
   if (assets.length === 0) return undefined;
   const urls = balancedOrder(assets);
@@ -191,7 +205,15 @@ export function pickBackground(
     ? -1
     : ZODIAC_SIGNS.indexOf((taskId.split('-').pop() ?? '') as (typeof ZODIAC_SIGNS)[number]);
   const slot = sign >= 0 ? 4 + sign : day;
-  return urls[(Number(week[1]) * SLOTS_PER_WEEK + slot) % urls.length];
+  const index = (Number(week[1]) * SLOTS_PER_WEEK + slot) % urls.length;
+
+  // The promotions share their weekday with each other, so the slot of the weekday alone hands
+  // them one artwork: the feed then shows the day as the same video posted twice. Each promotion
+  // is stepped off the weekday slot by its place among the day's promotions, which is its place
+  // among the day's task ids - stable once the week is planned, so the cover drawn after the
+  // render lands on the same artwork as the video.
+  const promoStep = isPromoTaskId(taskId) ? 1 + promoOrdinal(taskId, daySiblings) : 0;
+  return urls[(index + promoStep) % urls.length];
 }
 
 /**
@@ -207,7 +229,28 @@ export async function resolveBackgroundUrl(
     day_of_week: params.dayOfWeek,
     pattern: params.pattern,
   });
-  return pickBackground(params.taskId, assets, params.dayOfWeek);
+  return pickBackground(
+    params.taskId,
+    assets,
+    params.dayOfWeek,
+    await daySiblingTaskIds(sheets, params),
+  );
+}
+
+/**
+ * Task ids the language already has planned for the same day. Only a promotion needs them - it is
+ * the one kind of video a day carries more than one of - so the queue is left unread otherwise.
+ */
+async function daySiblingTaskIds(
+  sheets: GoogleSheetsService,
+  params: { taskId: string; language: Language; dayOfWeek?: string },
+): Promise<string[] | undefined> {
+  const weekId = /^(\d{4}-W\d{2})/.exec(params.taskId)?.[1];
+  if (!weekId || !params.dayOfWeek || !isPromoTaskId(params.taskId)) return undefined;
+  const tasks = await sheets.getQueueTasks(weekId);
+  return tasks
+    .filter((task) => task.lang_code === params.language && task.day_of_week === params.dayOfWeek)
+    .map((task) => task.task_id);
 }
 
 /** Where the renderer reports a finished video; empty when the base URL is unknown. */
