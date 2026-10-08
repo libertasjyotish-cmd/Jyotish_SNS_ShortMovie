@@ -9,6 +9,10 @@ const PLATFORMS: Platform[] = ['YouTube', 'Instagram', 'Threads', 'Facebook'];
 
 const DAY_MS = 86_400_000;
 
+/** Google sometimes answers a valid token with one 401, so a single failure is not an outage. */
+const VERIFY_ATTEMPTS = 3;
+const VERIFY_RETRY_MS = 1_500;
+
 export interface ChannelStatus {
   lang_code: Language;
   platform: Platform;
@@ -54,17 +58,27 @@ export async function collectChannelStatuses(): Promise<ChannelStatus[]> {
     for (const platform of PLATFORMS) {
       const channel = await sheets.getChannelConfig(lang, platform);
       if (!channel) continue;
+      const verify = async (): Promise<string> => {
+        if (platform === 'YouTube') return youtube.verifyChannel(channel);
+        if (platform === 'Threads') return threads.verifyChannel(channel);
+        if (platform === 'Facebook') return facebook.verifyChannel(channel);
+        return instagram.verifyChannel(channel);
+      };
       try {
-        let account: string;
-        if (platform === 'YouTube') {
-          account = await youtube.verifyChannel(channel);
-        } else if (platform === 'Threads') {
-          account = await threads.verifyChannel(channel);
-        } else if (platform === 'Facebook') {
-          account = await facebook.verifyChannel(channel);
-        } else {
-          account = await instagram.verifyChannel(channel);
+        let account: string | undefined;
+        let lastError: unknown;
+        for (let attempt = 1; attempt <= VERIFY_ATTEMPTS; attempt += 1) {
+          try {
+            account = await verify();
+            break;
+          } catch (error) {
+            lastError = error;
+            if (attempt < VERIFY_ATTEMPTS) {
+              await new Promise((resolve) => setTimeout(resolve, VERIFY_RETRY_MS));
+            }
+          }
         }
+        if (account === undefined) throw lastError;
         statuses.push({
           lang_code: lang,
           platform,
