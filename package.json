@@ -9,6 +9,7 @@
     "lint": "next lint",
     "check:titles": "tsx scripts/check-youtube-title.ts",
     "check:covers": "tsx scripts/check-covers.ts",
+    "check:backgrounds": "tsx scripts/check-backgrounds.ts",
     "check:thumbnails": "tsx scripts/check-youtube-thumbnails.ts",
     "seed:promo": "tsx scripts/seed-promo-week.ts",
     "lint:scripts": "tsx scripts/lint-scripts.ts",
