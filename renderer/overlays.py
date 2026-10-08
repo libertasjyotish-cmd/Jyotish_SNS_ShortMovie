@@ -19,6 +19,10 @@ CREAM = (253, 246, 231, 255)
 PANEL = (10, 7, 18, 150)
 SLATE = (28, 44, 70, 255)
 LIGHT_PANEL = (253, 248, 236, 205)
+OUTLINE = (70, 38, 18, 235)
+"""Outline widths that keep text readable on bright footage without veiling the background."""
+HOOK_OUTLINE = 7
+NOTE_OUTLINE = 4
 
 DARK = "dark"
 LIGHT = "light"
@@ -36,7 +40,7 @@ class Palette:
         self.shadow = not light
         self.scrim_color = (255, 252, 244) if light else (6, 4, 12)
         """Alpha of the veil at the top, at the bottom and across the middle."""
-        self.scrim_alpha = (80, 95, 0) if light else (150, 165, 40)
+        self.scrim_alpha = (80, 95, 0) if light else (0, 0, 0)
 
 
 PERIOD_CENTER_Y = 300
@@ -89,8 +93,18 @@ def _save_cropped(img: Image.Image, path: str) -> tuple[str, int, int]:
     return path, left, top
 
 
-def _draw_text(draw: ImageDraw.ImageDraw, xy, text: str, font, fill, language: str) -> None:
-    draw.text(xy, text, font=font, fill=fill, direction="rtl" if language in RTL_LANGUAGES else None)
+def _draw_text(
+    draw: ImageDraw.ImageDraw, xy, text: str, font, fill, language: str, outline: int = 0
+) -> None:
+    draw.text(
+        xy,
+        text,
+        font=font,
+        fill=fill,
+        direction="rtl" if language in RTL_LANGUAGES else None,
+        stroke_width=outline,
+        stroke_fill=OUTLINE if outline else None,
+    )
 
 
 def _fit_font(
@@ -122,6 +136,7 @@ def _draw_block(
     fill,
     line_gap: float,
     shadow: bool,
+    outline: int = 0,
 ) -> int:
     draw = ImageDraw.Draw(img)
     line_height = int(font.size * line_gap)
@@ -129,17 +144,19 @@ def _draw_block(
     y = center_y - total // 2
     for line in lines:
         x = (WIDTH - draw.textlength(line, font=font)) / 2
-        if shadow:
+        if shadow and not outline:
             _draw_text(draw, (x + 3, y + 4), line, font, (0, 0, 0, 170), language)
-        _draw_text(draw, (x, y), line, font, fill, language)
+        _draw_text(draw, (x, y), line, font, fill, language, outline)
         y += line_height
     return total
 
 
-def scrim(path: str, theme: str = DARK) -> tuple[str, int, int]:
-    """Veils the top and bottom for contrast: darkening footage, lifting pale artwork."""
+def scrim(path: str, theme: str = DARK) -> tuple[str, int, int] | None:
+    """Veils the top and bottom for contrast, lifting pale artwork. `None` leaves the art as is."""
     palette = Palette(theme)
     top, bottom, base = palette.scrim_alpha
+    if not any(palette.scrim_alpha):
+        return None
     img = _blank()
     draw = ImageDraw.Draw(img)
     for y in range(HEIGHT):
@@ -197,7 +214,7 @@ def hook(path: str, text: str, language: str, theme: str = DARK) -> tuple[str, i
     draw = ImageDraw.Draw(img)
     font, lines = _fit_font(draw, text, language, "display", 82, WIDTH * 0.86, 2)
     total = _draw_block(
-        img, lines, font, HOOK_CENTER_Y, language, palette.heading, 1.35, palette.shadow
+        img, lines, font, HOOK_CENTER_Y, language, palette.heading, 1.35, palette.shadow, HOOK_OUTLINE if palette.shadow else 0
     )
     underline_y = HOOK_CENTER_Y + total // 2 + 44
     draw.rounded_rectangle(
@@ -257,5 +274,5 @@ def note(path: str, text: str, language: str, theme: str = DARK) -> tuple[str, i
     img = _blank()
     draw = ImageDraw.Draw(img)
     font, lines = _fit_font(draw, text, language, "body", 40, WIDTH * 0.8, 2)
-    _draw_block(img, lines, font, NOTE_CENTER_Y, language, palette.text, 1.3, palette.shadow)
+    _draw_block(img, lines, font, NOTE_CENTER_Y, language, palette.text, 1.3, palette.shadow, NOTE_OUTLINE if palette.shadow else 0)
     return _save_cropped(img, path)

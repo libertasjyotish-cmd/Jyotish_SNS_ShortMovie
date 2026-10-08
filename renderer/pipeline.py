@@ -141,8 +141,8 @@ def render(request: RenderRequest) -> RenderResult:
             total = request.target_min
 
         background = _download(request.background_url, os.path.join(work, "background.mp4"))
+        veil = overlays.scrim(os.path.join(work, "scrim.png"), request.theme)
         layers: list[tuple[str, int, int, float, float]] = [
-            (*overlays.scrim(os.path.join(work, "scrim.png"), request.theme), 0.0, total),
             (
                 *overlays.hook(
                     os.path.join(work, "hook.png"),
@@ -154,6 +154,8 @@ def render(request: RenderRequest) -> RenderResult:
                 total,
             ),
         ]
+        if veil:
+            layers.insert(0, (*veil, 0.0, total))
         if request.period:
             layers.append(
                 (
