@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { numberEnv, runWithinBudget, triggerNextBatch } from '@/lib/batch';
-import { fixedCta } from '@/lib/fixed-cta';
+import { evergreenClosing } from '@/lib/evergreen-cta';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
 import { describeIssues, lintRequirements, lintScript } from '@/lib/script-lint';
@@ -33,7 +33,7 @@ async function generateThemeScript(
   const script_30s: GeneratedScript = {
     hook_text: source.hook,
     body_script: source.body,
-    cta_text: fixedCta(task.lang_code),
+    cta_text: evergreenClosing(source.script_id, task.lang_code, source.cta),
   };
   return {
     script_30s,

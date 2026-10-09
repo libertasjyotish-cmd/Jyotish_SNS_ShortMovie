@@ -9,7 +9,8 @@
  */
 import { readFileSync } from 'node:fs';
 
-import { describeIssues, lintScript } from '@/lib/script-lint';
+import { lintEvergreenEntry } from '@/lib/evergreen-cta';
+import { describeIssues } from '@/lib/script-lint';
 import { isEventScriptId, isoWeekId, PROMO_DAY } from '@/lib/schedule';
 import { EvergreenScript, GoogleSheetsService, Language } from '@/services/sheets';
 
@@ -30,11 +31,7 @@ function toScript(entry: Entry): EvergreenScript {
   if (isEventScriptId(entry.id) && !entry.post) {
     throw new Error(`${entry.id}: an event script needs a post date`);
   }
-  const issues = lintScript(
-    { hook_text: entry.hook, body_script: entry.body, cta_text: entry.cta },
-    entry.lang,
-    '30s',
-  );
+  const issues = lintEvergreenEntry(entry);
   if (issues.length > 0) throw new Error(`${entry.id} ${entry.lang}: ${describeIssues(issues)}`);
 
   return {
