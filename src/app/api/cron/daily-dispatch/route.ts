@@ -129,16 +129,20 @@ async function buildCover(args: {
   period?: string;
   series?: SignThemeSeries;
   hook: string;
+  /** Background the render reported; the pick is only recomputed for older rows without one. */
+  renderedBackgroundUrl?: string;
 }): Promise<CoverResult | undefined> {
   const { sheetsService, task, signName, period, series, hook } = args;
   if (!isRendererConfigured()) return undefined;
   try {
-    const backgroundUrl = await resolveBackgroundUrl(sheetsService, {
-      taskId: task.task_id,
-      language: task.lang_code,
-      pattern: '30s',
-      dayOfWeek: task.day_of_week,
-    });
+    const backgroundUrl =
+      args.renderedBackgroundUrl ??
+      (await resolveBackgroundUrl(sheetsService, {
+        taskId: task.task_id,
+        language: task.lang_code,
+        pattern: '30s',
+        dayOfWeek: task.day_of_week,
+      }));
     if (!backgroundUrl) return undefined;
     return await new RendererService().cover({
       taskId: task.task_id,
@@ -365,6 +369,7 @@ export async function GET(request: Request) {
             period,
             series,
             hook: script30s.hook_text,
+            renderedBackgroundUrl: renderOutput?.background_url,
           });
 
           const youtubeTitle = buildYouTubeTitle({

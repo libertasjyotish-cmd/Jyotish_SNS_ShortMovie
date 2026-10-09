@@ -13,6 +13,7 @@
     "check:thumbnails": "tsx scripts/check-youtube-thumbnails.ts",
     "seed:promo": "tsx scripts/seed-promo-week.ts",
     "lint:scripts": "tsx scripts/lint-scripts.ts",
+    "translate:promos": "tsx scripts/translate-promos.ts",
     "review:scripts": "tsx scripts/review-scripts.ts",
     "rewrite:evergreen": "tsx scripts/rewrite-evergreen.ts",
     "load:evergreen": "tsx scripts/load-evergreen.ts",
@@ -21,7 +22,8 @@
     "shorten:hooks": "tsx scripts/shorten-hooks.ts",
     "sync:facebook-profiles": "tsx scripts/sync-facebook-profiles.ts",
     "print:facebook-profiles": "tsx scripts/print-facebook-profiles.ts",
-    "sync:youtube-about": "tsx scripts/sync-youtube-about.ts"
+    "sync:youtube-about": "tsx scripts/sync-youtube-about.ts",
+    "backfill:render-backgrounds": "tsx scripts/backfill-render-backgrounds.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
