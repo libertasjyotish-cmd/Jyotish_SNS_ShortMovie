@@ -291,6 +291,13 @@ async function renderOnCloudRun(
     target: DURATION_BOUNDS[params.pattern],
   };
 
+  // The pick is derived from the asset list, so a background added between the render and the
+  // cover would move it: the still every platform lists the video with would then show a
+  // different artwork than the video itself. The asset used is stored with the render instead.
+  if (params.pattern === '30s') {
+    await sheets.saveRenderOutput({ task_id: params.taskId, background_url: backgroundUrl });
+  }
+
   const callbackUrl = rendererCallbackUrl();
   if (callbackUrl) {
     await new RendererService().start({ ...request, callbackUrl });

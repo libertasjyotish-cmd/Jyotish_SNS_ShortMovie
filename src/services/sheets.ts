@@ -89,6 +89,7 @@ export interface ExpirablePost {
 }
 
 const POSTED_REFS_COLUMN = 'posted_refs';
+const BACKGROUND_URL_COLUMN = 'background_url';
 const SCRIPT_ATTEMPTS_COLUMN = 'script_attempts';
 const EXPIRED_AT_COLUMN = 'expired_at';
 /** Platforms that take the video asynchronously, and where their pending container is kept. */
@@ -138,6 +139,8 @@ export interface RenderOutput {
   duration_30s?: number;
   duration_65s?: number;
   rendered_at?: string;
+  /** Background asset the video was built on, kept so the cover is drawn on the same artwork. */
+  background_url?: string;
 }
 
 export interface BackgroundAsset {
@@ -835,8 +838,25 @@ export class GoogleSheetsService {
     if (output.duration_30s !== undefined) patch.duration_30s = String(output.duration_30s);
     if (output.duration_65s !== undefined) patch.duration_65s = String(output.duration_65s);
     if (output.rendered_at !== undefined) patch.rendered_at = output.rendered_at;
+    if (output.background_url !== undefined) patch.background_url = output.background_url;
 
+    await this.ensureColumns(SHEET_NAMES.renderOutputs, [BACKGROUND_URL_COLUMN]);
     await this.upsertByTaskId(SHEET_NAMES.renderOutputs, output.task_id, patch);
+  }
+
+  /** Stores the background of many rows in one write, which the per-row loop would rate-limit. */
+  async saveRenderBackgrounds(
+    backgrounds: { taskId: string; backgroundUrl: string }[],
+  ): Promise<void> {
+    if (backgrounds.length === 0) return;
+    await this.ensureColumns(SHEET_NAMES.renderOutputs, [BACKGROUND_URL_COLUMN]);
+    const { rows } = await this.loadTable(SHEET_NAMES.renderOutputs);
+    const patches = backgrounds.flatMap(({ taskId, backgroundUrl }) => {
+      const row = rows.find((candidate) => candidate.values.task_id === taskId);
+      if (!row) return [];
+      return [{ rowNumber: row.rowNumber, patch: { [BACKGROUND_URL_COLUMN]: backgroundUrl } }];
+    });
+    await this.patchRows(SHEET_NAMES.renderOutputs, patches);
   }
 
   async getRenderOutput(taskId: string): Promise<RenderOutput | null> {
@@ -852,6 +872,7 @@ export class GoogleSheetsService {
       duration_30s: toNumber(row.values.duration_30s),
       duration_65s: toNumber(row.values.duration_65s),
       rendered_at: row.values.rendered_at || undefined,
+      background_url: row.values[BACKGROUND_URL_COLUMN] || undefined,
     };
   }
 
