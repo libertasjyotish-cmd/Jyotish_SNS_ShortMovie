@@ -755,6 +755,23 @@ export class GoogleSheetsService {
     };
   }
 
+  async getScriptOutputsByWeek(weekId: string): Promise<ScriptOutput[]> {
+    const { rows } = await this.loadTable(SHEET_NAMES.scriptOutputs);
+    return rows
+      .filter((row) => row.values.task_id && row.values.week_id === weekId)
+      .map((row) => ({
+        task_id: row.values.task_id,
+        week_id: row.values.week_id,
+        lang_code: row.values.lang_code as Language,
+        zodiac_sign: row.values.zodiac_sign || undefined,
+        transit_reference: row.values.transit_reference,
+        script_30s_json: row.values.script_30s_json,
+        script_65s_json: row.values.script_65s_json,
+        hashtags: row.values.hashtags,
+        created_at: row.values.created_at,
+      }));
+  }
+
   async getPendingRenders(patterns: Pattern[] = ['30s', '65s']): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows

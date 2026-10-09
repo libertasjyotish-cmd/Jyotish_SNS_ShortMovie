@@ -15,6 +15,7 @@
     "lint:scripts": "tsx scripts/lint-scripts.ts",
     "translate:promos": "tsx scripts/translate-promos.ts",
     "review:scripts": "tsx scripts/review-scripts.ts",
+    "requeue:scripts": "tsx scripts/requeue-scripts.ts",
     "rewrite:evergreen": "tsx scripts/rewrite-evergreen.ts",
     "load:evergreen": "tsx scripts/load-evergreen.ts",
     "refresh:seo": "tsx scripts/refresh-youtube-seo.ts",

@@ -137,19 +137,20 @@ const SIGN_ALLOWANCE: Record<Language, number> = {
 };
 
 /**
- * Longest hook that is still spoken inside the first two seconds, in the unit that language
- * counts. A short-form feed decides on those two seconds whether to keep showing the video, so a
- * hook that is still being read at second five is scrolled past before it lands.
+ * Longest hook, in the unit that language counts. The hook is on screen in full from the first
+ * frame, so the viewer reads it before it is spoken and the limit only has to keep the narration
+ * from still running at second five. It is a budget for one complete sentence, never a reason to
+ * leave out a subject, an object or a particle.
  */
 export const HOOK_BOUNDS: Record<Language, number> = {
-  ja: 24,
-  en: 8,
-  es: 9,
-  pt: 9,
-  id: 9,
-  ar: 9,
-  fr: 9,
-  de: 8,
+  ja: 34,
+  en: 12,
+  es: 13,
+  pt: 13,
+  id: 13,
+  ar: 13,
+  fr: 13,
+  de: 12,
 };
 
 /**
@@ -272,7 +273,7 @@ export function lintScript(
     issues.push({
       field: 'hook_text',
       code: 'hook_too_long',
-      detail: `${hookLength} > ${HOOK_BOUNDS[language]}; not spoken within the first two seconds`,
+      detail: `${hookLength} > ${HOOK_BOUNDS[language]}; too long to be read out before the clip moves on`,
     });
   }
 

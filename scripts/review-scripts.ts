@@ -3,7 +3,7 @@
  * read as fluent prose in its own language. The lint only measures length and required
  * keywords, so broken sentences used to reach production unnoticed.
  *
- * Usage: npm run review:scripts -- [lang...] [--file=scripts.json] [--ids=W-07,R-07]
+ * Usage: npm run review:scripts -- [lang...] [--file=scripts.json] [--week=2026-W42] [--ids=W-07,R-07]
  */
 import { readFileSync } from 'node:fs';
 
@@ -27,16 +27,41 @@ interface FileEntry {
 function parseArgs(argv: string[]) {
   const langs: Language[] = [];
   let file: string | undefined;
+  let week: string | undefined;
   let ids: Set<string> | undefined;
 
   for (const arg of argv) {
     if (arg.startsWith('--file=')) file = arg.slice('--file='.length);
+    else if (arg.startsWith('--week=')) week = arg.slice('--week='.length);
     else if (arg.startsWith('--ids=')) ids = new Set(arg.slice('--ids='.length).split(','));
     else if (ALL_LANGS.includes(arg as Language)) langs.push(arg as Language);
     else throw new Error(`unknown argument: ${arg}`);
   }
 
-  return { langs: langs.length > 0 ? langs : ALL_LANGS, file, ids };
+  return { langs: langs.length > 0 ? langs : ALL_LANGS, file, week, ids };
+}
+
+/** The scripts a planned week will actually publish, as opposed to the evergreen stock. */
+async function targetsFromWeek(weekId: string): Promise<Map<Language, ReviewTarget[]>> {
+  const outputs = await new GoogleSheetsService().getScriptOutputsByWeek(weekId);
+  const byLang = new Map<Language, ReviewTarget[]>();
+  for (const output of outputs) {
+    if (!output.script_30s_json) continue;
+    const script = JSON.parse(output.script_30s_json) as {
+      hook_text: string;
+      body_script: string;
+      cta_text: string;
+    };
+    const list = byLang.get(output.lang_code) ?? [];
+    list.push({
+      id: output.task_id,
+      hook: script.hook_text,
+      body: script.body_script,
+      cta: script.cta_text,
+    });
+    byLang.set(output.lang_code, list);
+  }
+  return byLang;
 }
 
 async function targetsFromSheet(lang: Language): Promise<ReviewTarget[]> {
@@ -77,8 +102,12 @@ async function reviewBatch(gemini: GeminiService, batch: ReviewTarget[], lang: L
 }
 
 async function main() {
-  const { langs, file, ids } = parseArgs(process.argv.slice(2));
-  const fileTargets = file ? targetsFromFile(file) : undefined;
+  const { langs, file, week, ids } = parseArgs(process.argv.slice(2));
+  const fileTargets = file
+    ? targetsFromFile(file)
+    : week
+      ? await targetsFromWeek(week)
+      : undefined;
   const gemini = new GeminiService();
   let flagged = 0;
 
