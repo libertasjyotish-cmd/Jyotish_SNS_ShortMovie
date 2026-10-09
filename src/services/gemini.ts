@@ -212,10 +212,11 @@ const REVIEW_SCHEMA = {
         type: Type.OBJECT,
         properties: {
           id: { type: Type.STRING },
+          meaning: { type: Type.STRING },
           verdict: { type: Type.STRING, enum: ['ok', 'awkward', 'broken'] },
           reason: { type: Type.STRING },
         },
-        required: ['id', 'verdict', 'reason'],
+        required: ['id', 'meaning', 'verdict', 'reason'],
       },
     },
   },
@@ -240,6 +241,8 @@ export interface ReviewTarget {
 
 export interface ReviewVerdict {
   id: string;
+  /** What the script literally says, restated in English before any verdict is given. */
+  meaning: string;
   verdict: 'ok' | 'awkward' | 'broken';
   reason: string;
 }
@@ -261,10 +264,12 @@ function buildReviewPrompt(targets: ReviewTarget[], lang_code: Language): string
   return `You are a native ${profile.name} speaker proofreading narration for short videos about ${profile.tradition}.
 Each script is read out loud by a synthetic voice, so it must sound like a fluent person speaking, not like a translation.
 
-Judge the language and these two things only; never the astrology and never the length.
-Mark "broken" when a term of art is written as a word that means something else in everyday ${profile.name} — an astrological house called a room of a building, a planetary period called a weather season — even when the sentence around it is grammatical.
+Before judging anything, fill "meaning": restate in English, sentence by sentence, what the script literally says, taking every word in its everyday ${profile.name} sense and never repairing it into what the writer probably meant. Judge that restatement, not your guess at the intention.
+Mark "broken" when the restatement is not something a person could mean — "Mars stays in the first room of the crab", "the period of the planet rains" — however fluent the sentence looks. A word used in a sense it does not have is a language fault, not an astrology detail, so it is yours to catch.
+Do not judge the length, and do not judge whether the astrology is correct.
 Mark "broken" when a sentence is not grammatical ${profile.name}: a missing subject, a predicate that does not agree with its subject, particles or articles that do not connect, or a noun phrase that carries no meaning.
 Mark "awkward" when it parses but no fluent speaker would say it that way, including stitched-together clauses and mixed registers.
+Mark "awkward" when the hook is an announcement about the week rather than something said to the viewer about themselves, so that nobody scrolling past can tell it is about them.
 Mark "awkward" as well when the body gives the viewer nothing to recognise in their own life. Any natural wording counts; there is no phrase that has to appear.
 Judge the hook and the body only. Every video closes with the same approved sentences, which the app appends and which you are not reviewing: "${fixedCta(lang_code)}" Treat the body as awkward if it repeats what that closing says or if the closing could not follow on from it.
 Mark "ok" only when you would read it aloud unchanged.
@@ -273,6 +278,7 @@ These are real scripts that shipped and had to be withdrawn; every one of them i
 - 「ここが強い人ほど仕事が集まりやすく、いつも忙しいと感じる人は弱さではなく容量の出方です。」 two clauses describe different people, and 「容量の出方です」 is a noun phrase that states nothing about the subject.
 - 「ここが強い人は抱えすぎてから離しやすく、手放すのが苦手だと感じる人はこの部屋が出ています。」 the subject changes mid sentence and 「この部屋が出ています」 does not say what happens to the person.
 - 「相手の気分が自分のものになると感じる人ほど、ここです。」 「ここです」 cannot serve as the predicate of 「人ほど」.
+- 「火星が蟹座の1番目の部屋に滞在します。」 restated literally, a planet is sitting in a room of a building; the word for an astrological house was replaced by the everyday word for a room.
 Be as strict with every script below. Sentences that merely sound like a horoscope are fine; sentences whose subject and predicate do not belong together are not.
 
 In "reason", quote the offending span and say what is wrong, in English, in one sentence. For "ok", leave "reason" empty.
@@ -556,10 +562,16 @@ export class GeminiService {
     return targets.map((target) => {
       const review = byId.get(target.id);
       if (!review?.verdict) {
-        return { id: target.id, verdict: 'broken', reason: 'the reviewer returned no verdict' };
+        return {
+          id: target.id,
+          meaning: '',
+          verdict: 'broken',
+          reason: 'the reviewer returned no verdict',
+        };
       }
       return {
         id: target.id,
+        meaning: (review.meaning ?? '').trim(),
         verdict: review.verdict,
         reason: (review.reason ?? '').trim(),
       };
