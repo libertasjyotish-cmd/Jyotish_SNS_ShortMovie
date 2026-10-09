@@ -3,7 +3,7 @@
  * following week and only while `PROMO_ENABLED` is on, so this is the path used to add
  * the week's sky event, or a product promotion, to a week already in flight.
  *
- * `npm run seed:promo -- <script-id> [lang...] [--apply]`
+ * `npm run seed:promo -- <script-id> [lang...] [--week=<iso-week>] [--apply]`
  */
 import { isoWeekId, promoPostTime, PROMO_DAY, startOfIsoWeek } from '@/lib/schedule';
 import { ContentQueue, GoogleSheetsService, Language, LANGUAGES } from '@/services/sheets';
@@ -12,12 +12,25 @@ const scriptId = process.argv[2];
 const args = process.argv.slice(3).filter((arg) => !arg.startsWith('--'));
 const langs = (args.length ? args : LANGUAGES) as Language[];
 const apply = process.argv.includes('--apply');
+const weekArg = process.argv
+  .find((arg) => arg.startsWith('--week='))
+  ?.slice('--week='.length);
 
 async function main() {
-  if (!scriptId) throw new Error('usage: seed-promo-week <script-id> [lang...] [--apply]');
+  if (!scriptId) {
+    throw new Error('usage: seed-promo-week <script-id> [lang...] [--week=<iso-week>] [--apply]');
+  }
 
   const sheets = new GoogleSheetsService();
+  // A week whose plan already ran keeps its Thursday as planned, so a promotion added to a
+  // later week has to name that week explicitly.
   const weekStart = startOfIsoWeek(new Date());
+  while (weekArg && isoWeekId(weekStart) !== weekArg) {
+    weekStart.setUTCDate(weekStart.getUTCDate() + 7);
+    if (weekStart.getTime() > Date.now() + 365 * 24 * 3600 * 1000) {
+      throw new Error(`week ${weekArg} is not within a year from now`);
+    }
+  }
   const weekId = isoWeekId(weekStart);
   const planned = await sheets.getQueueTasks(weekId);
   const existing = new Set(planned.map((task) => task.task_id));
