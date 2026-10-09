@@ -1,0 +1,30 @@
+[
+  {
+    "id": "broken-ja-house-as-room",
+    "lang": "ja",
+    "hook": "蟹座の部屋を変えたくて焦ってませんか。",
+    "body": "インド占星術（ジョーティシュ）では火星が蟹座の1番目の部屋に滞在します。自分の見せ方を変えたくなり、気持ちだけが先に走ります。今週は言い方を一つ決めてから動くと落ち着きます。",
+    "cta": ""
+  },
+  {
+    "id": "broken-en-house-as-room",
+    "lang": "en",
+    "hook": "Rushing to redecorate the room of Cancer?",
+    "body": "In Vedic astrology Mars stays in the 1st room of Cancer this week. You want to change how you come across, and the feeling runs ahead of you. Decide one sentence first, then move.",
+    "cta": ""
+  },
+  {
+    "id": "ok-ja-house",
+    "lang": "ja",
+    "hook": "見せ方を変えたくなる一週間です。",
+    "body": "インド占星術では、火星が蟹座から数えて1室目に入ります。自分の出方を変えたくなり、気持ちが先に動きます。言い方を一つ決めてから動くと、空回りしません。",
+    "cta": ""
+  },
+  {
+    "id": "ok-en-house",
+    "lang": "en",
+    "hook": "You will want to change how you come across.",
+    "body": "In Vedic astrology Mars moves into the first house counted from Cancer this week. You want to change how you present yourself, and the feeling runs ahead of the plan. Settle on one way of saying it before you move.",
+    "cta": ""
+  }
+]

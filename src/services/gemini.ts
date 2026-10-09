@@ -116,7 +116,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
     length30s: '合計165〜183文字',
     length65s: '合計390〜420文字',
     body65s: '320〜350文字',
-    note: 'Japanese wording: call the chart 「ホロスコープ」. Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. Write every sentence as a Japanese speaker would say it out loud: one subject per sentence, and a predicate that says something about that subject. Never end a sentence about a person with a noun phrase about the chart — 「〜と感じる人は容量の出方です」「〜人はこの部屋が出ています」「〜人ほど、ここです」 are all broken, because 容量の出方 / 部屋 / ここ say nothing about the person. Never join two clauses whose subjects differ (「ここが強い人ほど…、忙しいと感じる人は…」) with a comma: split them into two sentences. Keep 敬体 throughout and never mix in 「〜さん」 or 「〜よね？」. Prefer dropping a detail over compressing a sentence until particles disappear.',
+    note: 'Japanese wording: call the chart 「ホロスコープ」, and an astrological house 「室」 or 「ハウス」 — never 「部屋」, which means a room in a building (「1番目の部屋」 is broken Japanese). Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. Write every sentence as a Japanese speaker would say it out loud: one subject per sentence, and a predicate that says something about that subject. Never end a sentence about a person with a noun phrase about the chart — 「〜と感じる人は容量の出方です」「〜人はこの部屋が出ています」「〜人ほど、ここです」 are all broken, because 容量の出方 / 部屋 / ここ say nothing about the person. Never join two clauses whose subjects differ (「ここが強い人ほど…、忙しいと感じる人は…」) with a comma: split them into two sentences. Keep 敬体 throughout and never mix in 「〜さん」 or 「〜よね？」. Prefer dropping a detail over compressing a sentence until particles disappear.',
   },
   en: {
     name: 'English',
@@ -212,10 +212,11 @@ const REVIEW_SCHEMA = {
         type: Type.OBJECT,
         properties: {
           id: { type: Type.STRING },
+          meaning: { type: Type.STRING },
           verdict: { type: Type.STRING, enum: ['ok', 'awkward', 'broken'] },
           reason: { type: Type.STRING },
         },
-        required: ['id', 'verdict', 'reason'],
+        required: ['id', 'meaning', 'verdict', 'reason'],
       },
     },
   },
@@ -240,6 +241,8 @@ export interface ReviewTarget {
 
 export interface ReviewVerdict {
   id: string;
+  /** What the script literally says, restated in English before any verdict is given. */
+  meaning: string;
   verdict: 'ok' | 'awkward' | 'broken';
   reason: string;
 }
@@ -261,9 +264,12 @@ function buildReviewPrompt(targets: ReviewTarget[], lang_code: Language): string
   return `You are a native ${profile.name} speaker proofreading narration for short videos about ${profile.tradition}.
 Each script is read out loud by a synthetic voice, so it must sound like a fluent person speaking, not like a translation.
 
-Judge the language and these two things only; never the astrology and never the length.
+Before judging anything, fill "meaning": restate in English, sentence by sentence, what the script literally says, taking every word in its everyday ${profile.name} sense and never repairing it into what the writer probably meant. Judge that restatement, not your guess at the intention.
+Mark "broken" when the restatement is not something a person could mean — "Mars stays in the first room of the crab", "the period of the planet rains" — however fluent the sentence looks. A word used in a sense it does not have is a language fault, not an astrology detail, so it is yours to catch.
+Do not judge the length, and do not judge whether the astrology is correct.
 Mark "broken" when a sentence is not grammatical ${profile.name}: a missing subject, a predicate that does not agree with its subject, particles or articles that do not connect, or a noun phrase that carries no meaning.
 Mark "awkward" when it parses but no fluent speaker would say it that way, including stitched-together clauses and mixed registers.
+Mark "awkward" when the hook is an announcement about the week rather than something said to the viewer about themselves, so that nobody scrolling past can tell it is about them.
 Mark "awkward" as well when the body gives the viewer nothing to recognise in their own life. Any natural wording counts; there is no phrase that has to appear.
 Judge the hook and the body only. Every video closes with the same approved sentences, which the app appends and which you are not reviewing: "${fixedCta(lang_code)}" Treat the body as awkward if it repeats what that closing says or if the closing could not follow on from it.
 Mark "ok" only when you would read it aloud unchanged.
@@ -272,6 +278,7 @@ These are real scripts that shipped and had to be withdrawn; every one of them i
 - 「ここが強い人ほど仕事が集まりやすく、いつも忙しいと感じる人は弱さではなく容量の出方です。」 two clauses describe different people, and 「容量の出方です」 is a noun phrase that states nothing about the subject.
 - 「ここが強い人は抱えすぎてから離しやすく、手放すのが苦手だと感じる人はこの部屋が出ています。」 the subject changes mid sentence and 「この部屋が出ています」 does not say what happens to the person.
 - 「相手の気分が自分のものになると感じる人ほど、ここです。」 「ここです」 cannot serve as the predicate of 「人ほど」.
+- 「火星が蟹座の1番目の部屋に滞在します。」 restated literally, a planet is sitting in a room of a building; the word for an astrological house was replaced by the everyday word for a room.
 Be as strict with every script below. Sentences that merely sound like a horoscope are fine; sentences whose subject and predicate do not belong together are not.
 
 In "reason", quote the offending span and say what is wrong, in English, in one sentence. For "ok", leave "reason" empty.
@@ -414,7 +421,7 @@ function buildPrompt(request: GenerationRequest): string {
       ? `17. Twelve readings are published the same week and a viewer scrolling past has seconds to tell whether this one is theirs, so the sign is said out loud, written exactly as "${localSign}", in hook_text or in the first sentence of body_script.`
       : '17. This video belongs to no single sign, so never name one.',
     request.target_type === 'Zodiac_Sign'
-      ? '18. Say which house the movement falls in for this Moon sign as an ordinal number counted from it, for example "the fourth house". Never write that it falls in "a certain house" or "a particular part of the chart": a reading that does not count the house gives the viewer nothing to check.'
+      ? '18. Say which house the movement falls in for this Moon sign as an ordinal number counted from it, for example "the fourth house". Never write that it falls in "a certain house" or "a particular part of the chart": a reading that does not count the house gives the viewer nothing to check. Name it with the term this tradition actually uses in this language; never translate a term of art literally into an everyday word that means something else, such as the room of a building.'
       : '18. This video reads no single chart, so never count a house from a sign.',
     '19. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
@@ -555,10 +562,16 @@ export class GeminiService {
     return targets.map((target) => {
       const review = byId.get(target.id);
       if (!review?.verdict) {
-        return { id: target.id, verdict: 'broken', reason: 'the reviewer returned no verdict' };
+        return {
+          id: target.id,
+          meaning: '',
+          verdict: 'broken',
+          reason: 'the reviewer returned no verdict',
+        };
       }
       return {
         id: target.id,
+        meaning: (review.meaning ?? '').trim(),
         verdict: review.verdict,
         reason: (review.reason ?? '').trim(),
       };
