@@ -90,6 +90,8 @@ export interface ExpirablePost {
 
 const POSTED_REFS_COLUMN = 'posted_refs';
 const BACKGROUND_URL_COLUMN = 'background_url';
+const COVER_URL_COLUMN = 'cover_url';
+const COVER_WIDE_URL_COLUMN = 'cover_wide_url';
 const SCRIPT_ATTEMPTS_COLUMN = 'script_attempts';
 const EXPIRED_AT_COLUMN = 'expired_at';
 /** Platforms that take the video asynchronously, and where their pending container is kept. */
@@ -141,6 +143,10 @@ export interface RenderOutput {
   rendered_at?: string;
   /** Background asset the video was built on, kept so the cover is drawn on the same artwork. */
   background_url?: string;
+  /** 9:16 cover drawn after the render, so posting never waits on the renderer. */
+  cover_url?: string;
+  /** 16:9 shape of the same cover, for YouTube. */
+  cover_wide_url?: string;
 }
 
 export interface BackgroundAsset {
@@ -839,8 +845,16 @@ export class GoogleSheetsService {
     if (output.duration_65s !== undefined) patch.duration_65s = String(output.duration_65s);
     if (output.rendered_at !== undefined) patch.rendered_at = output.rendered_at;
     if (output.background_url !== undefined) patch.background_url = output.background_url;
+    if (output.cover_url !== undefined) patch[COVER_URL_COLUMN] = output.cover_url;
+    if (output.cover_wide_url !== undefined) {
+      patch[COVER_WIDE_URL_COLUMN] = output.cover_wide_url;
+    }
 
-    await this.ensureColumns(SHEET_NAMES.renderOutputs, [BACKGROUND_URL_COLUMN]);
+    await this.ensureColumns(SHEET_NAMES.renderOutputs, [
+      BACKGROUND_URL_COLUMN,
+      COVER_URL_COLUMN,
+      COVER_WIDE_URL_COLUMN,
+    ]);
     await this.upsertByTaskId(SHEET_NAMES.renderOutputs, output.task_id, patch);
   }
 
@@ -873,6 +887,8 @@ export class GoogleSheetsService {
       duration_65s: toNumber(row.values.duration_65s),
       rendered_at: row.values.rendered_at || undefined,
       background_url: row.values[BACKGROUND_URL_COLUMN] || undefined,
+      cover_url: row.values[COVER_URL_COLUMN] || undefined,
+      cover_wide_url: row.values[COVER_WIDE_URL_COLUMN] || undefined,
     };
   }
 

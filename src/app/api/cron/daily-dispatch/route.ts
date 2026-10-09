@@ -8,7 +8,7 @@ import { weekPeriodLabel, weekPeriodTitleLabel } from '@/lib/period';
 import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
 import { runWatchdog } from '@/lib/watchdog-run';
-import { resolveBackgroundUrl } from '@/lib/render';
+import { ensureCover } from '@/lib/cover';
 import {
   buildCaptionLead,
   buildCoverText,
@@ -112,49 +112,6 @@ async function playlistIds(args: {
     await youtubeService.ensurePlaylist(channel, title, playlistDescription(task.lang_code)),
   );
   return ids;
-}
-
-/**
- * The still every platform lists the video with, drawn once per task on the same background its
- * video uses. Instagram wants a URL while the container is created, YouTube and Facebook accept
- * one only after the upload, so the cover is built up front and handed to all three.
- *
- * A cover is decoration: when it cannot be drawn the post goes out with whatever frame the
- * platform picks for itself.
- */
-async function buildCover(args: {
-  sheetsService: GoogleSheetsService;
-  task: ContentQueue;
-  signName?: string;
-  period?: string;
-  series?: SignThemeSeries;
-  hook: string;
-  /** Background the render reported; the pick is only recomputed for older rows without one. */
-  renderedBackgroundUrl?: string;
-}): Promise<CoverResult | undefined> {
-  const { sheetsService, task, signName, period, series, hook } = args;
-  if (!isRendererConfigured()) return undefined;
-  try {
-    const backgroundUrl =
-      args.renderedBackgroundUrl ??
-      (await resolveBackgroundUrl(sheetsService, {
-        taskId: task.task_id,
-        language: task.lang_code,
-        pattern: '30s',
-        dayOfWeek: task.day_of_week,
-      }));
-    if (!backgroundUrl) return undefined;
-    return await new RendererService().cover({
-      taskId: task.task_id,
-      language: task.lang_code,
-      backgroundUrl,
-      ...buildCoverText({ lang: task.lang_code, zodiacSign: signName, period, series, hook }),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`${task.task_id} cover failed:`, message);
-    return undefined;
-  }
 }
 
 /**
@@ -362,14 +319,13 @@ export async function GET(request: Request) {
               ),
             );
 
-          const cover = await buildCover({
-            sheetsService,
+          // Normally already drawn when the video was rendered; building it here is the
+          // fallback for a row whose render predates that.
+          const cover = await ensureCover({
+            sheets: sheetsService,
             task: post,
-            signName,
-            period,
-            series,
             hook: script30s.hook_text,
-            renderedBackgroundUrl: renderOutput?.background_url,
+            renderOutput,
           });
 
           const youtubeTitle = buildYouTubeTitle({
