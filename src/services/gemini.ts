@@ -116,7 +116,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
     length30s: '合計165〜183文字',
     length65s: '合計390〜420文字',
     body65s: '320〜350文字',
-    note: 'Japanese wording: call the chart 「ホロスコープ」. Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. Write every sentence as a Japanese speaker would say it out loud: one subject per sentence, and a predicate that says something about that subject. Never end a sentence about a person with a noun phrase about the chart — 「〜と感じる人は容量の出方です」「〜人はこの部屋が出ています」「〜人ほど、ここです」 are all broken, because 容量の出方 / 部屋 / ここ say nothing about the person. Never join two clauses whose subjects differ (「ここが強い人ほど…、忙しいと感じる人は…」) with a comma: split them into two sentences. Keep 敬体 throughout and never mix in 「〜さん」 or 「〜よね？」. Prefer dropping a detail over compressing a sentence until particles disappear.',
+    note: 'Japanese wording: call the chart 「ホロスコープ」, and an astrological house 「室」 or 「ハウス」 — never 「部屋」, which means a room in a building (「1番目の部屋」 is broken Japanese). Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. Write every sentence as a Japanese speaker would say it out loud: one subject per sentence, and a predicate that says something about that subject. Never end a sentence about a person with a noun phrase about the chart — 「〜と感じる人は容量の出方です」「〜人はこの部屋が出ています」「〜人ほど、ここです」 are all broken, because 容量の出方 / 部屋 / ここ say nothing about the person. Never join two clauses whose subjects differ (「ここが強い人ほど…、忙しいと感じる人は…」) with a comma: split them into two sentences. Keep 敬体 throughout and never mix in 「〜さん」 or 「〜よね？」. Prefer dropping a detail over compressing a sentence until particles disappear.',
   },
   en: {
     name: 'English',
@@ -262,6 +262,7 @@ function buildReviewPrompt(targets: ReviewTarget[], lang_code: Language): string
 Each script is read out loud by a synthetic voice, so it must sound like a fluent person speaking, not like a translation.
 
 Judge the language and these two things only; never the astrology and never the length.
+Mark "broken" when a term of art is written as a word that means something else in everyday ${profile.name} — an astrological house called a room of a building, a planetary period called a weather season — even when the sentence around it is grammatical.
 Mark "broken" when a sentence is not grammatical ${profile.name}: a missing subject, a predicate that does not agree with its subject, particles or articles that do not connect, or a noun phrase that carries no meaning.
 Mark "awkward" when it parses but no fluent speaker would say it that way, including stitched-together clauses and mixed registers.
 Mark "awkward" as well when the body gives the viewer nothing to recognise in their own life. Any natural wording counts; there is no phrase that has to appear.
@@ -414,7 +415,7 @@ function buildPrompt(request: GenerationRequest): string {
       ? `17. Twelve readings are published the same week and a viewer scrolling past has seconds to tell whether this one is theirs, so the sign is said out loud, written exactly as "${localSign}", in hook_text or in the first sentence of body_script.`
       : '17. This video belongs to no single sign, so never name one.',
     request.target_type === 'Zodiac_Sign'
-      ? '18. Say which house the movement falls in for this Moon sign as an ordinal number counted from it, for example "the fourth house". Never write that it falls in "a certain house" or "a particular part of the chart": a reading that does not count the house gives the viewer nothing to check.'
+      ? '18. Say which house the movement falls in for this Moon sign as an ordinal number counted from it, for example "the fourth house". Never write that it falls in "a certain house" or "a particular part of the chart": a reading that does not count the house gives the viewer nothing to check. Name it with the term this tradition actually uses in this language; never translate a term of art literally into an everyday word that means something else, such as the room of a building.'
       : '18. This video reads no single chart, so never count a house from a sign.',
     '19. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
