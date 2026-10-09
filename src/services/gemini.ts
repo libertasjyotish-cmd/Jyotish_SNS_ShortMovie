@@ -98,7 +98,7 @@ interface LanguageProfile {
   name: string;
   /** How the tradition is named on screen; "Vedic astrology" reads as a sect in Japanese. */
   tradition: string;
-  /** Longest hook still spoken inside the first two seconds; must match HOOK_BOUNDS in script-lint. */
+  /** Room for one complete opening sentence; must match HOOK_BOUNDS in script-lint. */
   hook: string;
   /** Narration length targets, expressed in the unit natural for the script. */
   length30s: string;
@@ -112,7 +112,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   ja: {
     name: '日本語',
     tradition: 'インド占星術（ジョーティシュ）',
-    hook: '24文字以内',
+    hook: '34文字以内',
     length30s: '合計165〜183文字',
     length65s: '合計390〜420文字',
     body65s: '320〜350文字',
@@ -121,7 +121,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   en: {
     name: 'English',
     tradition: 'Indian (Vedic) astrology, Jyotish',
-    hook: '8 words or fewer',
+    hook: '12 words or fewer',
     /** English is read at ~2.2 words per second at the default speaking rate. */
     length30s: '52-62 words in total',
     length65s: '160-180 words in total',
@@ -130,7 +130,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   es: {
     name: 'Español',
     tradition: 'la astrología india (Jyotish)',
-    hook: '9 palabras como máximo',
+    hook: '13 palabras como máximo',
     length30s: '70-85 palabras en total',
     length65s: '160-180 palabras en total',
     body65s: '130-150 palabras',
@@ -138,7 +138,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   pt: {
     name: 'Português',
     tradition: 'a astrologia indiana (Jyotish)',
-    hook: 'no máximo 9 palavras',
+    hook: 'no máximo 13 palavras',
     length30s: '70-85 palavras no total',
     length65s: '160-180 palavras no total',
     body65s: '130-150 palavras',
@@ -146,7 +146,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   id: {
     name: 'Bahasa Indonesia',
     tradition: 'astrologi India (Jyotish)',
-    hook: 'maksimal 9 kata',
+    hook: 'maksimal 13 kata',
     length30s: 'total 70-85 kata',
     length65s: 'total 160-180 kata',
     body65s: '130-150 kata',
@@ -154,7 +154,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   ar: {
     name: 'العربية',
     tradition: 'التنجيم الهندي (جيوتيش)',
-    hook: '9 كلمات كحد أقصى',
+    hook: '13 كلمة كحد أقصى',
     length30s: '70-85 كلمة إجمالاً',
     length65s: '160-180 كلمة إجمالاً',
     body65s: '130-150 كلمة',
@@ -163,7 +163,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   fr: {
     name: 'Français',
     tradition: "l'astrologie indienne (le Jyotish)",
-    hook: '9 mots au maximum',
+    hook: '13 mots au maximum',
     length30s: '65-80 mots au total',
     length65s: '160-200 mots au total',
     body65s: '130-160 mots',
@@ -171,7 +171,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
   de: {
     name: 'Deutsch',
     tradition: 'die indische Astrologie (Jyotisch)',
-    hook: 'höchstens 8 Wörter',
+    hook: 'höchstens 12 Wörter',
     length30s: 'insgesamt 60-75 Wörter',
     length65s: 'insgesamt 145-180 Wörter',
     body65s: '120-150 Wörter',
@@ -405,7 +405,7 @@ function buildPrompt(request: GenerationRequest): string {
       ? `7. Keep the tone calm and specific. The twelve signs of this week are each given a different opening so they never read as one template, and this one opens on ${assignment.angle}. Take the concrete everyday example from ${assignment.domain}. Both still have to follow from the transit below; if the transit cannot support this opening, choose the nearest one it does support rather than falling back on plans going wrong.`
       : '7. Keep the tone calm and specific, and never open on plans or schedules going wrong, which is the opening these scripts fall into by default.',
     `8. Name the tradition in the first sentence of body_script, exactly as "${profile.tradition}". Viewers do not know what a nakshatra or a sidereal Moon sign is, so never open on a technical term without saying which system it comes from.`,
-    `9. hook_text is spoken in the first two seconds, which is all a short-video feed gives the clip before deciding whether to keep showing it, so it is ${profile.hook}: one sentence, no clause leading up to the point, and nothing before the word that stops the scroll. It either names something the viewer already lives with and asks whether it is happening to them, or contradicts what they believe ("that is not your fault", "you are looking at the wrong planet"). Never announce the video or the topic ("here is this week\'s movement of the stars"), and never answer the hook in the hook itself.`,
+    `9. hook_text is on screen in full from the first frame, so the viewer reads it whole before it has been read out: write one complete sentence, ${profile.hook}, with nothing before the word that stops the scroll. The limit is room for that sentence, never a reason to leave out its subject, object or particles — if the sentence does not fit, say something smaller, do not say the same thing with words missing. It either names something the viewer already lives with and asks whether it is happening to them, or contradicts what they believe ("that is not your fault", "you are looking at the wrong planet"). Never announce the video or the topic ("here is this week\'s movement of the stars"), and never answer the hook in the hook itself.`,
     '10. The length limits are hard limits, but they are a budget, not a reason to drop words out of a sentence: every sentence must still be complete and idiomatic when read aloud, and a script that only fits because particles, subjects or verbs were cut is rejected. Count before answering — characters excluding spaces for Japanese, words for the other languages — and when the total is over, remove a whole detail rather than squeezing a sentence.',
     '11. body_script contains one sentence that lets the viewer decide for themselves whether the transit is acting on them, by describing what it looks like in everyday actions, never symptoms, luck or loss. Say it the way a person speaks; do not reach for the same "the ones it reaches find that ..." frame every time, and never attach that condition to a predicate that describes the chart instead of the person.',
     `12. You do not write the closing. Every video ends with one approved sentence pair that the app appends after your body_script, and it already says that the personal answer needs the viewer's own Moon sign, the 108 divisions and the planetary period, and that the reading is free through the link: "${fixedCta(request.lang_code)}" Write the body so that closing follows on naturally, never repeat what it says, never mention the link yourself, and leave the personal answer to it.`,
@@ -515,7 +515,7 @@ export class GeminiService {
       '',
       'What must change: anything that is not natural speech. One subject per sentence, a predicate that says something about that subject, no clause stitched to a clause with a different subject, no noun phrase standing in for a predicate, consistent register throughout.',
       '',
-      `Lengths (hard limits, hook_text + body_script together, the fixed closing excluded): ${budget.min}-${budget.max} ${budget.unit}. hook_text is ${profile.hook} and is spoken in the first two seconds. If it does not fit, drop a whole detail rather than squeezing a sentence until words are missing.`,
+      `Lengths (hard limits, hook_text + body_script together, the fixed closing excluded): ${budget.min}-${budget.max} ${budget.unit}. hook_text is ${profile.hook} and must be a complete sentence; it is shown on screen in full, so never shorten it by dropping words. If it does not fit, drop a whole detail rather than squeezing a sentence until words are missing.`,
       `You do not rewrite the closing: the app appends "${fixedCta(lang_code)}" after your body_script, so never mention the link yourself and never repeat what that closing says.`,
       profile.note ?? '',
       '',
@@ -569,9 +569,19 @@ export class GeminiService {
           reason: 'the reviewer returned no verdict',
         };
       }
+      const meaning = (review.meaning ?? '').trim();
+      if (!meaning) {
+        return {
+          id: target.id,
+          meaning,
+          verdict: 'broken',
+          reason: 'the reviewer passed the script without restating what it says',
+        };
+      }
+
       return {
         id: target.id,
-        meaning: (review.meaning ?? '').trim(),
+        meaning,
         verdict: review.verdict,
         reason: (review.reason ?? '').trim(),
       };
