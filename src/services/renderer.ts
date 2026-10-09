@@ -53,8 +53,14 @@ const RENDER_TIMEOUT_MS = 280_000;
  * render per instance, so handing a render over means opening the request and hanging up on it.
  */
 const HANDOVER_MS = 10_000;
-/** A cover only downloads the background asset and draws one frame. */
+/**
+ * A cover only downloads the background asset and draws one frame, but a cold instance that has
+ * to pull the image first has taken minutes. Posting cannot wait that long, so it keeps this
+ * limit and goes out coverless; the run that draws the cover after the render passes its own.
+ */
 const COVER_TIMEOUT_MS = 60_000;
+/** Budget of the cover drawn right after the render, which nothing is waiting on. */
+export const COVER_AHEAD_TIMEOUT_MS = 240_000;
 
 export function isRendererConfigured(): boolean {
   return Boolean(optionalEnv('RENDERER_URL'));
@@ -98,11 +104,11 @@ export class RendererService {
   }
 
   /** Builds the still every platform lists the video with and returns both of its shapes. */
-  async cover(request: CoverRequest): Promise<CoverResult> {
+  async cover(request: CoverRequest, timeoutMs = COVER_TIMEOUT_MS): Promise<CoverResult> {
     const token = await this.identityToken();
     const response = await fetch(`${this.baseUrl}/cover`, {
       method: 'POST',
-      signal: AbortSignal.timeout(COVER_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
       headers: {
         Authorization: `Bearer ${token}`,
         'X-Cron-Secret': requireEnv('CRON_SECRET'),
