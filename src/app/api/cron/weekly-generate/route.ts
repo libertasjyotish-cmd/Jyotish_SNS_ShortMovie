@@ -110,23 +110,6 @@ export async function GET(request: Request) {
             );
 
           let issues = lint(scriptData);
-          // A script that fails the check is a script that will not send anyone to the site, so
-          // the issues are fed back once rather than stored as a warning nobody reads.
-          if (issues.length > 0 && task.target_type === 'Zodiac_Sign') {
-            const retried = await geminiService.generateScript({
-              week_id: task.week_id,
-              lang_code: task.lang_code,
-              target_type: task.target_type,
-              zodiac_sign: task.zodiac_sign,
-              transit_reference: transitReference,
-              lint_feedback: issues.join('; '),
-            });
-            const retriedIssues = lint(retried);
-            if (retriedIssues.length < issues.length) {
-              scriptData = retried;
-              issues = retriedIssues;
-            }
-          }
 
           // The lint measures length and required wording; it cannot tell whether the narration is
           // a sentence a person would say. The 30s script is the one that ships, so it is also
