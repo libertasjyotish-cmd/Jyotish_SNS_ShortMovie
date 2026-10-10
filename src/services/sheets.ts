@@ -725,6 +725,23 @@ export class GoogleSheetsService {
     await this.patchRows(SHEET_NAMES.contentQueue, patches);
   }
 
+  /** Moves the post time of several tasks in one request. */
+  async rescheduleTasks(
+    updates: { taskId: string; scheduledPostTime: string }[],
+  ): Promise<void> {
+    if (updates.length === 0) return;
+    const patches = await Promise.all(
+      updates.map(async ({ taskId, scheduledPostTime }) => {
+        const row = await this.findQueueRow(taskId);
+        return {
+          rowNumber: row.rowNumber,
+          patch: { scheduled_post_time: scheduledPostTime },
+        };
+      }),
+    );
+    await this.patchRows(SHEET_NAMES.contentQueue, patches);
+  }
+
   async saveScriptOutput(output: ScriptOutput): Promise<void> {
     await this.upsertByTaskId(SHEET_NAMES.scriptOutputs, output.task_id, {
       week_id: output.week_id,

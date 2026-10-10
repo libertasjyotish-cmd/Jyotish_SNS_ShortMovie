@@ -26,7 +26,9 @@
     "sync:facebook-profiles": "tsx scripts/sync-facebook-profiles.ts",
     "print:facebook-profiles": "tsx scripts/print-facebook-profiles.ts",
     "sync:youtube-about": "tsx scripts/sync-youtube-about.ts",
-    "backfill:render-backgrounds": "tsx scripts/backfill-render-backgrounds.ts"
+    "backfill:render-backgrounds": "tsx scripts/backfill-render-backgrounds.ts",
+    "audit:scripts": "tsx scripts/audit-stored-scripts.ts",
+    "reschedule:overdue": "tsx scripts/reschedule-overdue.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
