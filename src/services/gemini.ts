@@ -116,7 +116,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
     length30s: '合計165〜183文字',
     length65s: '合計390〜420文字',
     body65s: '320〜350文字',
-    note: 'Japanese wording: call the chart 「ホロスコープ」, and an astrological house 「室」 or 「ハウス」 — never 「部屋」, which means a room in a building (「1番目の部屋」 is broken Japanese). Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. Write every sentence as a Japanese speaker would say it out loud: one subject per sentence, and a predicate that says something about that subject. Never end a sentence about a person with a noun phrase about the chart — 「〜と感じる人は容量の出方です」「〜人はこの部屋が出ています」「〜人ほど、ここです」 are all broken, because 容量の出方 / 部屋 / ここ say nothing about the person. Never join two clauses whose subjects differ (「ここが強い人ほど…、忙しいと感じる人は…」) with a comma: split them into two sentences. Keep 敬体 throughout and never mix in 「〜さん」 or 「〜よね？」. Prefer dropping a detail over compressing a sentence until particles disappear.',
+    note: 'Japanese wording: call the chart 「ホロスコープ」, and an astrological house 「ハウス」 — never 「室」 and never 「部屋」, which means a room in a building (「1番目の部屋」 is broken Japanese); write 「月星座から4ハウス目」. Never write 「出生図」, 「出生時間」 or 「チャート」, and never make 生まれた時刻 the condition for getting an answer, since many viewers do not know theirs. Write every sentence as a Japanese speaker would say it out loud: one subject per sentence, and a predicate that says something about that subject. Never end a sentence about a person with a noun phrase about the chart — 「〜と感じる人は容量の出方です」「〜人はこの部屋が出ています」「〜人ほど、ここです」 are all broken, because 容量の出方 / 部屋 / ここ say nothing about the person. Never join two clauses whose subjects differ (「ここが強い人ほど…、忙しいと感じる人は…」) with a comma: split them into two sentences. Keep 敬体 throughout and never mix in 「〜さん」 or 「〜よね？」. Prefer dropping a detail over compressing a sentence until particles disappear.',
   },
   en: {
     name: 'English',
@@ -182,6 +182,7 @@ const LANGUAGE_PROFILES: Record<Language, LanguageProfile> = {
 const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
+    viewer_concern: { type: Type.STRING },
     script_30s: {
       type: Type.OBJECT,
       properties: {
@@ -200,8 +201,30 @@ const RESPONSE_SCHEMA = {
     },
     hashtags: { type: Type.STRING },
   },
-  required: ['script_30s', 'script_65s', 'hashtags'],
+  required: ['viewer_concern', 'script_30s', 'script_65s', 'hashtags'],
 } as const;
+
+/**
+ * The twelve fields of life a reading can be about, counted from the Moon sign. Banning
+ * subjects one by one never ends, so the reviewer has to name which of these the script is
+ * about instead: a script whose subject is not one of them (a document, a desk, an errand) has
+ * no field to name and fails.
+ */
+const SUBJECT_FIELDS = [
+  'self: how the viewer comes across and starts things',
+  'livelihood: income, what they say, what they hold on to',
+  'immediate circle: siblings, peers, everyday contact, nerve',
+  'home: family, roots, the inner ground they stand on',
+  'creation and judgement: children, study, taking a chance',
+  'obligation: work owed to others, rivals, debt, strain on the body',
+  'the other person: partner, counterpart, negotiation',
+  'what cannot be controlled: upheaval, hidden matters, endings',
+  'conviction: belief, teachers, long journeys, principles',
+  'position: career, duty, public standing',
+  'gain and circle: networks, hopes worked towards',
+  'release: loss, withdrawal, distance, letting go',
+  'none of these',
+] as const;
 
 const REVIEW_SCHEMA = {
   type: Type.OBJECT,
@@ -213,10 +236,21 @@ const REVIEW_SCHEMA = {
         properties: {
           id: { type: Type.STRING },
           meaning: { type: Type.STRING },
+          subject_field: { type: Type.STRING, enum: [...SUBJECT_FIELDS] },
+          viewer_concern: { type: Type.STRING },
+          concern_is_common: { type: Type.STRING, enum: ['yes', 'no'] },
           verdict: { type: Type.STRING, enum: ['ok', 'awkward', 'broken'] },
           reason: { type: Type.STRING },
         },
-        required: ['id', 'meaning', 'verdict', 'reason'],
+        required: [
+          'id',
+          'meaning',
+          'subject_field',
+          'viewer_concern',
+          'concern_is_common',
+          'verdict',
+          'reason',
+        ],
       },
     },
   },
@@ -243,6 +277,12 @@ export interface ReviewVerdict {
   id: string;
   /** What the script literally says, restated in English before any verdict is given. */
   meaning: string;
+  /** Which field of life the script is about, or that it is about none of them. */
+  subject_field: string;
+  /** The worry or question the script answers, stated in the viewer's own words. */
+  viewer_concern: string;
+  /** Whether a large audience actually holds that worry. */
+  concern_is_common: string;
   verdict: 'ok' | 'awkward' | 'broken';
   reason: string;
 }
@@ -266,7 +306,11 @@ Each script is read out loud by a synthetic voice, so it must sound like a fluen
 
 Before judging anything, fill "meaning": restate in English, sentence by sentence, what the script literally says, taking every word in its everyday ${profile.name} sense and never repairing it into what the writer probably meant. Judge that restatement, not your guess at the intention.
 Mark "broken" when the restatement is not something a person could mean — "Mars stays in the first room of the crab", "the period of the planet rains" — however fluent the sentence looks. A word used in a sense it does not have is a language fault, not an astrology detail, so it is yours to catch.
-Do not judge the length, and do not judge whether the astrology is correct.
+Do not judge the length, and do not judge whether the placement in the sky is correct.
+Mark "broken" when the reading turns a placement into a literal physical chore or object — rearranging furniture, tidying a room, moving things around the house, buying an item — instead of what it means for the viewer's situation, mood or decisions. A house of the chart is a field of life, so "the fourth house" is home life, family, roots and inner ground, never the furniture in a room.
+Mark "broken" as well when the body tells the viewer something no one would stop to watch: a prediction that is trivial, obvious, or an everyday errand anyone does in any week.
+Then fill "subject_field" with the one field of life the script is actually about, chosen from the list in the schema. Judge the subject the viewer is told about, not the house the script names: a script that says "the first house" but talks about correcting documents is about documents, and documents are not a field of life, so the answer is "none of these". Choose "none of these" whenever the subject is an object, a task or an errand rather than something the viewer faces, feels or decides, and the verdict must then be "broken".
+The field of life is only where the reading comes from, not proof that it is worth watching, so fill "viewer_concern" next: in one sentence, in the words a viewer would use, the worry or question this script answers for them. Then answer "concern_is_common": "yes" only if that worry is one a large share of ordinary people actually carry — money, work and how they are judged at it, relationships and love, family, health, fear about the future, a decision they cannot make, feeling unrewarded, feeling out of place. Answer "no" when the worry is one almost nobody has, however correctly it follows from the sky: "am I correcting the same document too often", "is my desk untidy", "should I re-check an ordinary receipt" are not worries anyone brings to astrology. A "no" means the verdict is "broken", even when every sentence is fluent and the astrology is right.
 Mark "broken" when a sentence is not grammatical ${profile.name}: a missing subject, a predicate that does not agree with its subject, particles or articles that do not connect, or a noun phrase that carries no meaning.
 Mark "awkward" when it parses but no fluent speaker would say it that way, including stitched-together clauses and mixed registers.
 Mark "awkward" when the hook is an announcement about the week rather than something said to the viewer about themselves, so that nobody scrolling past can tell it is about them.
@@ -279,6 +323,7 @@ These are real scripts that shipped and had to be withdrawn; every one of them i
 - 「ここが強い人は抱えすぎてから離しやすく、手放すのが苦手だと感じる人はこの部屋が出ています。」 the subject changes mid sentence and 「この部屋が出ています」 does not say what happens to the person.
 - 「相手の気分が自分のものになると感じる人ほど、ここです。」 「ここです」 cannot serve as the predicate of 「人ほど」.
 - 「火星が蟹座の1番目の部屋に滞在します。」 restated literally, a planet is sitting in a room of a building; the word for an astrological house was replaced by the everyday word for a room.
+- "Mars moves through the fourth house from your sidereal Moon sign. During this time, you will probably start reorganizing furniture or moving things around your living space." the sky fact is fine, but the reading it produces is a household chore, so the viewer is told nothing about their own life.
 Be as strict with every script below. Sentences that merely sound like a horoscope are fine; sentences whose subject and predicate do not belong together are not.
 
 In "reason", quote the offending span and say what is wrong, in English, in one sentence. For "ok", leave "reason" empty.
@@ -395,6 +440,7 @@ function buildPrompt(request: GenerationRequest): string {
     'viewer need their own chart? A sentence that only describes the sky fails and must be rewritten.',
     '',
     'Absolute rules:',
+    '0. Before writing a single sentence, fill "viewer_concern": the worry this video answers, in one sentence, in the words the viewer would use. It has to be a worry a large share of ordinary people actually carry — money, work and how they are judged at it, relationships and love, family, health, fear about the future, a decision they cannot make, feeling unrewarded, feeling out of place. Then write the hook and the body as the answer to that worry, read out of the placement you were given. If the placement suggests nothing that answers a real worry, choose another placement from the reference; never write about a task, an object or an errand instead, and never write a sentence whose worry you could not have stated here.',
     '1. Never write vague, unfounded fortunes such as "You are lucky this week!".',
     '2. Base every statement solely on the supplied transit reference and its house relationship to the target Moon sign. Never invent transits, dates, planetary positions, proper nouns, or numbers that are not present in the reference.',
     '3. Never add original interpretations that contradict classical Jyotish (dasha, nakshatra, planetary rulership).',
@@ -423,6 +469,11 @@ function buildPrompt(request: GenerationRequest): string {
     request.target_type === 'Zodiac_Sign'
       ? '18. Say which house the movement falls in for this Moon sign as an ordinal number counted from it, for example "the fourth house". Never write that it falls in "a certain house" or "a particular part of the chart": a reading that does not count the house gives the viewer nothing to check. Name it with the term this tradition actually uses in this language; never translate a term of art literally into an everyday word that means something else, such as the room of a building.'
       : '18. This video reads no single chart, so never count a house from a sign.',
+    request.target_type === 'Zodiac_Sign'
+      ? '18b. The reading comes from the actual placement in the reference, not from the house number alone: it is this planet, in this sign, at this stage of its movement (name it when it is retrograde or changes sign that week), seen in that house from the Moon sign. Two signs that share a house number must therefore not read alike, and a reading that would still stand if the planet were a different one has not been written from the sky.'
+      : '18b. Build the reading from the planets and signs in the reference, never from a house number alone.',
+    '18c. A house is a field of life, so read it as what the viewer faces, feels or decides in that field — the fourth house is home life, family, roots and the ground a person stands on. Never turn it into a physical chore or object: rearranging furniture, tidying a desk, clearing clutter, checking a receipt or buying something are not readings, and a viewer told she will move the furniture has been told nothing about herself.',
+    '18d. The subject of the reading must be the field of life itself — what the viewer comes across as, what sustains them, the people close to them, home and family, judgement, obligation, the other person, upheaval, conviction, position, hopes, letting go. Never make an object, a task or an errand the subject: if the sentence could name a thing the viewer handles instead of something they face, feel or decide, it is not a reading and must be rewritten.',
     '19. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
@@ -567,23 +618,59 @@ export class GeminiService {
         return {
           id: target.id,
           meaning: '',
+          subject_field: '',
+          viewer_concern: '',
+          concern_is_common: '',
           verdict: 'broken',
           reason: 'the reviewer returned no verdict',
         };
       }
       const meaning = (review.meaning ?? '').trim();
+      const subjectField = (review.subject_field ?? '').trim();
+      const viewerConcern = (review.viewer_concern ?? '').trim();
+      const concernIsCommon = (review.concern_is_common ?? '').trim();
       if (!meaning) {
         return {
           id: target.id,
           meaning,
+          subject_field: subjectField,
+          viewer_concern: viewerConcern,
+          concern_is_common: concernIsCommon,
           verdict: 'broken',
           reason: 'the reviewer passed the script without restating what it says',
+        };
+      }
+      if (!subjectField || subjectField === 'none of these') {
+        return {
+          id: target.id,
+          meaning,
+          subject_field: subjectField,
+          viewer_concern: viewerConcern,
+          concern_is_common: concernIsCommon,
+          verdict: 'broken',
+          reason: 'the script is not about any field of life the viewer lives in',
+        };
+      }
+      if (!viewerConcern || concernIsCommon !== 'yes') {
+        return {
+          id: target.id,
+          meaning,
+          subject_field: subjectField,
+          viewer_concern: viewerConcern,
+          concern_is_common: concernIsCommon,
+          verdict: 'broken',
+          reason: viewerConcern
+            ? `nobody carries this worry: ${viewerConcern}`
+            : 'the reviewer could not say what worry the script answers',
         };
       }
 
       return {
         id: target.id,
         meaning,
+        subject_field: subjectField,
+        viewer_concern: viewerConcern,
+        concern_is_common: concernIsCommon,
         verdict: review.verdict,
         reason: (review.reason ?? '').trim(),
       };

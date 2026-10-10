@@ -17,7 +17,7 @@
     "id": "ok-ja-house",
     "lang": "ja",
     "hook": "見せ方を変えたくなる一週間です。",
-    "body": "インド占星術では、火星が蟹座から数えて1室目に入ります。自分の出方を変えたくなり、気持ちが先に動きます。言い方を一つ決めてから動くと、空回りしません。",
+    "body": "インド占星術では、火星が蟹座から数えて1ハウス目に入ります。自分の出方を変えたくなり、気持ちが先に動きます。言い方を一つ決めてから動くと、空回りしません。",
     "cta": ""
   },
   {
@@ -25,6 +25,20 @@
     "lang": "en",
     "hook": "You will want to change how you come across.",
     "body": "In Vedic astrology Mars moves into the first house counted from Cancer this week. You want to change how you present yourself, and the feeling runs ahead of the plan. Settle on one way of saying it before you move.",
+    "cta": ""
+  },
+  {
+    "id": "broken-en-house-as-chore",
+    "lang": "en",
+    "hook": "Cancer, does your home suddenly need changing?",
+    "body": "According to Indian (Vedic) astrology, Jyotish, Mars moves through the fourth house from your sidereal Moon sign from October 12 to October 18. During this time, you will probably start reorganizing furniture or moving things around your living space.",
+    "cta": ""
+  },
+  {
+    "id": "broken-ja-trivial-paperwork",
+    "lang": "ja",
+    "hook": "同じ書類を何度も直していませんか。",
+    "body": "10月12日から10月18日まで、インド占星術（ジョーティシュ）で天秤座から見て第1室に入る水星の影響で、書きかけの文章や連絡のやり取りに細かい修正が重なります。",
     "cta": ""
   }
 ]

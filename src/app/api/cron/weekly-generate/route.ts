@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { numberEnv, runWithinBudget, triggerNextBatch } from '@/lib/batch';
 import { evergreenClosing } from '@/lib/evergreen-cta';
+import { buildPlacementBrief } from '@/lib/placements';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
 import { describeIssues, lintRequirements, lintScript } from '@/lib/script-lint';
@@ -80,12 +81,20 @@ export async function GET(request: Request) {
               throw new Error(`No transit data for week_id "${task.week_id}"`);
             }
             transitReference = transit.transit_data;
+            // A house number alone lets the writer fall back on generic lore, so the
+            // placements are resolved for this viewer's Moon sign first: which planet, in
+            // which sign, which house from that sign, and which field of life that is.
+            const placements = task.zodiac_sign
+              ? buildPlacementBrief(transitReference, task.zodiac_sign)
+              : '';
             scriptData = await geminiService.generateScript({
               week_id: task.week_id,
               lang_code: task.lang_code,
               target_type: task.target_type,
               zodiac_sign: task.zodiac_sign,
-              transit_reference: transitReference,
+              transit_reference: placements
+                ? `${transitReference}\n\n${placements}`
+                : transitReference,
             });
           }
 
