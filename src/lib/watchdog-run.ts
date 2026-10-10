@@ -3,6 +3,7 @@ import { triggerNextBatch } from '@/lib/batch';
 import { isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { plannedLanguages } from '@/lib/plan-languages';
 import { runRenderBatch } from '@/lib/render-batch';
+import { auditStoredScripts, storedScriptsOf } from '@/lib/script-audit';
 import { isoWeekId, nextWeekStart } from '@/lib/schedule';
 import {
   MAX_RENDER_ATTEMPTS,
@@ -24,6 +25,7 @@ export interface WatchdogResult {
   renderErrors: string[];
   pendingScripts: number;
   requeuedScripts: number;
+  auditedScripts: number;
   generationResumed: boolean;
   replanTriggered: boolean;
   alerts: string[];
@@ -70,6 +72,21 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
     }
   }
 
+  // Rules are tightened after scripts are already in the sheet, so every unposted row is read
+  // back through the current lint and the ones that no longer pass are written again.
+  const audited = auditStoredScripts(tasks, await storedScriptsOf(sheets, tasks));
+  const requeuedAudit = audited.filter((entry) => entry.action === 'Pending');
+  await sheets.requeueScripts(
+    requeuedAudit.map(({ taskId, attempts }) => ({ taskId, attempts })),
+  );
+  for (const entry of audited) {
+    if (entry.action === 'Error') {
+      alerts.push(`${entry.taskId}: script still fails the lint after rewrites (${entry.reason})`);
+    } else {
+      console.log(`Re-queued ${entry.taskId} for rewrite: ${entry.reason}`);
+    }
+  }
+
   alerts.push(...findBlockedTasks(tasks, now, { isDispatchEnabledFor }));
 
   // A plan that died partway through leaves the week short of slots. Planning is idempotent,
@@ -86,7 +103,9 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
   // invocation leaves the week half written until the next weekly cron. Restarting it here
   // picks the backlog up the same day.
   const pendingScripts =
-    tasks.filter((task) => task.script_status === 'Pending').length + requeuedScripts.length;
+    tasks.filter((task) => task.script_status === 'Pending').length +
+    requeuedScripts.length +
+    requeuedAudit.length;
   const generationResumed =
     pendingScripts > 0 ? await triggerNextBatch('/api/cron/weekly-generate', 0) : false;
 
@@ -103,6 +122,7 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
     renderErrors: batch?.errors ?? [],
     pendingScripts,
     requeuedScripts: requeuedScripts.length,
+    auditedScripts: requeuedAudit.length,
     generationResumed,
     replanTriggered,
     alerts,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { numberEnv, runWithinBudget, triggerNextBatch } from '@/lib/batch';
 import { evergreenClosing } from '@/lib/evergreen-cta';
+import { fixedCta } from '@/lib/fixed-cta';
 import { buildPlacementBrief } from '@/lib/placements';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
@@ -118,6 +119,19 @@ export async function GET(request: Request) {
               ),
             );
 
+          // The closing is owned by the app: a product promotion keeps the closing of its own
+          // row, everything else speaks the shared one. A repair pass hands back a whole script,
+          // so it is reapplied after every rewrite instead of trusting what came back.
+          const isFixedScript = task.target_type === 'Theme' || task.target_type === 'Promo';
+          const closing = isFixedScript
+            ? evergreenClosing(task.theme_id ?? '', task.lang_code, scriptData.script_30s.cta_text)
+            : fixedCta(task.lang_code);
+          const withClosing = (script: GeneratedScript): GeneratedScript => ({
+            ...script,
+            cta_text: closing,
+          });
+          scriptData = { ...scriptData, script_30s: withClosing(scriptData.script_30s) };
+
           let issues = lint(scriptData);
 
           // The lint measures length and required wording; it cannot tell whether the narration is
@@ -141,6 +155,20 @@ export async function GET(request: Request) {
 
           let verdict = await proofread(scriptData.script_30s);
           const requirements = lintRequirements(task.lang_code, '30s', spokenPeriod, signName);
+          // A fixed script is approved wording, so it is never rewritten here: a rewrite would
+          // publish something nobody approved under the same id. The row itself has to be fixed
+          // with `npm run rewrite:evergreen`.
+          if (isFixedScript && (issues.length > 0 || verdict?.verdict !== 'ok')) {
+            throw new Error(
+              `fixed script "${task.theme_id}" fails the gate, fix the Evergreen_Scripts row: ${[
+                ...issues,
+                verdict?.verdict !== 'ok' ? (verdict?.reason ?? 'reviewer gave no verdict') : '',
+              ]
+                .filter(Boolean)
+                .join('; ')}`,
+            );
+          }
+
           const maxRepairs = numberEnv('WEEKLY_GENERATE_MAX_REPAIRS', 2);
           for (let pass = 1; issues.length > 0 || verdict?.verdict !== 'ok'; pass += 1) {
             if (pass > maxRepairs) {
@@ -169,9 +197,9 @@ export async function GET(request: Request) {
               '30s',
               requirements,
             );
-            scriptData = { ...scriptData, script_30s: repaired };
+            scriptData = { ...scriptData, script_30s: withClosing(repaired) };
             issues = lint(scriptData).filter((issue) => issue.startsWith('(30s)'));
-            verdict = await proofread(repaired);
+            verdict = await proofread(scriptData.script_30s);
           }
 
           await sheetsService.saveScriptOutput({

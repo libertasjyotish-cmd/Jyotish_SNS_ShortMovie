@@ -304,12 +304,14 @@ export function lintScript(
       issues.push({ field: 'body_script', code: 'vague_house', detail: vague[0] });
     }
 
-    const opening = `${script.hook_text} ${script.body_script}`;
-    if (!opening.toLowerCase().includes(signName.toLowerCase())) {
+    // The hook is the whole video for a viewer scrolling past, and it is what the cover shows,
+    // so the sign has to be in the hook itself: naming it only later in the body leaves every
+    // other sign reading a stranger's forecast.
+    if (!script.hook_text.toLowerCase().includes(signName.toLowerCase())) {
       issues.push({
-        field: 'body_script',
+        field: 'hook_text',
         code: 'missing_sign',
-        detail: `the narration never says which sign it reads (${signName})`,
+        detail: `the hook never says which sign it reads (${signName})`,
       });
     }
   }
@@ -351,7 +353,7 @@ export function lintRequirements(
       : []),
     ...(signName
       ? [
-          `hook_text or the first sentence of body_script says the sign exactly as "${signName}", and body_script counts the house as an ordinal, never "a certain house".`,
+          `hook_text itself says the sign exactly as "${signName}" — a viewer who scrolls past reads only the hook — and body_script counts the house as an ordinal, never "a certain house".`,
         ]
       : []),
     ...(language === 'ja'

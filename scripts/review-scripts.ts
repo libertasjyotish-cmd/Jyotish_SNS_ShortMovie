@@ -3,12 +3,14 @@
  * read as fluent prose in its own language. The lint only measures length and required
  * keywords, so broken sentences used to reach production unnoticed.
  *
- * Usage: npm run review:scripts -- [lang...] [--file=scripts.json] [--week=2026-W42] [--ids=W-07,R-07]
+ * Usage: npm run review:scripts -- [lang...] [--file=scripts.json] [--week=2026-W42] [--ids=W-07,R-07] [--unposted] [--lint-only]
  */
 import { readFileSync } from 'node:fs';
 
 import { GeminiService, isTransientGeminiError, type ReviewTarget } from '@/services/gemini';
 import { GoogleSheetsService, type Language } from '@/services/sheets';
+import { describeIssues, lintScript, type ScriptIssue } from '@/lib/script-lint';
+import { zodiacName } from '@/lib/zodiac-names';
 
 const ALL_LANGS: Language[] = ['ja', 'en', 'es', 'pt', 'id', 'ar', 'fr', 'de'];
 /** Small enough that one bad response costs little, large enough to keep the call count down. */
@@ -29,24 +31,46 @@ function parseArgs(argv: string[]) {
   let file: string | undefined;
   let week: string | undefined;
   let ids: Set<string> | undefined;
+  let unposted = false;
+  let lintOnly = false;
 
   for (const arg of argv) {
-    if (arg.startsWith('--file=')) file = arg.slice('--file='.length);
+    if (arg === '--unposted') unposted = true;
+    else if (arg === '--lint-only') lintOnly = true;
+    else if (arg.startsWith('--file=')) file = arg.slice('--file='.length);
     else if (arg.startsWith('--week=')) week = arg.slice('--week='.length);
     else if (arg.startsWith('--ids=')) ids = new Set(arg.slice('--ids='.length).split(','));
     else if (ALL_LANGS.includes(arg as Language)) langs.push(arg as Language);
     else throw new Error(`unknown argument: ${arg}`);
   }
 
-  return { langs: langs.length > 0 ? langs : ALL_LANGS, file, week, ids };
+  return { langs: langs.length > 0 ? langs : ALL_LANGS, file, week, ids, unposted, lintOnly };
 }
 
+/** A target carries its sign so the lint can tell whether the hook names it. */
+type Target = ReviewTarget & { sign?: string };
+
 /** The scripts a planned week will actually publish, as opposed to the evergreen stock. */
-async function targetsFromWeek(weekId: string): Promise<Map<Language, ReviewTarget[]>> {
-  const outputs = await new GoogleSheetsService().getScriptOutputsByWeek(weekId);
-  const byLang = new Map<Language, ReviewTarget[]>();
+async function targetsFromWeek(
+  weekId: string,
+  unposted: boolean,
+): Promise<Map<Language, Target[]>> {
+  const sheets = new GoogleSheetsService();
+  const [outputs, tasks] = await Promise.all([
+    sheets.getScriptOutputsByWeek(weekId),
+    sheets.getQueueTasks(weekId),
+  ]);
+  const posted = new Set(
+    unposted
+      ? tasks.filter((task) => task.post_status === 'Posted').map((task) => task.task_id)
+      : [],
+  );
+  const signs = new Map(tasks.map((task) => [task.task_id, task.zodiac_sign]));
+  const byLang = new Map<Language, Target[]>();
   for (const output of outputs) {
     if (!output.script_30s_json) continue;
+    // A published video cannot be replaced, so re-judging it only spends review calls.
+    if (posted.has(output.task_id)) continue;
     const script = JSON.parse(output.script_30s_json) as {
       hook_text: string;
       body_script: string;
@@ -58,6 +82,7 @@ async function targetsFromWeek(weekId: string): Promise<Map<Language, ReviewTarg
       hook: script.hook_text,
       body: script.body_script,
       cta: script.cta_text,
+      sign: zodiacName(signs.get(output.task_id), output.lang_code),
     });
     byLang.set(output.lang_code, list);
   }
@@ -85,6 +110,20 @@ function targetsFromFile(file: string): Map<Language, ReviewTarget[]> {
   return byLang;
 }
 
+/**
+ * Wording the lint can decide on its own, including whether the hook names the sign the task is
+ * for. Only the spoken week is left to the pipeline, which is the side that knows it.
+ */
+function mechanicalIssues(target: Target, lang: Language): ScriptIssue[] {
+  return lintScript(
+    { hook_text: target.hook, body_script: target.body, cta_text: target.cta },
+    lang,
+    '30s',
+    undefined,
+    target.sign,
+  ).filter((issue) => issue.code !== 'missing_period');
+}
+
 async function reviewBatch(gemini: GeminiService, batch: ReviewTarget[], lang: Language) {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
@@ -102,11 +141,11 @@ async function reviewBatch(gemini: GeminiService, batch: ReviewTarget[], lang: L
 }
 
 async function main() {
-  const { langs, file, week, ids } = parseArgs(process.argv.slice(2));
+  const { langs, file, week, ids, unposted, lintOnly } = parseArgs(process.argv.slice(2));
   const fileTargets = file
     ? targetsFromFile(file)
     : week
-      ? await targetsFromWeek(week)
+      ? await targetsFromWeek(week, unposted)
       : undefined;
   const gemini = new GeminiService();
   let flagged = 0;
@@ -116,12 +155,24 @@ async function main() {
     if (ids) targets = targets.filter((target) => ids.has(target.id));
     if (targets.length === 0) continue;
 
-    const batches: ReviewTarget[][] = [];
-    for (let index = 0; index < targets.length; index += BATCH_SIZE) {
-      batches.push(targets.slice(index, index + BATCH_SIZE));
+    // The mechanical checks are free and catch what no reviewer should have to argue about
+    // (「○室」, a URL in the narration), so they run first and the script is not sent for review.
+    const problems: string[] = [];
+    const reviewable: ReviewTarget[] = [];
+    for (const target of targets) {
+      const issues = mechanicalIssues(target, lang);
+      if (issues.length > 0) problems.push(`  ${target.id} broken: ${describeIssues(issues)}`);
+      else reviewable.push(target);
     }
 
-    const problems: string[] = [];
+    // --lint-only answers "does anything break a rule we can check for free" without paid calls.
+    if (lintOnly) reviewable.length = 0;
+
+    const batches: ReviewTarget[][] = [];
+    for (let index = 0; index < reviewable.length; index += BATCH_SIZE) {
+      batches.push(reviewable.slice(index, index + BATCH_SIZE));
+    }
+
     for (let index = 0; index < batches.length; index += CONCURRENCY) {
       const results = await Promise.all(
         batches

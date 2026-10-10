@@ -4,10 +4,14 @@
  * --apply, so the replacement text can be read first.
  *
  * Usage: npm run rewrite:evergreen -- <lang> [--ids=W-07,R-07] [--out=file.json] [--apply]
+ *
+ * A script the model cannot converge on is rewritten by hand instead; pass that file back in
+ * with --from=file.json to lint it and write it to the sheet without any paid call.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
-import { lintRequirements, lintScript, scriptLength } from '@/lib/script-lint';
+import { lintEvergreenEntry } from '@/lib/evergreen-cta';
+import { describeIssues, lintRequirements, lintScript, scriptLength } from '@/lib/script-lint';
 import {
   GeminiService,
   isTransientGeminiError,
@@ -34,9 +38,11 @@ function parseArgs(argv: string[]) {
   let out = '/tmp/evergreen-rewrite.json';
   let apply = false;
   let resume: string | undefined;
+  let from: string | undefined;
 
   for (const arg of argv) {
     if (arg === '--apply') apply = true;
+    else if (arg.startsWith('--from=')) from = arg.slice('--from='.length);
     else if (arg.startsWith('--ids=')) ids = new Set(arg.slice('--ids='.length).split(','));
     else if (arg.startsWith('--out=')) out = arg.slice('--out='.length);
     else if (arg.startsWith('--resume=')) resume = arg.slice('--resume='.length);
@@ -44,8 +50,8 @@ function parseArgs(argv: string[]) {
     else throw new Error(`unknown argument: ${arg}`);
   }
 
-  if (!lang) throw new Error(`usage: rewrite-evergreen <${ALL_LANGS.join('|')}> [--apply]`);
-  return { lang, ids, out, apply, resume };
+  if (!lang && !from) throw new Error(`usage: rewrite-evergreen <${ALL_LANGS.join('|')}> [--apply]`);
+  return { lang, ids, out, apply, resume, from };
 }
 
 function asScript(target: { hook: string; body: string; cta: string }): GeneratedScript {
@@ -76,8 +82,48 @@ async function withRetry<T>(label: string, run: () => Promise<T>): Promise<T | u
   return undefined;
 }
 
+/** Writes the replacements to the sheet, keyed by script id and language. */
+async function save(sheets: GoogleSheetsService, replacements: Replacement[]) {
+  await sheets.updateEvergreenScripts(
+    replacements.map((replacement) => ({
+      scriptId: replacement.id,
+      lang_code: replacement.lang,
+      hook: replacement.hook,
+      body: replacement.body,
+      cta: replacement.cta,
+    })),
+  );
+  console.log(`${replacements.length} rows updated in Evergreen_Scripts`);
+}
+
+/** Lints hand-written replacements and writes them, so a human rewrite costs no paid call. */
+async function applyFromFile(path: string, apply: boolean) {
+  const replacements: Replacement[] = JSON.parse(readFileSync(path, 'utf8'));
+  const rejected = replacements.flatMap((replacement) => {
+    const issues = lintEvergreenEntry(replacement);
+    return issues.length === 0
+      ? []
+      : [`${replacement.id} ${replacement.lang}: ${describeIssues(issues)}`];
+  });
+  if (rejected.length > 0) throw new Error(`lint rejected:\n${rejected.join('\n')}`);
+
+  for (const replacement of replacements) {
+    console.log(
+      `${replacement.id} ${replacement.lang}: ${totalLength(asScript(replacement), replacement.lang)}`,
+    );
+  }
+  if (!apply) {
+    console.log('nothing written to the sheet (pass --apply)');
+    return;
+  }
+  await save(new GoogleSheetsService(), replacements);
+}
+
 async function main() {
-  const { lang, ids, out, apply, resume } = parseArgs(process.argv.slice(2));
+  const { lang, ids, out, apply, resume, from } = parseArgs(process.argv.slice(2));
+  if (from) return applyFromFile(from, apply);
+  if (!lang) throw new Error('a language is required');
+
   const sheets = new GoogleSheetsService();
   const gemini = new GeminiService();
 
@@ -170,16 +216,7 @@ async function main() {
     console.log('nothing written to the sheet (pass --apply)');
     return;
   }
-  await sheets.updateEvergreenScripts(
-    done.map((replacement) => ({
-      scriptId: replacement.id,
-      lang_code: replacement.lang,
-      hook: replacement.hook,
-      body: replacement.body,
-      cta: replacement.cta,
-    })),
-  );
-  console.log(`${done.length} rows updated in Evergreen_Scripts`);
+  await save(sheets, done);
 }
 
 void main();
