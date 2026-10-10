@@ -147,6 +147,7 @@ def render_video():
         theme=payload.get("theme") or "dark",
         target_min=_optional_float(payload.get("target_min")),
         target_max=_optional_float(payload.get("target_max")),
+        brand=bool(payload.get("brand", False)),
     )
 
     # A 65s render outlives any HTTP client, so the caller hands over a callback and hangs up

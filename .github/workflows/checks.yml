@@ -37,6 +37,7 @@ jobs:
           curl -sSL -o "$HOME/fonts/MPLUS1p-Bold.ttf" "$FONTS/mplus1p/MPLUS1p-Bold.ttf"
           curl -sSL -o "$HOME/fonts/MPLUS1p-Medium.ttf" "$FONTS/mplus1p/MPLUS1p-Medium.ttf"
           curl -sSL -o "$HOME/fonts/Montserrat.ttf" "$FONTS/montserrat/Montserrat%5Bwght%5D.ttf"
+          curl -sSL -o "$HOME/fonts/Cormorant.ttf" "$FONTS/cormorant/Cormorant%5Bwght%5D.ttf"
           curl -sSL -o "$HOME/fonts/NotoNaskhArabic.ttf" "$FONTS/notonaskharabic/NotoNaskhArabic%5Bwght%5D.ttf"
       - run: FONT_DIR="$HOME/fonts" python check_layout.py
         working-directory: renderer

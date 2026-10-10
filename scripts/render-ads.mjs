@@ -37,6 +37,7 @@ for (const script of scripts) {
     pattern: script.pattern ?? '30s',
     target_min: 26,
     target_max: 32,
+    brand: true,
     output_path: `${OUT_PREFIX}/${script.id}.mp4`,
   };
   const res = await fetch(`${RENDERER}/render`, {

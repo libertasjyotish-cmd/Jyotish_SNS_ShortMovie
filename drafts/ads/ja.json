@@ -64,5 +64,16 @@
     "background": "compat",
     "theme": "light",
     "pattern": "30s"
+  },
+  {
+    "id": "ad-premium-d",
+    "lang": "ja",
+    "title": "広告用・毎日の鑑定（プレミアム月額）",
+    "hook": "同じ星座の一億人と、同じ一日のはずがありません。",
+    "body": "太陽の星座が十二分割なら、インド占星術は百八分割です。Libertas Jyotishの毎日の鑑定は、あなたの月星座と、今あなたに巡っているダシャーまで見て、今日の追い風と気をつける場面を、時間帯つきで毎朝アプリに届けます。",
+    "cta": "今日のあなたの流れは、リンクから確認できます。",
+    "background": "premium-v2",
+    "theme": "light",
+    "pattern": "30s"
   }
 ]
