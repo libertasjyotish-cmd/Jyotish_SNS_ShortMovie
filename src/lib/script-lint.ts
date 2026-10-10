@@ -84,7 +84,8 @@ const HOOK_LECTURE_PATTERNS: Record<Language, RegExp> = {
  * written for; the chart is named in the words the site itself uses.
  */
 const DISCOURAGED_PATTERNS: Partial<Record<Language, RegExp>> = {
-  ja: /出生図|出生時間|チャート|ネイタル/,
+  // 室 and 部屋 mean a room in a building: an astrological house is 「ハウス」.
+  ja: /出生図|出生時間|チャート|ネイタル|(?:第\s*)?[0-9０-９一二三四五六七八九十]+\s*室|部屋/,
 };
 
 /** The CTA has to send the viewer somewhere, or the video earns no visit to the site. */
