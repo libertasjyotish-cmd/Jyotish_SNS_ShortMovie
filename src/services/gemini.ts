@@ -271,6 +271,8 @@ export interface ReviewTarget {
   hook: string;
   body: string;
   cta: string;
+  /** A product promo sells a report instead of giving a reading, so it is judged differently. */
+  promo?: boolean;
 }
 
 export interface ReviewVerdict {
@@ -326,7 +328,16 @@ These are real scripts that shipped and had to be withdrawn; every one of them i
 - "Mars moves through the fourth house from your sidereal Moon sign. During this time, you will probably start reorganizing furniture or moving things around your living space." the sky fact is fine, but the reading it produces is a household chore, so the viewer is told nothing about their own life.
 Be as strict with every script below. Sentences that merely sound like a horoscope are fine; sentences whose subject and predicate do not belong together are not.
 
-In "reason", quote the offending span and say what is wrong, in English, in one sentence. For "ok", leave "reason" empty.
+${
+    targets.some((target) => target.promo)
+      ? `These scripts advertise a written report instead of giving a reading: ${targets
+          .filter((target) => target.promo)
+          .map((target) => target.id)
+          .join(
+            ', ',
+          )}. For them, naming the product and saying what it tells the reader is the point, so never mark that "awkward"; fill "viewer_concern" with the worry the report answers, and judge only the language and whether that worry is one people actually carry. They close with their own sentence instead of the approved closing, so do not compare them with it.\n\n`
+      : ''
+  }In "reason", quote the offending span and say what is wrong, in English, in one sentence. For "ok", leave "reason" empty.
 
 Return one entry per script, with the same id.
 
@@ -458,7 +469,7 @@ function buildPrompt(request: GenerationRequest): string {
     '13. Never create urgency through fear. Do not use danger, warning, running out of time, misfortune, or "if you do not do this" framings, and never promise that something will certainly happen.',
     '14. Never let the video close its own loop: state the general principle and the individual variation, and stop before the viewer could conclude what their own case is. The unanswered question is what takes them to the site.',
     spokenPeriod
-      ? `15. The reading covers one week and stays on the feed long afterwards, so body_script opens by saying the dates out loud, exactly as "${spokenPeriod}", in the same sentence that names the tradition. Write them as they are read, never as a week number, and say them in both scripts.`
+      ? `15. The reading covers one week and stays on the feed long afterwards, so body_script opens by saying the dates out loud, exactly as "${spokenPeriod}", as the time the reading is about. Write them as they are read, never as a week number, and say them in both scripts. Attach them to what happens in that week, never as a modifier of the name of the tradition ("the Indian astrology of October 12th to 18th" is not something anyone says), and never put a reading guide or any other parenthesis in a line that is read aloud.`
       : '15. This video is not tied to a week, so never state dates or a period in any field.',
     request.target_type === 'Zodiac_Sign'
       ? `16. This reading is for the sidereal Moon sign ${request.zodiac_sign}, which is usually not the sign the viewer knows from Western astrology, so body_script says once that the sign meant here is the Moon sign of Indian astrology. The appended closing then tells them where to check their own.`

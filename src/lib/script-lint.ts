@@ -15,6 +15,7 @@ export interface ScriptIssue {
     | 'contains_url'
     | 'missing_period'
     | 'missing_sign'
+    | 'spoken_parenthesis'
     | 'vague_house'
     | 'dangling_predicate'
     | 'too_short'
@@ -248,6 +249,11 @@ export function lintScript(
     if (url) {
       issues.push({ field, code: 'contains_url', detail: url[0] });
     }
+    // A voice cannot speak a gloss in brackets. The approved closing is exempt: its wording is fixed.
+    const parenthesis = field === 'cta_text' ? null : text.match(/[（(][^）)]*[）)]/);
+    if (parenthesis) {
+      issues.push({ field, code: 'spoken_parenthesis', detail: parenthesis[0] });
+    }
   }
 
   if (language === 'ja') {
@@ -316,11 +322,11 @@ export function lintScript(
     }
   }
 
-  const total = fields.reduce((sum, { text }) => sum + scriptLength(text, language), 0);
-  const bounds = LENGTH_BOUNDS[pattern][language];
-  const allowance = period ? SIGN_ALLOWANCE[language] : 0;
-  const min = bounds.min + allowance;
-  const max = bounds.max + allowance;
+  // The closing is not part of what the writer controls, and a product promo closes with its own
+  // shorter CTA, so the length is judged on the hook and body against the narration budget.
+  const total =
+    scriptLength(script.hook_text, language) + scriptLength(script.body_script, language);
+  const { min, max } = narrationBudget(language, pattern, period);
   if (total < min) {
     issues.push({ field: 'script', code: 'too_short', detail: `${total} < ${min}` });
   } else if (total > max) {
