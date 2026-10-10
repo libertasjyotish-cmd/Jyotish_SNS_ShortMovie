@@ -513,6 +513,8 @@ export class GeminiService {
       '',
       'What must not change: the astrological content. Keep the same house, the same planet, the same part of life, the same promise. Never add a transit, a number, a date or a term that is not already there.',
       '',
+      'Change only the sentences the reviewer named; a sentence that already reads well comes back word for word.',
+      '',
       'What must change: anything that is not natural speech. One subject per sentence, a predicate that says something about that subject, no clause stitched to a clause with a different subject, no noun phrase standing in for a predicate, consistent register throughout.',
       '',
       `Lengths (hard limits, hook_text + body_script together, the fixed closing excluded): ${budget.min}-${budget.max} ${budget.unit}. hook_text is ${profile.hook} and must be a complete sentence; it is shown on screen in full, so never shorten it by dropping words. If it does not fit, drop a whole detail rather than squeezing a sentence until words are missing.`,
