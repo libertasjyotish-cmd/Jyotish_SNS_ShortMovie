@@ -12,7 +12,15 @@ cover.
 from PIL import Image, ImageDraw
 
 import overlays
-from overlays import DARK, Palette, _draw_text, _fit_font
+from overlays import (
+    DARK,
+    PERIOD_PANEL,
+    PERIOD_PANEL_BORDER,
+    Palette,
+    _draw_text,
+    _fit_font,
+    _panel,
+)
 
 VERTICAL = (overlays.WIDTH, overlays.HEIGHT)
 WIDE = (1280, 720)
@@ -98,15 +106,17 @@ def build(
     half_height = sum(heights) / 2 + scale * PLATE_PADDING
     center_y = height / 2
 
-    draw.rounded_rectangle(
+    _panel(
+        layer,
         [
             (width - plate_width) / 2,
             center_y - half_height,
             (width + plate_width) / 2,
             center_y + half_height,
         ],
-        radius=round(scale * PLATE_RADIUS),
-        fill=palette.panel,
+        round(scale * PLATE_RADIUS),
+        PERIOD_PANEL if theme == DARK else palette.panel,
+        PERIOD_PANEL_BORDER if theme == DARK else None,
     )
 
     y = center_y - sum(heights) / 2
