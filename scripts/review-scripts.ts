@@ -11,6 +11,7 @@ import { GeminiService, isTransientGeminiError, type ReviewTarget } from '@/serv
 import { GoogleSheetsService, type Language } from '@/services/sheets';
 import { describeIssues, lintScript, type ScriptIssue } from '@/lib/script-lint';
 import { zodiacName } from '@/lib/zodiac-names';
+import { weekPeriodSpoken } from '@/lib/period';
 
 const ALL_LANGS: Language[] = ['ja', 'en', 'es', 'pt', 'id', 'ar', 'fr', 'de'];
 /** Small enough that one bad response costs little, large enough to keep the call count down. */
@@ -47,8 +48,11 @@ function parseArgs(argv: string[]) {
   return { langs: langs.length > 0 ? langs : ALL_LANGS, file, week, ids, unposted, lintOnly };
 }
 
-/** A target carries its sign so the lint can tell whether the hook names it. */
-type Target = ReviewTarget & { sign?: string };
+/**
+ * A target carries its sign so the lint can tell whether the hook names it, and the spoken week
+ * so the length bounds match the ones generation was held to.
+ */
+type Target = ReviewTarget & { sign?: string; period?: string };
 
 /** The scripts a planned week will actually publish, as opposed to the evergreen stock. */
 async function targetsFromWeek(
@@ -66,6 +70,10 @@ async function targetsFromWeek(
       : [],
   );
   const signs = new Map(tasks.map((task) => [task.task_id, task.zodiac_sign]));
+  // Only the weekly readings speak the week they cover; evergreen rows carry a sign but no period.
+  const weekly = new Set(
+    tasks.filter((task) => task.target_type === 'Zodiac_Sign').map((task) => task.task_id),
+  );
   const byLang = new Map<Language, Target[]>();
   for (const output of outputs) {
     if (!output.script_30s_json) continue;
@@ -82,7 +90,11 @@ async function targetsFromWeek(
       hook: script.hook_text,
       body: script.body_script,
       cta: script.cta_text,
+      promo: output.task_id.includes('promo'),
       sign: zodiacName(signs.get(output.task_id), output.lang_code),
+      period: weekly.has(output.task_id)
+        ? weekPeriodSpoken(weekId, output.lang_code)
+        : undefined,
     });
     byLang.set(output.lang_code, list);
   }
@@ -96,6 +108,7 @@ async function targetsFromSheet(lang: Language): Promise<ReviewTarget[]> {
     hook: script.hook,
     body: script.body,
     cta: script.cta,
+    promo: script.script_id.includes('promo'),
   }));
 }
 
@@ -119,7 +132,7 @@ function mechanicalIssues(target: Target, lang: Language): ScriptIssue[] {
     { hook_text: target.hook, body_script: target.body, cta_text: target.cta },
     lang,
     '30s',
-    undefined,
+    target.period,
     target.sign,
   ).filter((issue) => issue.code !== 'missing_period');
 }
