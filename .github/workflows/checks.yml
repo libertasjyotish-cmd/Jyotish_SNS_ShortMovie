@@ -19,3 +19,24 @@ jobs:
       - run: npm run check:titles
       - run: npm run check:covers
       - run: npm run check:backgrounds
+
+  layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow==11.0.0
+      - name: Fetch the fonts the renderer image ships with
+        env:
+          FONTS: https://github.com/google/fonts/raw/main/ofl
+        run: |
+          mkdir -p "$HOME/fonts"
+          curl -sSL -o "$HOME/fonts/MPLUS1p-Black.ttf" "$FONTS/mplus1p/MPLUS1p-Black.ttf"
+          curl -sSL -o "$HOME/fonts/MPLUS1p-Bold.ttf" "$FONTS/mplus1p/MPLUS1p-Bold.ttf"
+          curl -sSL -o "$HOME/fonts/MPLUS1p-Medium.ttf" "$FONTS/mplus1p/MPLUS1p-Medium.ttf"
+          curl -sSL -o "$HOME/fonts/Montserrat.ttf" "$FONTS/montserrat/Montserrat%5Bwght%5D.ttf"
+          curl -sSL -o "$HOME/fonts/NotoNaskhArabic.ttf" "$FONTS/notonaskharabic/NotoNaskhArabic%5Bwght%5D.ttf"
+      - run: FONT_DIR="$HOME/fonts" python check_layout.py
+        working-directory: renderer

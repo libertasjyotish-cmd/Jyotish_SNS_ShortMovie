@@ -20,6 +20,11 @@ PANEL = (10, 7, 18, 150)
 SLATE = (28, 44, 70, 255)
 LIGHT_PANEL = (253, 248, 236, 205)
 OUTLINE = (70, 38, 18, 235)
+"""The plate under the sign and the week: opaque enough that the artwork never shows through it."""
+PERIOD_PANEL = (12, 16, 38, 212)
+"""Hairline around the period plate; `None` draws it without a border."""
+PERIOD_PANEL_BORDER: tuple[int, int, int, int] | None = (240, 205, 130, 150)
+PANEL_BORDER_WIDTH = 2
 """Outline widths that keep text readable on bright footage without veiling the background."""
 HOOK_OUTLINE = 7
 NOTE_OUTLINE = 4
@@ -33,7 +38,7 @@ class Palette:
 
     def __init__(self, theme: str) -> None:
         light = theme == LIGHT
-        self.heading = SLATE if light else GOLD
+        self.heading = SLATE if light else CREAM
         self.text = SLATE if light else CREAM
         self.panel = LIGHT_PANEL if light else PANEL
         self.panel_text = SLATE if light else GOLD
@@ -43,13 +48,26 @@ class Palette:
         self.scrim_alpha = (80, 95, 0) if light else (0, 0, 0)
 
 
-PERIOD_CENTER_Y = 300
-HOOK_CENTER_Y = 500
-BODY_CENTER_Y = 1040
+PERIOD_CENTER_Y = 270
+HOOK_CENTER_Y = 555
+BODY_CENTER_Y = 1035
 CTA_CENTER_Y = 1500
-NOTE_CENTER_Y = 1724
+NOTE_CENTER_Y = 1750
 """Lines a CTA banner may wrap to; the caller splits longer text into parts instead."""
 CTA_MAX_LINES = 3
+
+"""
+Each block owns a band of the frame and its type shrinks until it fits, so a long translation
+never grows into the block below it. The bands leave a gap between neighbours.
+"""
+PERIOD_MAX_HEIGHT = 156
+HOOK_MAX_HEIGHT = 310
+"""Space the underline needs under the hook text."""
+HOOK_UNDERLINE_GAP = 40
+BODY_MAX_HEIGHT = 410
+BODY_PADDING = 60
+CTA_MAX_HEIGHT = 292
+NOTE_MAX_HEIGHT = 100
 
 FONTS: dict[str, dict[str, tuple[str, str | None]]] = {
     "ja": {
@@ -93,6 +111,14 @@ def _save_cropped(img: Image.Image, path: str) -> tuple[str, int, int]:
     return path, left, top
 
 
+def _panel(img: Image.Image, box, radius: float, fill, border=None) -> None:
+    """Lays the plate the text is read on, with an optional hairline around it."""
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle(box, radius=radius, fill=fill)
+    if border:
+        draw.rounded_rectangle(box, radius=radius, outline=border, width=PANEL_BORDER_WIDTH)
+
+
 def _draw_text(
     draw: ImageDraw.ImageDraw, xy, text: str, font, fill, language: str, outline: int = 0
 ) -> None:
@@ -115,12 +141,18 @@ def _fit_font(
     size: int,
     max_width: float,
     max_lines: int,
+    max_height: float | None = None,
+    line_gap: float = 1.0,
 ) -> tuple[ImageFont.FreeTypeFont, list[str]]:
-    """Shrinks the font until the text fits in `max_lines`, so long translations stay inside."""
+    """
+    Shrinks the font until the text fits in `max_lines` and, when given, in `max_height`, so a
+    long translation stays inside its own band instead of running into the block below it.
+    """
     while size > 20:
         font = _font(language, role, size)
         lines = wrap_lines(lambda t: draw.textlength(t, font=font), text, language, max_width)
-        if len(lines) <= max_lines:
+        fits_height = max_height is None or int(size * line_gap) * len(lines) <= max_height
+        if len(lines) <= max_lines and fits_height:
             return font, lines
         size -= 4
     font = _font(language, role, size)
@@ -179,21 +211,31 @@ def period(path: str, text: str, language: str, theme: str = DARK) -> tuple[str,
     draw = ImageDraw.Draw(img)
     lines = [line.strip() for line in text.split("\n") if line.strip()]
     font, _ = _fit_font(
-        draw, max(lines, key=len), language, "button", 62, WIDTH * 0.78, 1
+        draw,
+        max(lines, key=len),
+        language,
+        "button",
+        62,
+        WIDTH * 0.78,
+        1,
+        PERIOD_MAX_HEIGHT / max(len(lines), 1),
+        1.25,
     )
     widths = [draw.textlength(line, font=font) for line in lines]
     line_height = font.size * 1.25
     half_height = line_height * len(lines) / 2 + 22
     width = min(WIDTH * 0.84, max(widths) + 96)
-    draw.rounded_rectangle(
+    _panel(
+        img,
         [
             (WIDTH - width) / 2,
             PERIOD_CENTER_Y - half_height,
             (WIDTH + width) / 2,
             PERIOD_CENTER_Y + half_height,
         ],
-        radius=min(46, half_height),
-        fill=Palette(theme).panel,
+        min(46, half_height),
+        PERIOD_PANEL if theme == DARK else Palette(theme).panel,
+        PERIOD_PANEL_BORDER if theme == DARK else None,
     )
     top = PERIOD_CENTER_Y - line_height * len(lines) / 2 - font.size * 0.20
     for index, line in enumerate(lines):
@@ -212,15 +254,17 @@ def hook(path: str, text: str, language: str, theme: str = DARK) -> tuple[str, i
     palette = Palette(theme)
     img = _blank()
     draw = ImageDraw.Draw(img)
-    font, lines = _fit_font(draw, text, language, "display", 82, WIDTH * 0.86, 2)
+    font, lines = _fit_font(
+        draw, text, language, "display", 82, WIDTH * 0.90, 3, HOOK_MAX_HEIGHT, 1.35
+    )
     total = _draw_block(
         img, lines, font, HOOK_CENTER_Y, language, palette.heading, 1.35, palette.shadow, HOOK_OUTLINE if palette.shadow else 0
     )
-    underline_y = HOOK_CENTER_Y + total // 2 + 44
+    underline_y = HOOK_CENTER_Y + total // 2 + HOOK_UNDERLINE_GAP
     draw.rounded_rectangle(
         [WIDTH / 2 - 150, underline_y, WIDTH / 2 + 150, underline_y + 8],
         radius=4,
-        fill=palette.heading,
+        fill=SLATE if theme == LIGHT else GOLD,
     )
     return _save_cropped(img, path)
 
@@ -229,19 +273,22 @@ def body(path: str, text: str, language: str, theme: str = DARK) -> tuple[str, i
     palette = Palette(theme)
     img = _blank()
     draw = ImageDraw.Draw(img)
-    font, lines = _fit_font(draw, text, language, "body", 58, WIDTH * 0.80, 6)
+    font, lines = _fit_font(
+        draw, text, language, "body", 58, WIDTH * 0.80, 6, BODY_MAX_HEIGHT, 1.62
+    )
     line_height = int(font.size * 1.62)
     total = line_height * len(lines)
-    padding = 60
-    draw.rounded_rectangle(
+    padding = BODY_PADDING
+    _panel(
+        img,
         [
             WIDTH * 0.09,
             BODY_CENTER_Y - total / 2 - padding,
             WIDTH * 0.91,
             BODY_CENTER_Y + total / 2 + padding,
         ],
-        radius=44,
-        fill=palette.panel,
+        44,
+        palette.panel,
     )
     _draw_block(img, lines, font, BODY_CENTER_Y, language, palette.text, 1.62, False)
     return _save_cropped(img, path)
@@ -251,7 +298,9 @@ def cta(path: str, text: str, language: str) -> tuple[str, int, int]:
     """One banner; the gold panel grows with the wrapped text so nothing is cut off."""
     img = _blank()
     draw = ImageDraw.Draw(img)
-    font, lines = _fit_font(draw, text, language, "button", 60, WIDTH * 0.78, CTA_MAX_LINES)
+    font, lines = _fit_font(
+        draw, text, language, "button", 60, WIDTH * 0.78, CTA_MAX_LINES, CTA_MAX_HEIGHT, 1.3
+    )
     line_height = int(font.size * 1.3)
     half_height = line_height * len(lines) / 2 + 34
     width = min(WIDTH * 0.92, max(draw.textlength(line, font=font) for line in lines) + 110)
@@ -273,6 +322,8 @@ def note(path: str, text: str, language: str, theme: str = DARK) -> tuple[str, i
     palette = Palette(theme)
     img = _blank()
     draw = ImageDraw.Draw(img)
-    font, lines = _fit_font(draw, text, language, "body", 40, WIDTH * 0.8, 2)
+    font, lines = _fit_font(
+        draw, text, language, "body", 40, WIDTH * 0.8, 2, NOTE_MAX_HEIGHT, 1.3
+    )
     _draw_block(img, lines, font, NOTE_CENTER_Y, language, palette.text, 1.3, palette.shadow, NOTE_OUTLINE if palette.shadow else 0)
     return _save_cropped(img, path)
