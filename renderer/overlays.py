@@ -12,6 +12,7 @@ from text import RTL_LANGUAGES, wrap_lines
 
 WIDTH, HEIGHT = 1080, 1920
 FONT_DIR = os.environ.get("FONT_DIR", "/opt/fonts")
+ASSET_DIR = os.path.join(os.path.dirname(__file__), "assets")
 
 GOLD = (240, 205, 130, 255)
 INK = (18, 13, 6, 255)
@@ -68,6 +69,9 @@ BODY_MAX_HEIGHT = 410
 BODY_PADDING = 60
 CTA_MAX_HEIGHT = 292
 NOTE_MAX_HEIGHT = 100
+BRAND_LOGO_SIZE = 100
+BRAND_GAP = 22
+BRAND_TOP = 25
 
 FONTS: dict[str, dict[str, tuple[str, str | None]]] = {
     "ja": {
@@ -181,6 +185,46 @@ def _draw_block(
         _draw_text(draw, (x, y), line, font, fill, language, outline)
         y += line_height
     return total
+
+
+def brand(path: str) -> tuple[str, int, int]:
+    """Draws the paid-ad brand lockup: the transparent seal beside its wordmark."""
+    img = _blank()
+    draw = ImageDraw.Draw(img)
+    logo = Image.open(os.path.join(ASSET_DIR, "libertas-logo.png")).convert("RGBA")
+    logo = logo.resize((BRAND_LOGO_SIZE, BRAND_LOGO_SIZE), Image.Resampling.LANCZOS)
+    font = ImageFont.truetype(os.path.join(FONT_DIR, "Cormorant.ttf"), 54)
+    wordmark = "Libertas Jyotish"
+    text_box = draw.textbbox((0, 0), wordmark, font=font, stroke_width=1)
+    text_width = text_box[2] - text_box[0]
+    total_width = BRAND_LOGO_SIZE + BRAND_GAP + text_width
+    left = (WIDTH - total_width) // 2
+    img.alpha_composite(logo, (left, BRAND_TOP))
+    text_x = left + BRAND_LOGO_SIZE + BRAND_GAP
+    text_y = BRAND_TOP + 18
+    draw.text(
+        (text_x + 1, text_y + 2),
+        wordmark,
+        font=font,
+        fill=(70, 42, 16, 140),
+        stroke_width=1,
+        stroke_fill=(255, 248, 229, 100),
+    )
+    draw.text(
+        (text_x, text_y),
+        wordmark,
+        font=font,
+        fill=(150, 101, 28, 255),
+        stroke_width=1,
+        stroke_fill=(255, 248, 229, 215),
+    )
+    rule_y = text_y + 62
+    draw.line(
+        (text_x + 8, rule_y, text_x + text_width - 8, rule_y),
+        fill=(172, 119, 36, 170),
+        width=1,
+    )
+    return _save_cropped(img, path)
 
 
 def scrim(path: str, theme: str = DARK) -> tuple[str, int, int] | None:

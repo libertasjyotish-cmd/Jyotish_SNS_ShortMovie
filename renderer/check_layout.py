@@ -43,6 +43,13 @@ def main() -> int:
     for language, copy in samples.items():
         for theme in (overlays.DARK, overlays.LIGHT):
             bounds = _draw(work, language, copy, theme)
+            brand_bottom = _bounds(overlays.brand(f"{work}/brand.png"))[1]
+            highest = min(top for top, _ in bounds.values())
+            if brand_bottom + MIN_GAP > highest:
+                failures.append(
+                    f"{language}/{theme}: brand ends at {brand_bottom} and the first "
+                    f"block starts at {highest}"
+                )
             for upper, lower in zip(ORDER, ORDER[1:]):
                 gap = bounds[lower][0] - bounds[upper][1]
                 if gap < MIN_GAP:

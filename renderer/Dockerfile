@@ -12,6 +12,7 @@ RUN mkdir -p $FONT_DIR \
     && curl -sSL -o $FONT_DIR/MPLUS1p-Bold.ttf $FONTS/mplus1p/MPLUS1p-Bold.ttf \
     && curl -sSL -o $FONT_DIR/MPLUS1p-Medium.ttf $FONTS/mplus1p/MPLUS1p-Medium.ttf \
     && curl -sSL -o $FONT_DIR/Montserrat.ttf "$FONTS/montserrat/Montserrat%5Bwght%5D.ttf" \
+    && curl -sSL -o $FONT_DIR/Cormorant.ttf "$FONTS/cormorant/Cormorant%5Bwght%5D.ttf" \
     && curl -sSL -o $FONT_DIR/NotoNaskhArabic.ttf \
        "$FONTS/notonaskharabic/NotoNaskhArabic%5Bwght%5D.ttf"
 
