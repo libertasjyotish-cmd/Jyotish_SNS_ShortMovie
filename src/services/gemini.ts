@@ -464,7 +464,7 @@ function buildPrompt(request: GenerationRequest): string {
       ? `16. This reading is for the sidereal Moon sign ${request.zodiac_sign}, which is usually not the sign the viewer knows from Western astrology, so body_script says once that the sign meant here is the Moon sign of Indian astrology. The appended closing then tells them where to check their own.`
       : '16. This video is for every Moon sign, so never tell the viewer to look up which sign they are.',
     localSign
-      ? `17. Twelve readings are published the same week and a viewer scrolling past has seconds to tell whether this one is theirs, so the sign is said out loud, written exactly as "${localSign}", in hook_text or in the first sentence of body_script.`
+      ? `17. Twelve readings are published the same week and a viewer scrolling past has seconds to tell whether this one is theirs, so the sign is said out loud in hook_text itself, written exactly as "${localSign}"; naming it only later in body_script is too late, because the hook is all a scrolling viewer reads and it is what the cover shows.`
       : '17. This video belongs to no single sign, so never name one.',
     request.target_type === 'Zodiac_Sign'
       ? '18. Say which house the movement falls in for this Moon sign as an ordinal number counted from it, for example "the fourth house". Never write that it falls in "a certain house" or "a particular part of the chart": a reading that does not count the house gives the viewer nothing to check. Name it with the term this tradition actually uses in this language; never translate a term of art literally into an everyday word that means something else, such as the room of a building.'
