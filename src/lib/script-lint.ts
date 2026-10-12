@@ -17,6 +17,7 @@ export interface ScriptIssue {
     | 'missing_sign'
     | 'spoken_parenthesis'
     | 'vague_house'
+    | 'casual_speech'
     | 'dangling_predicate'
     | 'too_short'
     | 'too_long';
@@ -59,6 +60,14 @@ const CERTAINTY_PATTERNS: Record<Language, RegExp> = {
 const PERSON_TOPIC = /(?:人|あなた|時期)(?:は|ほど|、)/;
 const DANGLING_PREDICATES =
   /(?:ここ|この(?:部屋|配置|周期|細かさ|偏り|二日|日)|出方|位置|形|点数|図ごとの差|結論|担当|差|月)(?:が|は|も)?(?:です|でした|です。|出ています|出ます|効いています|動いていました|働いています|当たっています|合っていません|変わります|違います|違う|替わります|離れています|ズレています|別です)。?$/;
+
+/**
+ * Japanese spoken to the viewer as a friend would: plain-form endings and tag questions
+ * (「〜ない？」「〜だよね」). The narration addresses a customer, so every sentence ends in
+ * です・ます and a question is asked as 「〜ていませんか？」.
+ */
+const CASUAL_SPEECH =
+  /(?:ないか?[?？]|じゃない[?？]?|だよ(?:ね)?[。?？]?|だろ(?:う)?[?？]|でしょ[?？]|かな[?？]|よね[?？]|してる[。?？]|ちゃう|だね[。?？]|のか[?？])$/;
 
 /** Sentences of Japanese narration, without the trailing empty piece. */
 function japaneseSentences(text: string): string[] {
@@ -261,6 +270,10 @@ export function lintScript(
       for (const sentence of japaneseSentences(text)) {
         if (PERSON_TOPIC.test(sentence) && DANGLING_PREDICATES.test(sentence)) {
           issues.push({ field, code: 'dangling_predicate', detail: sentence });
+        }
+        const casual = sentence.replace(/[。]$/, '').match(CASUAL_SPEECH);
+        if (casual) {
+          issues.push({ field, code: 'casual_speech', detail: sentence });
         }
       }
     }
