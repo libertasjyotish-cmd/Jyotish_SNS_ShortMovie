@@ -12,6 +12,7 @@
     "check:backgrounds": "tsx scripts/check-backgrounds.ts",
     "check:thumbnails": "tsx scripts/check-youtube-thumbnails.ts",
     "seed:promo": "tsx scripts/seed-promo-week.ts",
+    "seed:evergreen": "tsx scripts/seed-evergreen-week.ts",
     "lint:scripts": "tsx scripts/lint-scripts.ts",
     "translate:promos": "tsx scripts/translate-promos.ts",
     "review:scripts": "tsx scripts/review-scripts.ts",
