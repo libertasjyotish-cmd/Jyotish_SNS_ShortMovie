@@ -14,6 +14,7 @@ import {
   promoPostTime,
   scheduledPostTime,
   THEME_DAYS,
+  THEME_SLOTS,
   ZODIAC_DAYS,
   zodiacPostWeekStart,
 } from '@/lib/schedule';
@@ -127,11 +128,11 @@ export async function GET(request: Request) {
     const existing = new Set(plannedTasks.map((task) => task.task_id));
     // A theme slot carries a rotating script id, so its task id differs on every run;
     // the slot itself is what must stay unique.
-    const filledThemeSlots = new Set(
-      plannedTasks
-        .filter((task) => task.target_type === 'Theme')
-        .map((task) => `${task.lang_code}/${task.day_of_week}`),
-    );
+    const filledThemeSlots = new Map<string, number>();
+    for (const task of plannedTasks.filter((task) => task.target_type === 'Theme')) {
+      const key = `${task.lang_code}/${task.day_of_week}`;
+      filledThemeSlots.set(key, (filledThemeSlots.get(key) ?? 0) + 1);
+    }
     const promoCounts = new Map<Language, number>();
     for (const task of plannedTasks.filter((task) => task.target_type === 'Promo')) {
       promoCounts.set(task.lang_code, (promoCounts.get(task.lang_code) ?? 0) + 1);
@@ -157,29 +158,32 @@ export async function GET(request: Request) {
 
       for (const day of THEME_DAYS) {
         if (promoEnabled() && day === PROMO_DAY) continue;
-        if (filledThemeSlots.has(`${lang}/${day}`)) continue;
+        const planned = filledThemeSlots.get(`${lang}/${day}`) ?? 0;
+        const slots = SERIES_BY_DAY[day] ? THEME_SLOTS : 1;
 
-        const theme = pickScript(themes, day, taken, false);
-        if (!theme) {
-          skippedDays.push(`${lang}/${day}`);
-          continue;
+        for (let slot = planned; slot < slots; slot += 1) {
+          const theme = pickScript(themes, day, taken, false);
+          if (!theme) {
+            skippedDays.push(`${lang}/${day}`);
+            break;
+          }
+          taken.add(theme.script_id);
+
+          // A sign-targeted evergreen carries its sign, so the label on the video, the title and
+          // the caption read the same way they do for a weekly reading.
+          const signTheme = parseSignThemeId(theme.script_id);
+          const task: ContentQueue = {
+            ...baseTask(weekId, day, weekStart, lang, signTheme ? slot : undefined),
+            task_id: `${weekId}-${lang}-${theme.script_id}`,
+            target_type: 'Theme',
+            theme_id: theme.script_id,
+            zodiac_sign: signTheme?.sign,
+          };
+          if (existing.has(task.task_id)) continue;
+
+          pending.push(task);
+          themeUses.push({ scriptId: theme.script_id, lang_code: lang, weekId });
         }
-        taken.add(theme.script_id);
-
-        // A sign-targeted evergreen carries its sign, so the label on the video, the title and
-        // the caption read the same way they do for a weekly reading.
-        const signTheme = parseSignThemeId(theme.script_id);
-        const task: ContentQueue = {
-          ...baseTask(weekId, day, weekStart, lang),
-          task_id: `${weekId}-${lang}-${theme.script_id}`,
-          target_type: 'Theme',
-          theme_id: theme.script_id,
-          zodiac_sign: signTheme?.sign,
-        };
-        if (existing.has(task.task_id)) continue;
-
-        pending.push(task);
-        themeUses.push({ scriptId: theme.script_id, lang_code: lang, weekId });
       }
 
       if (promoEnabled()) {
