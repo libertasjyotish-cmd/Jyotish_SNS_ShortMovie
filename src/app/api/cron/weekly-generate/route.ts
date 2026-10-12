@@ -132,7 +132,15 @@ export async function GET(request: Request) {
           });
           scriptData = { ...scriptData, script_30s: withClosing(scriptData.script_30s) };
 
-          let issues = lint(scriptData);
+          // Only the 30s script is published; the 65s expansion exists for the manual TikTok
+          // queue. Its problems are recorded, never a reason to drop the row that ships.
+          const allIssues = lint(scriptData);
+          lintWarnings.push(
+            ...allIssues
+              .filter((issue) => issue.startsWith('(65s)'))
+              .map((issue) => `${task.task_id} ${issue}`),
+          );
+          let issues = allIssues.filter((issue) => issue.startsWith('(30s)'));
 
           // The lint measures length and required wording; it cannot tell whether the narration is
           // a sentence a person would say. The 30s script is the one that ships, so it is also
