@@ -255,7 +255,7 @@ export async function GET(request: Request) {
     const now = new Date();
     // Recovery rides along with the dispatch that needs the videos, so a stuck render gets
     // one more chance before each posting window.
-    const watchdog = await runWatchdog(sheetsService, now);
+    const watchdog = await runWatchdog(sheetsService, now, { notify: false });
     // Nothing else lets go of a task that was never posted, so its window closing is what ends it;
     // left Pending it makes every later run read it again.
     const held = await sheetsService.holdStalePosts(

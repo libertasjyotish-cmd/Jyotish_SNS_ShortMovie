@@ -1,4 +1,5 @@
 import axios from 'axios';
+import nodemailer from 'nodemailer';
 import { optionalEnv } from '@/lib/env';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
@@ -12,6 +13,30 @@ async function sendWebhook(url: string, text: string): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('Alert webhook failed:', error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
+// Operator-only mail goes out through Gmail when an app password is configured, so it never
+// counts against Resend's daily quota that the customer-facing site shares.
+async function sendGmail(appPassword: string, to: string, lines: string[]): Promise<boolean> {
+  const user = optionalEnv('GMAIL_USER') ?? 'libertasjyotish@gmail.com';
+  try {
+    const transport = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user, pass: appPassword },
+    });
+    await transport.sendMail({
+      from: `Libertas Jyotish <${user}>`,
+      to: to.split(',').map((address) => address.trim()),
+      subject: `[Libertas Jyotish] ${lines[0]}`.slice(0, 120),
+      text: lines.join('\n'),
+    });
+    return true;
+  } catch (error) {
+    console.error('Alert gmail failed:', error instanceof Error ? error.message : error);
     return false;
   }
 }
@@ -45,12 +70,17 @@ export async function sendAlert(lines: string[]): Promise<boolean> {
 
   const url = optionalEnv('ALERT_WEBHOOK_URL');
   const apiKey = optionalEnv('RESEND_API_KEY');
+  const gmailPassword = optionalEnv('GMAIL_APP_PASSWORD');
   const to = optionalEnv('ALERT_EMAIL_TO');
   const text = lines.join('\n');
 
   const delivered = await Promise.all([
     url ? sendWebhook(url, text) : Promise.resolve(false),
-    apiKey && to ? sendEmail(apiKey, to, lines) : Promise.resolve(false),
+    gmailPassword && to
+      ? sendGmail(gmailPassword, to, lines)
+      : apiKey && to
+        ? sendEmail(apiKey, to, lines)
+        : Promise.resolve(false),
   ]);
 
   return delivered.some(Boolean);
