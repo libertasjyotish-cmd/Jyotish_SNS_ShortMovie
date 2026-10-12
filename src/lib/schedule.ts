@@ -92,6 +92,9 @@ const ZODIAC_HOURS_TWO_MARKETS = [18, 21];
 /** Local posting time of the one theme video a day. */
 const THEME_HOUR = 18;
 
+/** Sign-targeted evergreen days carry four signs, like a zodiac reading day. */
+export const THEME_SLOTS = 4;
+
 /** Local posting hours of the `PROMO_SLOTS` videos on `PROMO_DAY`. */
 const PROMO_HOURS = [12, 19];
 
