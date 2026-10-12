@@ -36,7 +36,11 @@ export interface WatchdogResult {
  * Re-queues renders whose Cloud Run callback never arrived or that failed, starts them
  * again, and reports whatever retrying cannot fix.
  */
-export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promise<WatchdogResult> {
+export async function runWatchdog(
+  sheets: GoogleSheetsService,
+  now: Date,
+  { notify = true }: { notify?: boolean } = {},
+): Promise<WatchdogResult> {
   const tasks = await sheets.getAllQueueTasks();
   const recoveries = planRenderRecovery(tasks, now);
   const alerts: string[] = [];
@@ -109,9 +113,12 @@ export async function runWatchdog(sheets: GoogleSheetsService, now: Date): Promi
   const generationResumed =
     pendingScripts > 0 ? await triggerNextBatch('/api/cron/weekly-generate', 0) : false;
 
-  const alerted = await sendAlert(
-    alerts.length > 0 ? ['Jyotish SNS pipeline needs attention:', ...alerts] : [],
-  );
+  // Recovery runs with every dispatch (96×/day); the mail about what still cannot be fixed is
+  // sent only by the daily watchdog cron, or the same report arrives every 15 minutes.
+  const alerted =
+    notify && alerts.length > 0
+      ? await sendAlert(['Jyotish SNS pipeline needs attention:', ...alerts])
+      : false;
 
   return {
     requeued,
