@@ -90,7 +90,7 @@ function baseTask(
   day: DayOfWeek,
   weekStart: Date,
   lang: Language,
-  slot?: number,
+  slot: number,
 ) {
   return {
     week_id: weekId,
@@ -159,6 +159,8 @@ export async function GET(request: Request) {
       for (const day of THEME_DAYS) {
         if (promoEnabled() && day === PROMO_DAY) continue;
         const planned = filledThemeSlots.get(`${lang}/${day}`) ?? 0;
+        // A per-sign series fills the day with four signs; `PROMO_DAY` without the promotion
+        // falls back to a single theme video.
         const slots = SERIES_BY_DAY[day] ? THEME_SLOTS : 1;
 
         for (let slot = planned; slot < slots; slot += 1) {
@@ -173,7 +175,7 @@ export async function GET(request: Request) {
           // the caption read the same way they do for a weekly reading.
           const signTheme = parseSignThemeId(theme.script_id);
           const task: ContentQueue = {
-            ...baseTask(weekId, day, weekStart, lang, signTheme ? slot : undefined),
+            ...baseTask(weekId, day, weekStart, lang, slot),
             task_id: `${weekId}-${lang}-${theme.script_id}`,
             target_type: 'Theme',
             theme_id: theme.script_id,
@@ -194,7 +196,7 @@ export async function GET(request: Request) {
         promos.forEach((promo, index) => {
           const slot = planned + index;
           const task: ContentQueue = {
-            ...baseTask(weekId, PROMO_DAY, weekStart, lang),
+            ...baseTask(weekId, PROMO_DAY, weekStart, lang, slot),
             scheduled_post_time: promoPostTime(weekStart, lang, slot),
             task_id: `${weekId}-${lang}-${promo.script_id}`,
             target_type: 'Promo',

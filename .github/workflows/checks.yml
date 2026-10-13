@@ -20,6 +20,7 @@ jobs:
       - run: npm run check:covers
       - run: npm run check:backgrounds
       - run: npm run check:sign-order
+      - run: npm run check:posting-hours
 
   layout:
     runs-on: ubuntu-latest
