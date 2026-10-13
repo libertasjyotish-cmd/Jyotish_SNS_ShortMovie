@@ -441,7 +441,12 @@ export class GoogleSheetsService {
 
   private async findQueueRow(taskId: string): Promise<SheetRow> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
-    const row = rows.find((candidate) => candidate.values.task_id === taskId);
+    const matches = rows.filter((candidate) => candidate.values.task_id === taskId);
+    // Retired duplicates of a task keep the same task_id, so a status written to the first
+    // match lands on a row nothing reads and the live slot stays Pending for ever.
+    const row =
+      matches.find((candidate) => (candidate.values.post_status || 'Pending') !== 'Hold') ??
+      matches[0];
     if (!row) {
       throw new Error(`task_id "${taskId}" not found in ${SHEET_NAMES.contentQueue}`);
     }
@@ -787,6 +792,41 @@ export class GoogleSheetsService {
         hashtags: row.values.hashtags,
         created_at: row.values.created_at,
       }));
+  }
+
+  // A script stored for another week that matches this slot's language and sign. Everything in
+  // Script_Outputs has passed the gate, so this is the last resort that keeps a slot from going
+  // unpublished; `taskIdContains` is what keeps a weekly reading from borrowing another week's
+  // forecast — callers pass an evergreen series there.
+  async findApprovedScript(match: {
+    lang_code: Language;
+    zodiac_sign?: string;
+    taskIdContains: string;
+    excludeWeekId?: string;
+  }): Promise<ScriptOutput | null> {
+    const { rows } = await this.loadTable(SHEET_NAMES.scriptOutputs);
+    const candidates = rows
+      .filter((row) => row.values.task_id && row.values.script_30s_json)
+      .filter((row) => row.values.lang_code === match.lang_code)
+      .filter((row) => row.values.task_id.includes(match.taskIdContains))
+      .filter((row) => !match.excludeWeekId || row.values.week_id !== match.excludeWeekId)
+      .filter(
+        (row) => !match.zodiac_sign || (row.values.zodiac_sign || '') === match.zodiac_sign,
+      )
+      .sort((a, b) => (a.values.created_at < b.values.created_at ? 1 : -1));
+    const row = candidates[0];
+    if (!row) return null;
+    return {
+      task_id: row.values.task_id,
+      week_id: row.values.week_id,
+      lang_code: row.values.lang_code as Language,
+      zodiac_sign: row.values.zodiac_sign || undefined,
+      transit_reference: row.values.transit_reference,
+      script_30s_json: row.values.script_30s_json,
+      script_65s_json: row.values.script_65s_json,
+      hashtags: row.values.hashtags,
+      created_at: row.values.created_at,
+    };
   }
 
   async getPendingRenders(patterns: Pattern[] = ['30s', '65s']): Promise<ContentQueue[]> {

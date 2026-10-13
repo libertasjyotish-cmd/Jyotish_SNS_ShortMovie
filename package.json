@@ -31,7 +31,8 @@
     "audit:scripts": "tsx scripts/audit-stored-scripts.ts",
     "reschedule:overdue": "tsx scripts/reschedule-overdue.ts",
     "schedule:today": "tsx scripts/today-schedule.ts",
-    "resequence:signs": "tsx scripts/resequence-signs.ts"
+    "resequence:signs": "tsx scripts/resequence-signs.ts",
+    "sync:script-status": "tsx scripts/sync-script-status.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
