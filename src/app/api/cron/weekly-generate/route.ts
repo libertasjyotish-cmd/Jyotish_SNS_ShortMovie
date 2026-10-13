@@ -53,7 +53,16 @@ export async function GET(request: Request) {
   try {
     const sheetsService = new GoogleSheetsService();
     const geminiService = new GeminiService();
-    const pendingTasks = await sheetsService.getPendingScripts();
+    const params = new URL(request.url).searchParams;
+    const weekFilter = params.get('week');
+    const langFilter = params.get('langs')?.split(',').filter(Boolean) ?? [];
+    const taskFilter = params.get('tasks')?.split(',').filter(Boolean) ?? [];
+    const pendingTasks = (await sheetsService.getPendingScripts()).filter(
+      (task) =>
+        (!weekFilter || task.week_id === weekFilter) &&
+        (langFilter.length === 0 || langFilter.includes(task.lang_code)) &&
+        (taskFilter.length === 0 || taskFilter.includes(task.task_id)),
+    );
     const transitCache = new Map<string, Promise<WeeklyTransit | null>>();
     let succeeded = 0;
     let failed = 0;
@@ -242,11 +251,13 @@ export async function GET(request: Request) {
       }
     );
 
-    const chainParam = Number(new URL(request.url).searchParams.get('chain'));
+    const chainParam = Number(params.get('chain'));
     const chain = Number.isFinite(chainParam) && chainParam > 0 ? chainParam : 0;
     const unfinished = remainingTasks.length + deferred;
     const continued =
-      unfinished > 0 ? await triggerNextBatch('/api/cron/weekly-generate', chain) : false;
+      unfinished > 0
+        ? await triggerNextBatch('/api/cron/weekly-generate', chain, params)
+        : false;
 
     return NextResponse.json({
       status: 'Weekly generation completed',
