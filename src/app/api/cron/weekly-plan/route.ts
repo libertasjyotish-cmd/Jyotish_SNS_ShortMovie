@@ -159,8 +159,11 @@ export async function GET(request: Request) {
       for (const day of THEME_DAYS) {
         if (promoEnabled() && day === PROMO_DAY) continue;
         const planned = filledThemeSlots.get(`${lang}/${day}`) ?? 0;
+        // A per-sign series fills the day with four signs; `PROMO_DAY` without the promotion
+        // falls back to a single theme video.
+        const slots = SERIES_BY_DAY[day] ? THEME_SLOTS : 1;
 
-        for (let slot = planned; slot < THEME_SLOTS; slot += 1) {
+        for (let slot = planned; slot < slots; slot += 1) {
           const theme = pickScript(themes, day, taken, false);
           if (!theme) {
             skippedDays.push(`${lang}/${day}`);
