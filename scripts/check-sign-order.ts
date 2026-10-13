@@ -45,10 +45,16 @@ if (covered.length !== ZODIAC_SIGNS.length) {
   failures.push(`a week covers ${covered.length} signs, want ${ZODIAC_SIGNS.length}`);
 }
 
-// Consecutive weeks move on, so a sign meets every series within three weeks.
-const weeks = ['2026-W40', '2026-W41', '2026-W42'].map(seriesForWeek);
+// Consecutive weeks move on, so a sign does not meet the same script again for twelve weeks.
+const weeks = Array.from({ length: SIGN_THEME_SERIES.length }, (_, offset) =>
+  seriesForWeek(`2026-W${31 + offset}`),
+);
 if (new Set(weeks).size !== SIGN_THEME_SERIES.length) {
-  failures.push(`three weeks run ${weeks.join(', ')} instead of every series once`);
+  failures.push(`${weeks.length} weeks run ${weeks.join(', ')} instead of every series once`);
+}
+
+if (seriesForWeek('2026-W43') !== 'nature') {
+  failures.push(`2026-W43 runs ${seriesForWeek('2026-W43')}, want nature`);
 }
 
 if (failures.length) {

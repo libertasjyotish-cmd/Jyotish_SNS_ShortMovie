@@ -11,7 +11,24 @@
 import { DayOfWeek } from '@/lib/schedule';
 import { ZODIAC_SIGNS, ZodiacSign } from '@/lib/zodiac-names';
 
-export const SIGN_THEME_SERIES = ['compat', 'nature', 'sidereal'] as const;
+/**
+ * Twelve series, one per week, so a sign does not meet the same script again for twelve weeks.
+ * The order is the rotation order.
+ */
+export const SIGN_THEME_SERIES = [
+  'compat',
+  'nature',
+  'sidereal',
+  'work',
+  'money',
+  'love',
+  'family',
+  'rest',
+  'impression',
+  'avoid',
+  'turning',
+  'habit',
+] as const;
 
 export type SignThemeSeries = (typeof SIGN_THEME_SERIES)[number];
 
@@ -34,7 +51,7 @@ export const SIGNS_BY_DAY: Partial<Record<DayOfWeek, readonly ZodiacSign[]>> = {
 export function seriesForWeek(weekId: string): SignThemeSeries {
   const [year, week] = weekId.split('-W').map(Number);
   // The offset keeps 2026-W43 on `nature`, the series that follows what W42 already shipped.
-  const index = (year * 53 + week + 1) % SIGN_THEME_SERIES.length;
+  const index = (year * 53 + week + 4) % SIGN_THEME_SERIES.length;
   return SIGN_THEME_SERIES[index];
 }
 
