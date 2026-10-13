@@ -89,10 +89,7 @@ export const AUDIENCE_MARKETS: Record<Language, string[]> = {
 const ZODIAC_HOURS_ONE_MARKET = [12, 15, 18, 21];
 const ZODIAC_HOURS_TWO_MARKETS = [18, 21];
 
-/** Local posting time of the one theme video a day. */
-const THEME_HOUR = 18;
-
-/** Sign-targeted evergreen days carry four signs, like a zodiac reading day. */
+/** Evergreen days carry four signs a day, at the same hours as a zodiac reading day. */
 export const THEME_SLOTS = 4;
 
 /** Local posting hours of the `PROMO_SLOTS` videos on `PROMO_DAY`. */
@@ -197,15 +194,12 @@ function localTimeToUtc(day: Date, hour: number, minute: number, timeZone: strin
 }
 
 /**
- * Market and local hour of the `slot`-th sign reading of a day, or of the day's theme video
- * when `slot` is undefined. Two-market languages alternate: the readings by slot, and the
- * theme videos by weekday, so over Monday to Thursday each market gets two of them.
+ * Market and local hour of the `slot`-th video of a day. Every day carries four of them,
+ * evergreen signs Monday to Wednesday and readings Friday to Sunday; a two-market language
+ * alternates markets by slot.
  */
-function postingSlot(lang: Language, day: DayOfWeek, slot?: number): [string, number] {
+function postingSlot(lang: Language, slot: number): [string, number] {
   const markets = AUDIENCE_MARKETS[lang];
-  if (slot === undefined) {
-    return [markets[DAY_OFFSET[day] % markets.length], THEME_HOUR];
-  }
   if (markets.length === 1) {
     return [markets[0], ZODIAC_HOURS_ONE_MARKET[slot % ZODIAC_HOURS_ONE_MARKET.length]];
   }
@@ -215,16 +209,15 @@ function postingSlot(lang: Language, day: DayOfWeek, slot?: number): [string, nu
 
 /**
  * ISO timestamp of the posting slot for `day` of the week starting at `weekStart`, in the
- * time zone of the market it is aimed at. `slot` picks one of the day's four sign readings;
- * theme videos omit it and take the single slot of their day.
+ * time zone of the market it is aimed at. `slot` picks one of the day's four videos.
  */
 export function scheduledPostTime(
   weekStart: Date,
   day: DayOfWeek,
   lang: Language,
-  slot?: number,
+  slot: number,
 ): string {
-  const [timeZone, hour] = postingSlot(lang, day, slot);
+  const [timeZone, hour] = postingSlot(lang, slot);
   const date = new Date(weekStart.getTime() + DAY_OFFSET[day] * MS_PER_DAY);
   return localTimeToUtc(date, hour, 0, timeZone).toISOString();
 }

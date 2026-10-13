@@ -32,7 +32,8 @@
     "reschedule:overdue": "tsx scripts/reschedule-overdue.ts",
     "schedule:today": "tsx scripts/today-schedule.ts",
     "resequence:signs": "tsx scripts/resequence-signs.ts",
-    "sync:script-status": "tsx scripts/sync-script-status.ts"
+    "sync:script-status": "tsx scripts/sync-script-status.ts",
+    "check:posting-hours": "tsx scripts/check-posting-hours.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
