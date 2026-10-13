@@ -29,7 +29,8 @@
     "sync:youtube-about": "tsx scripts/sync-youtube-about.ts",
     "backfill:render-backgrounds": "tsx scripts/backfill-render-backgrounds.ts",
     "audit:scripts": "tsx scripts/audit-stored-scripts.ts",
-    "reschedule:overdue": "tsx scripts/reschedule-overdue.ts"
+    "reschedule:overdue": "tsx scripts/reschedule-overdue.ts",
+    "schedule:today": "tsx scripts/today-schedule.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
