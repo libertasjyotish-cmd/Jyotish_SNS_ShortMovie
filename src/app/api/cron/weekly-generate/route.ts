@@ -139,6 +139,9 @@ export async function GET(request: Request) {
             ...script,
             cta_text: closing,
           });
+          // The row's own closing, before the shared one replaces it for playback: a rewritten
+          // row is written back with this column untouched.
+          const sourceCta = scriptData.script_30s.cta_text;
           scriptData = { ...scriptData, script_30s: withClosing(scriptData.script_30s) };
 
           // Only the 30s script is published; the 65s expansion exists for the manual TikTok
@@ -172,21 +175,13 @@ export async function GET(request: Request) {
 
           let verdict = await proofread(scriptData.script_30s);
           const requirements = lintRequirements(task.lang_code, '30s', spokenPeriod, signName);
-          // A fixed script is approved wording, so it is never rewritten here: a rewrite would
-          // publish something nobody approved under the same id. The row itself has to be fixed
-          // with `npm run rewrite:evergreen`.
-          if (isFixedScript && (issues.length > 0 || verdict?.verdict !== 'ok')) {
-            throw new Error(
-              `fixed script "${task.theme_id}" fails the gate, fix the Evergreen_Scripts row: ${[
-                ...issues,
-                verdict?.verdict !== 'ok' ? (verdict?.reason ?? 'reviewer gave no verdict') : '',
-              ]
-                .filter(Boolean)
-                .join('; ')}`,
-            );
-          }
-
           const maxRepairs = numberEnv('WEEKLY_GENERATE_MAX_REPAIRS', 2);
+          // A fixed script that fails the gate is rewritten here and the Evergreen_Scripts row is
+          // replaced with the text that passed, so the same row never blocks its slot again and
+          // no slot waits for a hand-run `rewrite:evergreen`.
+          const fixedNeedsRewrite =
+            isFixedScript && (issues.length > 0 || verdict?.verdict !== 'ok');
+
           for (let pass = 1; issues.length > 0 || verdict?.verdict !== 'ok'; pass += 1) {
             if (pass > maxRepairs) {
               throw new Error(
@@ -217,6 +212,18 @@ export async function GET(request: Request) {
             scriptData = { ...scriptData, script_30s: withClosing(repaired) };
             issues = lint(scriptData).filter((issue) => issue.startsWith('(30s)'));
             verdict = await proofread(scriptData.script_30s);
+          }
+
+          if (fixedNeedsRewrite && task.theme_id) {
+            await sheetsService.updateEvergreenScripts([
+              {
+                scriptId: task.theme_id,
+                lang_code: task.lang_code,
+                hook: scriptData.script_30s.hook_text,
+                body: scriptData.script_30s.body_script,
+                cta: sourceCta,
+              },
+            ]);
           }
 
           await sheetsService.saveScriptOutput({
