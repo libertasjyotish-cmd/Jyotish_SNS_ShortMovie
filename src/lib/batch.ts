@@ -39,13 +39,20 @@ export async function runWithinBudget<T>(
  * only kicked off (the response is never awaited) because the platform keeps
  * running it after the caller disconnects.
  */
-export async function triggerNextBatch(path: string, chain: number): Promise<boolean> {
+export async function triggerNextBatch(
+  path: string,
+  chain: number,
+  carry?: URLSearchParams,
+): Promise<boolean> {
   if (chain >= MAX_CHAIN) {
     console.error(`Chain limit reached for ${path}`);
     return false;
   }
 
   const url = new URL(path, requireEnv('PUBLIC_BASE_URL'));
+  carry?.forEach((value, key) => {
+    if (key !== 'chain') url.searchParams.set(key, value);
+  });
   url.searchParams.set('chain', String(chain + 1));
 
   const controller = new AbortController();
