@@ -132,27 +132,13 @@ export async function GET(request: Request) {
           // row, everything else speaks the shared one. A repair pass hands back a whole script,
           // so it is reapplied after every rewrite instead of trusting what came back.
           const isFixedScript = task.target_type === 'Theme' || task.target_type === 'Promo';
-          const closing = isFixedScript
-            ? evergreenClosing(task.theme_id ?? '', task.lang_code, scriptData.script_30s.cta_text)
-            : fixedCta(task.lang_code);
-          const withClosing = (script: GeneratedScript): GeneratedScript => ({
-            ...script,
-            cta_text: closing,
-          });
+          const closingFor = (script: GeneratedScript, fixed: boolean) =>
+            fixed
+              ? evergreenClosing(task.theme_id ?? '', task.lang_code, script.cta_text)
+              : fixedCta(task.lang_code);
           // The row's own closing, before the shared one replaces it for playback: a rewritten
           // row is written back with this column untouched.
           const sourceCta = scriptData.script_30s.cta_text;
-          scriptData = { ...scriptData, script_30s: withClosing(scriptData.script_30s) };
-
-          // Only the 30s script is published; the 65s expansion exists for the manual TikTok
-          // queue. Its problems are recorded, never a reason to drop the row that ships.
-          const allIssues = lint(scriptData);
-          lintWarnings.push(
-            ...allIssues
-              .filter((issue) => issue.startsWith('(65s)'))
-              .map((issue) => `${task.task_id} ${issue}`),
-          );
-          let issues = allIssues.filter((issue) => issue.startsWith('(30s)'));
 
           // The lint measures length and required wording; it cannot tell whether the narration is
           // a sentence a person would say. The 30s script is the one that ships, so it is also
@@ -173,48 +159,125 @@ export async function GET(request: Request) {
               )
             )[0];
 
-          let verdict = await proofread(scriptData.script_30s);
           const requirements = lintRequirements(task.lang_code, '30s', spokenPeriod, signName);
           const maxRepairs = numberEnv('WEEKLY_GENERATE_MAX_REPAIRS', 2);
+
+          // Lints, proofreads and rewrites a candidate, reporting why it was rejected instead of
+          // throwing: a gate that can only reject leaves the slot unpublished, so every rejection
+          // has to hand control back here and let another source fill the slot.
+          const settle = async (
+            candidate: typeof scriptData,
+            fixed: boolean,
+          ): Promise<{ data: typeof scriptData; failure?: string }> => {
+            const withClosing = (script: GeneratedScript): GeneratedScript => ({
+              ...script,
+              cta_text: closingFor(candidate.script_30s, fixed),
+            });
+            let data = { ...candidate, script_30s: withClosing(candidate.script_30s) };
+            // Only the 30s script is published; the 65s expansion exists for the manual TikTok
+            // queue. Its problems are recorded, never a reason to drop the row that ships.
+            const allIssues = lint(data);
+            lintWarnings.push(
+              ...allIssues
+                .filter((issue) => issue.startsWith('(65s)'))
+                .map((issue) => `${task.task_id} ${issue}`),
+            );
+            let issues = allIssues.filter((issue) => issue.startsWith('(30s)'));
+            let verdict = await proofread(data.script_30s);
+
+            for (let pass = 1; issues.length > 0 || verdict?.verdict !== 'ok'; pass += 1) {
+              const reasons = [
+                ...issues,
+                verdict?.verdict !== 'ok' ? (verdict?.reason ?? 'reviewer gave no verdict') : '',
+              ].filter(Boolean);
+              if (pass > maxRepairs) {
+                return {
+                  data,
+                  failure: `still reads badly after ${maxRepairs} rewrites: ${reasons.join('; ')}`,
+                };
+              }
+
+              const repaired = await geminiService.repairScript(
+                {
+                  id: task.task_id,
+                  hook: data.script_30s.hook_text,
+                  body: data.script_30s.body_script,
+                  cta: data.script_30s.cta_text,
+                },
+                task.lang_code,
+                reasons,
+                '30s',
+                requirements,
+              );
+              data = { ...data, script_30s: withClosing(repaired) };
+              issues = lint(data).filter((issue) => issue.startsWith('(30s)'));
+              verdict = await proofread(data.script_30s);
+            }
+            return { data };
+          };
+
           // A fixed script that fails the gate is rewritten here and the Evergreen_Scripts row is
           // replaced with the text that passed, so the same row never blocks its slot again and
           // no slot waits for a hand-run `rewrite:evergreen`.
-          const fixedNeedsRewrite =
-            isFixedScript && (issues.length > 0 || verdict?.verdict !== 'ok');
+          let settled = await settle(scriptData, isFixedScript);
+          const rewroteFixedRow =
+            isFixedScript &&
+            !settled.failure &&
+            (settled.data.script_30s.hook_text !== scriptData.script_30s.hook_text ||
+              settled.data.script_30s.body_script !== scriptData.script_30s.body_script);
 
-          for (let pass = 1; issues.length > 0 || verdict?.verdict !== 'ok'; pass += 1) {
-            if (pass > maxRepairs) {
-              throw new Error(
-                `script still reads badly after ${maxRepairs} rewrites: ${[
-                  ...issues,
-                  verdict?.verdict !== 'ok' ? (verdict?.reason ?? 'reviewer gave no verdict') : '',
-                ]
-                  .filter(Boolean)
-                  .join('; ')}`,
-              );
+          if (settled.failure) {
+            // Nothing in the rewritten text passed, so the slot stops depending on this source:
+            // the writer is given the week's own reference and asked for a fresh script. A weekly
+            // reading cannot be borrowed from another week, so this is its real second chance.
+            console.warn(`${task.task_id}: ${settled.failure}; generating a fresh script`);
+            if (!transitReference) {
+              if (!transitCache.has(task.week_id)) {
+                transitCache.set(task.week_id, sheetsService.getWeeklyTransits(task.week_id));
+              }
+              transitReference = (await transitCache.get(task.week_id))?.transit_data ?? '';
             }
-
-            const repaired = await geminiService.repairScript(
-              {
-                id: task.task_id,
-                hook: scriptData.script_30s.hook_text,
-                body: scriptData.script_30s.body_script,
-                cta: scriptData.script_30s.cta_text,
-              },
-              task.lang_code,
-              [
-                ...issues,
-                ...(verdict && verdict.verdict !== 'ok' ? [verdict.reason] : []),
-              ],
-              '30s',
-              requirements,
-            );
-            scriptData = { ...scriptData, script_30s: withClosing(repaired) };
-            issues = lint(scriptData).filter((issue) => issue.startsWith('(30s)'));
-            verdict = await proofread(scriptData.script_30s);
+            const placements = task.zodiac_sign
+              ? buildPlacementBrief(transitReference, task.zodiac_sign)
+              : '';
+            const fresh = await geminiService.generateScript({
+              week_id: task.week_id,
+              lang_code: task.lang_code,
+              target_type: task.target_type,
+              zodiac_sign: task.zodiac_sign,
+              transit_reference: placements
+                ? `${transitReference}\n\n${placements}`
+                : transitReference,
+            });
+            settled = await settle(fresh, isFixedScript);
           }
 
-          if (fixedNeedsRewrite && task.theme_id) {
+          if (settled.failure) {
+            // Last resort: a script for this sign and language that already passed the gate in
+            // another week. Only week-independent texts qualify, so a weekly reading borrows the
+            // sign's evergreen rather than another week's forecast.
+            const reuse = await sheetsService.findApprovedScript({
+              lang_code: task.lang_code,
+              zodiac_sign: task.zodiac_sign,
+              taskIdContains: isFixedScript ? (task.theme_id ?? 'sign-') : 'sign-',
+              excludeWeekId: task.week_id,
+            });
+            if (!reuse) {
+              throw new Error(`${settled.failure}; no passed script to reuse for this slot`);
+            }
+            console.warn(`${task.task_id}: reusing ${reuse.task_id} to keep the slot`);
+            settled = {
+              data: {
+                script_30s: JSON.parse(reuse.script_30s_json) as GeneratedScript,
+                script_65s: JSON.parse(reuse.script_65s_json) as GeneratedScript,
+                hashtags: reuse.hashtags,
+              },
+            };
+          }
+
+          scriptData = settled.data;
+
+          if (rewroteFixedRow && task.theme_id) {
             await sheetsService.updateEvergreenScripts([
               {
                 scriptId: task.theme_id,
