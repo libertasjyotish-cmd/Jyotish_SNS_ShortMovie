@@ -31,6 +31,27 @@ export function signThemeScriptId(series: SignThemeSeries, sign: ZodiacSign): st
   return `${ID_PREFIX}${series}-${sign}`;
 }
 
+/**
+ * Order in which the evergreen scripts of a day are taken: the ones waiting longest first and,
+ * among those, the zodiac order. Without the second key the slots of a day came out scrambled
+ * (leo at noon, taurus at 15:00, aries at 18:00) because every unused script shares the same
+ * empty `last_used_week`.
+ */
+export function compareSignThemePick(
+  a: { script_id: string; last_used_week: string },
+  b: { script_id: string; last_used_week: string },
+): number {
+  const byUse = (a.last_used_week || '').localeCompare(b.last_used_week || '');
+  if (byUse !== 0) return byUse;
+  return signThemeOrder(a.script_id) - signThemeOrder(b.script_id);
+}
+
+/** Position of a script's sign in the zodiac, or last for a script without one. */
+export function signThemeOrder(script_id: string): number {
+  const sign = parseSignThemeId(script_id)?.sign;
+  return sign ? ZODIAC_SIGNS.indexOf(sign) : ZODIAC_SIGNS.length;
+}
+
 /** The series and sign of a sign-targeted evergreen script, or undefined for any other id. */
 export function parseSignThemeId(
   script_id: string,

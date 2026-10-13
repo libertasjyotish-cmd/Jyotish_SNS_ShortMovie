@@ -33,6 +33,7 @@
     "schedule:today": "tsx scripts/today-schedule.ts",
     "resequence:signs": "tsx scripts/resequence-signs.ts",
     "sync:script-status": "tsx scripts/sync-script-status.ts",
+    "check:sign-order": "tsx scripts/check-sign-order.ts",
     "check:posting-hours": "tsx scripts/check-posting-hours.ts"
   },
   "dependencies": {

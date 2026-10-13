@@ -16,7 +16,7 @@ import {
   THEME_SLOTS,
 } from '@/lib/schedule';
 import { plannedLanguages } from '@/lib/plan-languages';
-import { parseSignThemeId, SERIES_BY_DAY } from '@/lib/sign-themes';
+import { compareSignThemePick, parseSignThemeId, SERIES_BY_DAY } from '@/lib/sign-themes';
 import { ContentQueue, GoogleSheetsService, Language } from '@/services/sheets';
 
 function arg(name: string): string | undefined {
@@ -81,7 +81,7 @@ async function main() {
               !taken.has(script.script_id) &&
               !existing.has(`${resolvedWeek}-${lang}-${script.script_id}`),
           )
-          .sort((a, b) => a.last_used_week.localeCompare(b.last_used_week))[0];
+          .sort(compareSignThemePick)[0];
         if (!theme) {
           console.log(`no free evergreen script for ${lang}/${day}`);
           break;
