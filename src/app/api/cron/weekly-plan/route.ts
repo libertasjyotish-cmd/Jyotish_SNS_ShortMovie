@@ -18,7 +18,7 @@ import {
   ZODIAC_DAYS,
   zodiacPostWeekStart,
 } from '@/lib/schedule';
-import { parseSignThemeId, SERIES_BY_DAY } from '@/lib/sign-themes';
+import { compareSignThemePick, parseSignThemeId, SERIES_BY_DAY } from '@/lib/sign-themes';
 import {
   ContentQueue,
   EvergreenScript,
@@ -51,7 +51,7 @@ function pickScript(
         (!series || parseSignThemeId(script.script_id)?.series === series) &&
         !taken.has(script.script_id),
     )
-    .sort((a, b) => a.last_used_week.localeCompare(b.last_used_week))[0];
+    .sort(compareSignThemePick)[0];
 }
 
 /**
