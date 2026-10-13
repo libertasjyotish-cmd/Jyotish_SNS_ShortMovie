@@ -2,10 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isAdminAuthorized } from '@/lib/admin-auth';
 import { isCronAuthorized } from '@/lib/auth';
 import { dispatchLanguages, isDispatchEnabled } from '@/lib/dispatch-gate';
-import { ContentQueue, GoogleSheetsService } from '@/services/sheets';
+import { SCHEDULED_PATTERNS } from '@/lib/patterns';
+import { ContentQueue, GoogleSheetsService, RenderStatus } from '@/services/sheets';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+/**
+ * Only the patterns the pipeline renders decide progress: the 65s cut is rendered on request for
+ * the manual TikTok queue, so counting it leaves every finished row reported as incomplete.
+ */
+function renderStatuses(task: ContentQueue): RenderStatus[] {
+  return SCHEDULED_PATTERNS.map((pattern) =>
+    pattern === '30s' ? task.render_status_30s : task.render_status_65s
+  );
+}
 
 interface WeekSummary {
   week_id: string;
@@ -22,7 +33,7 @@ interface WeekSummary {
 }
 
 function summarize(weekId: string, all: ContentQueue[]): WeekSummary {
-  const patterns = (task: ContentQueue) => [task.render_status_30s, task.render_status_65s];
+  const patterns = (task: ContentQueue) => renderStatuses(task);
   const tasks = all.filter((task) => task.post_status !== 'Hold');
   return {
     week_id: weekId,
@@ -42,7 +53,7 @@ function summarize(weekId: string, all: ContentQueue[]): WeekSummary {
 /** A task whose posting window has passed while it is still waiting on a script or a render. */
 function blockedReason(task: ContentQueue): string | null {
   if (task.script_status !== 'Script_Done') return `script_${task.script_status.toLowerCase()}`;
-  const renders = [task.render_status_30s, task.render_status_65s];
+  const renders = renderStatuses(task);
   if (renders.some((status) => status === 'Error')) return 'render_error';
   if (renders.some((status) => status !== 'Rendered')) return 'render_incomplete';
   return null;
@@ -88,7 +99,7 @@ export async function GET(request: NextRequest) {
       ),
       script_errors: tasks.filter((t) => t.script_status === 'Error').map((t) => t.task_id),
       render_errors: tasks
-        .filter((t) => t.render_status_30s === 'Error' || t.render_status_65s === 'Error')
+        .filter((t) => renderStatuses(t).some((s) => s === 'Error'))
         .map((t) => t.task_id),
       post_errors: tasks.filter((t) => t.post_status === 'Error').map((t) => t.task_id),
       overdue_count: overdue.length,
