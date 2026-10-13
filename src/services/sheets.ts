@@ -441,7 +441,12 @@ export class GoogleSheetsService {
 
   private async findQueueRow(taskId: string): Promise<SheetRow> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
-    const row = rows.find((candidate) => candidate.values.task_id === taskId);
+    const matches = rows.filter((candidate) => candidate.values.task_id === taskId);
+    // Retired duplicates of a task keep the same task_id, so a status written to the first
+    // match lands on a row nothing reads and the live slot stays Pending for ever.
+    const row =
+      matches.find((candidate) => (candidate.values.post_status || 'Pending') !== 'Hold') ??
+      matches[0];
     if (!row) {
       throw new Error(`task_id "${taskId}" not found in ${SHEET_NAMES.contentQueue}`);
     }
