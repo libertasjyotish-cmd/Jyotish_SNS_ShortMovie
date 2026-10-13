@@ -18,14 +18,34 @@ export type SignThemeSeries = (typeof SIGN_THEME_SERIES)[number];
 const ID_PREFIX = 'sign-';
 
 /**
- * One series per weekday, so a viewer who follows the channel meets the same kind of video on
- * the same day and twelve weeks pass before a sign repeats. Thursday is left to the promotion.
+ * The four signs each weekday carries, so the same sign is always spoken to on the same day and
+ * the twelve signs of a week run in zodiac order. Thursday is left to the promotion.
  */
-export const SERIES_BY_DAY: Partial<Record<DayOfWeek, SignThemeSeries>> = {
-  Mon: 'compat',
-  Tue: 'nature',
-  Wed: 'sidereal',
+export const SIGNS_BY_DAY: Partial<Record<DayOfWeek, readonly ZodiacSign[]>> = {
+  Mon: ZODIAC_SIGNS.slice(0, 4),
+  Tue: ZODIAC_SIGNS.slice(4, 8),
+  Wed: ZODIAC_SIGNS.slice(8, 12),
 };
+
+/**
+ * The series a week runs. One series covers all twelve signs of the week and the next week moves
+ * on to the next series, so a viewer never meets a different kind of video four signs later.
+ */
+export function seriesForWeek(weekId: string): SignThemeSeries {
+  const [year, week] = weekId.split('-W').map(Number);
+  const index = (year * 53 + week) % SIGN_THEME_SERIES.length;
+  return SIGN_THEME_SERIES[index];
+}
+
+/** The script a slot of a sign-series day must carry, or undefined for any other day. */
+export function signThemeSlotScriptId(
+  weekId: string,
+  day: DayOfWeek,
+  slot: number,
+): string | undefined {
+  const sign = SIGNS_BY_DAY[day]?.[slot];
+  return sign ? signThemeScriptId(seriesForWeek(weekId), sign) : undefined;
+}
 
 export function signThemeScriptId(series: SignThemeSeries, sign: ZodiacSign): string {
   return `${ID_PREFIX}${series}-${sign}`;
