@@ -1009,6 +1009,18 @@ export class GoogleSheetsService {
     return stale.map((row) => row.values.task_id);
   }
 
+  /** Parks several tasks with a single write request. */
+  async holdTasks(taskIds: string[]): Promise<void> {
+    if (taskIds.length === 0) return;
+    const patches = await Promise.all(
+      taskIds.map(async (taskId) => {
+        const row = await this.findQueueRow(taskId);
+        return { rowNumber: row.rowNumber, patch: { post_status: 'Hold' } };
+      }),
+    );
+    await this.patchRows(SHEET_NAMES.contentQueue, patches);
+  }
+
   async updatePostStatus(taskId: string, status: PostStatus): Promise<void> {
     const row = await this.findQueueRow(taskId);
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
