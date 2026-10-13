@@ -33,7 +33,8 @@ export const SIGNS_BY_DAY: Partial<Record<DayOfWeek, readonly ZodiacSign[]>> = {
  */
 export function seriesForWeek(weekId: string): SignThemeSeries {
   const [year, week] = weekId.split('-W').map(Number);
-  const index = (year * 53 + week) % SIGN_THEME_SERIES.length;
+  // The offset keeps 2026-W43 on `nature`, the series that follows what W42 already shipped.
+  const index = (year * 53 + week + 1) % SIGN_THEME_SERIES.length;
   return SIGN_THEME_SERIES[index];
 }
 
