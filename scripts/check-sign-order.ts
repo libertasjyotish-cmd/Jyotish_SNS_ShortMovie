@@ -1,36 +1,60 @@
 /**
- * Asserts that a day's evergreen slots are taken in zodiac order.
+ * Asserts that a weekday always carries the same four signs in zodiac order and that the whole
+ * week runs one series, which the next weeks rotate through.
  *
  * A week once shipped leo at noon, taurus at 15:00 and aries at 18:00 because the picker only
- * sorted by `last_used_week`, which every unused script shares.
+ * sorted by `last_used_week`, which every unused script shares. Tying the series to the weekday
+ * instead of the week was the other half of it: aries through cancer then only ever met the
+ * compatibility series.
  *
  * Usage: npm run check:sign-order
  */
-import { compareSignThemePick, SERIES_BY_DAY, signThemeScriptId } from '../src/lib/sign-themes';
-import { DayOfWeek } from '../src/lib/schedule';
+import {
+  SIGN_THEME_SERIES,
+  SIGNS_BY_DAY,
+  seriesForWeek,
+  signThemeSlotScriptId,
+  parseSignThemeId,
+} from '../src/lib/sign-themes';
+import { DayOfWeek, THEME_SLOTS } from '../src/lib/schedule';
 import { ZODIAC_SIGNS } from '../src/lib/zodiac-names';
 
 const failures: string[] = [];
+const weekId = '2026-W42';
 
-for (const [day, series] of Object.entries(SERIES_BY_DAY) as [DayOfWeek, 'compat'][]) {
-  // The sheet hands the scripts back in whatever order the rows sit in.
-  const scripts = [...ZODIAC_SIGNS]
-    .map((sign) => ({ script_id: signThemeScriptId(series, sign), last_used_week: '' }))
-    .reverse();
-  const picked = scripts.sort(compareSignThemePick).map((script) => script.script_id);
-  const expected = ZODIAC_SIGNS.map((sign) => signThemeScriptId(series, sign));
-  if (picked.join(',') !== expected.join(',')) {
-    failures.push(`${day}: ${picked.join(', ')}`);
+const days = Object.keys(SIGNS_BY_DAY) as DayOfWeek[];
+const covered: string[] = [];
+
+days.forEach((day, index) => {
+  for (let slot = 0; slot < THEME_SLOTS; slot += 1) {
+    const scriptId = signThemeSlotScriptId(weekId, day, slot);
+    const parsed = scriptId ? parseSignThemeId(scriptId) : undefined;
+    const expectedSign = ZODIAC_SIGNS[index * THEME_SLOTS + slot];
+    if (!parsed || parsed.sign !== expectedSign) {
+      failures.push(`${day} slot ${slot}: ${scriptId ?? 'none'} (want ${expectedSign})`);
+      continue;
+    }
+    if (parsed.series !== seriesForWeek(weekId)) {
+      failures.push(`${day} slot ${slot}: series ${parsed.series} is not the week's series`);
+    }
+    covered.push(parsed.sign);
   }
+});
+
+if (covered.length !== ZODIAC_SIGNS.length) {
+  failures.push(`a week covers ${covered.length} signs, want ${ZODIAC_SIGNS.length}`);
 }
 
-// A script used in an earlier week still waits behind the ones never used.
-const mixed = [
-  { script_id: signThemeScriptId('nature', 'aries'), last_used_week: '2026-W40' },
-  { script_id: signThemeScriptId('nature', 'virgo'), last_used_week: '' },
-].sort(compareSignThemePick);
-if (mixed[0].script_id !== signThemeScriptId('nature', 'virgo')) {
-  failures.push(`used script picked before an unused one: ${mixed[0].script_id}`);
+// Consecutive weeks move on, so a sign does not meet the same script again for twelve weeks.
+const weeks = Array.from({ length: SIGN_THEME_SERIES.length }, (_, offset) =>
+  seriesForWeek(`2026-W${31 + offset}`),
+);
+if (new Set(weeks).size !== SIGN_THEME_SERIES.length) {
+  failures.push(`${weeks.length} weeks run ${weeks.join(', ')} instead of every series once`);
+}
+
+if (seriesForWeek('2026-W43') !== 'nature') {
+  failures.push(`2026-W43 runs ${seriesForWeek('2026-W43')}, want nature`);
 }
 
 if (failures.length) {

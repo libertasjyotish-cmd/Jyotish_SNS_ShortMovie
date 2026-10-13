@@ -10,7 +10,7 @@
 import { DayOfWeek, isoWeekId, startOfIsoWeek } from '@/lib/schedule';
 import { ZODIAC_SIGNS, ZodiacSign } from '@/lib/zodiac-names';
 import { plannedLanguages } from '@/lib/plan-languages';
-import { SERIES_BY_DAY, signThemeScriptId } from '@/lib/sign-themes';
+import { seriesForWeek, signThemeScriptId } from '@/lib/sign-themes';
 import { ContentQueue, GoogleSheetsService, Language } from '@/services/sheets';
 
 function arg(name: string): string | undefined {
@@ -50,8 +50,8 @@ async function main() {
     const vacated = new Set(moves.map(({ task }) => task.task_id));
 
     moves.forEach(({ task, sign }) => {
-      const series = SERIES_BY_DAY[task.day_of_week as DayOfWeek];
-      if (!series || !sign) return;
+      const series = seriesForWeek(weekId);
+      if (!sign) return;
       const scriptId = signThemeScriptId(series, sign);
       const taskId = `${weekId}-${lang}-${scriptId}`;
       if (tasks.some((existing) => existing.task_id === taskId && !vacated.has(taskId))) return;

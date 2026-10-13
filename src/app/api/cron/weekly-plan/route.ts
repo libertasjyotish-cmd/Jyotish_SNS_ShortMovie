@@ -18,7 +18,12 @@ import {
   ZODIAC_DAYS,
   zodiacPostWeekStart,
 } from '@/lib/schedule';
-import { compareSignThemePick, parseSignThemeId, SERIES_BY_DAY } from '@/lib/sign-themes';
+import {
+  compareSignThemePick,
+  parseSignThemeId,
+  SIGNS_BY_DAY,
+  signThemeSlotScriptId,
+} from '@/lib/sign-themes';
 import {
   ContentQueue,
   EvergreenScript,
@@ -41,17 +46,31 @@ function pickScript(
   taken: Set<string>,
   promo: boolean,
 ): EvergreenScript | undefined {
-  const series = promo ? undefined : SERIES_BY_DAY[day];
   return scripts
     .filter(
       (script) =>
         script.day_of_week === day &&
         isPromoScriptId(script.script_id) === promo &&
         !script.week_id &&
-        (!series || parseSignThemeId(script.script_id)?.series === series) &&
+        !parseSignThemeId(script.script_id) &&
         !taken.has(script.script_id),
     )
     .sort(compareSignThemePick)[0];
+}
+
+/**
+ * The sign-series script a slot must carry. The slot decides it, not the order the rows sit in
+ * the sheet, so Monday always speaks to aries through cancer and the whole week stays in one
+ * series.
+ */
+function pickSignTheme(
+  scripts: EvergreenScript[],
+  weekId: string,
+  day: DayOfWeek,
+  slot: number,
+): EvergreenScript | undefined {
+  const scriptId = signThemeSlotScriptId(weekId, day, slot);
+  return scriptId ? scripts.find((script) => script.script_id === scriptId) : undefined;
 }
 
 /**
@@ -161,10 +180,11 @@ export async function GET(request: Request) {
         const planned = filledThemeSlots.get(`${lang}/${day}`) ?? 0;
         // A per-sign series fills the day with four signs; `PROMO_DAY` without the promotion
         // falls back to a single theme video.
-        const slots = SERIES_BY_DAY[day] ? THEME_SLOTS : 1;
+        const slots = SIGNS_BY_DAY[day] ? THEME_SLOTS : 1;
 
         for (let slot = planned; slot < slots; slot += 1) {
-          const theme = pickScript(themes, day, taken, false);
+          const theme =
+            pickSignTheme(themes, weekId, day, slot) ?? pickScript(themes, day, taken, false);
           if (!theme) {
             skippedDays.push(`${lang}/${day}`);
             break;

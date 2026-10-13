@@ -16,7 +16,7 @@ import {
   THEME_SLOTS,
 } from '@/lib/schedule';
 import { plannedLanguages } from '@/lib/plan-languages';
-import { compareSignThemePick, parseSignThemeId, SERIES_BY_DAY } from '@/lib/sign-themes';
+import { parseSignThemeId, SIGNS_BY_DAY, signThemeSlotScriptId } from '@/lib/sign-themes';
 import { ContentQueue, GoogleSheetsService, Language } from '@/services/sheets';
 
 function arg(name: string): string | undefined {
@@ -66,22 +66,18 @@ async function main() {
     const taken = new Set<string>();
 
     for (const day of days) {
-      const series = SERIES_BY_DAY[day];
-      if (!series) continue;
+      if (!SIGNS_BY_DAY[day]) continue;
       const planned = filled.get(`${lang}/${day}`) ?? 0;
       const slots = slotsPerDay.get(day) ?? THEME_SLOTS;
 
       for (let slot = planned; slot < slots; slot += 1) {
-        const theme = scripts
-          .filter(
-            (script) =>
-              script.day_of_week === day &&
-              !script.week_id &&
-              parseSignThemeId(script.script_id)?.series === series &&
-              !taken.has(script.script_id) &&
-              !existing.has(`${resolvedWeek}-${lang}-${script.script_id}`),
-          )
-          .sort(compareSignThemePick)[0];
+        const scriptId = signThemeSlotScriptId(resolvedWeek, day, slot);
+        const theme = scripts.find(
+          (script) =>
+            script.script_id === scriptId &&
+            !taken.has(script.script_id) &&
+            !existing.has(`${resolvedWeek}-${lang}-${script.script_id}`),
+        );
         if (!theme) {
           console.log(`no free evergreen script for ${lang}/${day}`);
           break;
