@@ -6,6 +6,12 @@
  *
  *   npm run seed:evergreen -- [--week=2026-W42] [--days=Tue,Wed] [--slots=Tue:5,Wed:4]
  *                             [--langs=ja,en] [--apply]
+ *
+ * A day that has to carry a sign beyond its four slots takes it as an extra video at an
+ * explicit time:
+ *
+ *   npm run seed:evergreen -- --week=2026-W42 --langs=ja --day=Wed --sign=pisces
+ *                             --at=2026-10-14T14:00:00Z [--series=sidereal] --apply
  */
 import {
   DayOfWeek,
@@ -16,7 +22,15 @@ import {
   THEME_SLOTS,
 } from '@/lib/schedule';
 import { plannedLanguages } from '@/lib/plan-languages';
-import { parseSignThemeId, SIGNS_BY_DAY, signThemeSlotScriptId } from '@/lib/sign-themes';
+import {
+  parseSignThemeId,
+  seriesForWeek,
+  SIGNS_BY_DAY,
+  signThemeScriptId,
+  signThemeSlotScriptId,
+  SignThemeSeries,
+} from '@/lib/sign-themes';
+import { ZodiacSign } from '@/lib/zodiac-names';
 import { ContentQueue, GoogleSheetsService, Language } from '@/services/sheets';
 
 function arg(name: string): string | undefined {
@@ -50,18 +64,60 @@ async function main() {
     slotsPerDay.set(day, Number(count));
   }
 
+  const extraSign = arg('sign') as ZodiacSign | undefined;
+  const extraAt = arg('at');
+  const extraDay = (arg('day') as DayOfWeek | undefined) ?? days[days.length - 1];
+  // A week whose slots were planned before a series change keeps its own series, so it is
+  // overridable rather than taken from the week id.
+  const extraSeries = (arg('series') as SignThemeSeries | undefined) ?? seriesForWeek(resolvedWeek);
+
   const sheets = new GoogleSheetsService();
   const plannedTasks = await sheets.getQueueTasks(resolvedWeek);
   const existing = new Set(plannedTasks.map((task) => task.task_id));
   const filled = new Map<string, number>();
-  for (const task of plannedTasks.filter((task) => task.target_type === 'Theme')) {
+  // Retired rows (duplicates, rows a resequence replaced) are not slots the day still holds.
+  for (const task of plannedTasks.filter(
+    (task) => task.target_type === 'Theme' && task.post_status !== 'Hold',
+  )) {
     const key = `${task.lang_code}/${task.day_of_week}`;
     filled.set(key, (filled.get(key) ?? 0) + 1);
   }
 
   const pending: { task: ContentQueue; scriptId: string }[] = [];
 
-  for (const lang of langs) {
+  if (extraSign) {
+    if (!extraAt) throw new Error('--sign needs --at=<ISO time>');
+    for (const lang of langs) {
+      const scriptId = signThemeScriptId(extraSeries, extraSign);
+      const taskId = `${resolvedWeek}-${lang}-${scriptId}`;
+      if (existing.has(taskId)) {
+        console.log(`${taskId} already planned`);
+        continue;
+      }
+      pending.push({
+        scriptId,
+        task: {
+          week_id: resolvedWeek,
+          day_of_week: extraDay,
+          lang_code: lang,
+          target_type: 'Theme',
+          theme_id: scriptId,
+          zodiac_sign: extraSign,
+          task_id: taskId,
+          script_status: 'Pending',
+          script_attempts: 0,
+          render_status_30s: 'Pending',
+          render_status_65s: 'Pending',
+          render_attempts_30s: 0,
+          render_attempts_65s: 0,
+          post_status: 'Pending',
+          scheduled_post_time: new Date(extraAt).toISOString(),
+        },
+      });
+    }
+  }
+
+  for (const lang of extraSign ? [] : langs) {
     const scripts = await sheets.getEvergreenScripts(lang);
     const taken = new Set<string>();
 
