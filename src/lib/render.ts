@@ -2,6 +2,7 @@ import { CTA_NOTES } from '@/lib/cta';
 import { optionalEnv } from '@/lib/env';
 import { mp3DurationSeconds } from '@/lib/mp3';
 import { applyReadingHints } from '@/lib/reading';
+import { voiceForTask } from '@/lib/reuse-cycle';
 import { DAY_OFFSET, DayOfWeek, PROMO_SCRIPT_PREFIX } from '@/lib/schedule';
 import { SIGN_THEME_SERIES } from '@/lib/sign-themes';
 import { ZODIAC_SIGNS } from '@/lib/zodiac-names';
@@ -289,6 +290,7 @@ async function renderOnCloudRun(
     note: CTA_NOTES[params.language],
     period: params.period,
     target: DURATION_BOUNDS[params.pattern],
+    voice: voiceForTask(params.taskId, params.language),
   };
 
   // The pick is derived from the asset list, so a background added between the render and the

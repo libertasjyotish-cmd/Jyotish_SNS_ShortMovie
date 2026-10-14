@@ -55,6 +55,9 @@ class RenderRequest:
     target_max: float | None = None
     """Paid-ad videos display the Libertas Jyotish seal and wordmark throughout."""
     brand: bool = False
+    """Speaker a repeated script is read by, so the second run is not the same audio."""
+    voice_name: str | None = None
+    voice_language_code: str | None = None
 
 
 @dataclass
@@ -76,7 +79,12 @@ def _synthesize(
     clips: list[tuple[str, str, float]] = []
     for name, text in spoken:
         path = narrator.synthesize(
-            text, request.language, os.path.join(work, f"{name}.mp3"), tempo
+            text,
+            request.language,
+            os.path.join(work, f"{name}.mp3"),
+            tempo,
+            request.voice_name,
+            request.voice_language_code,
         )
         # The synthesizer pads each clip with silence of its own, which would otherwise
         # stack on top of GAP_SECONDS and make the delivery drag between sentences.

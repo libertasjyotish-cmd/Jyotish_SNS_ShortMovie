@@ -1,6 +1,7 @@
 import { GoogleAuth } from 'google-auth-library';
 import { optionalEnv, requireEnv } from '@/lib/env';
 import { getGoogleCredentials } from '@/lib/google-credentials';
+import { NarrationVoice } from '@/lib/reuse-cycle';
 import { GeneratedScript } from './gemini';
 import { Language, Pattern } from './sheets';
 
@@ -17,6 +18,8 @@ export interface RendererRequest {
   theme?: 'dark' | 'light';
   /** Duration window the renderer fits the speaking rate to. */
   target: { min: number; max: number };
+  /** Speaker a repeated script is read by; omitted while a script is on its first run. */
+  voice?: NarrationVoice;
   /** When set, the renderer answers immediately and posts the result here when done. */
   callbackUrl?: string;
 }
@@ -167,6 +170,8 @@ export class RendererService {
           callback_url: request.callbackUrl,
           target_min: request.target.min,
           target_max: request.target.max,
+          voice_name: request.voice?.name,
+          voice_language_code: request.voice?.languageCode,
         }),
       });
 
