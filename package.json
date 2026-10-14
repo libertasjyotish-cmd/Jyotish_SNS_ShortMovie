@@ -34,7 +34,8 @@
     "resequence:signs": "tsx scripts/resequence-signs.ts",
     "sync:script-status": "tsx scripts/sync-script-status.ts",
     "check:sign-order": "tsx scripts/check-sign-order.ts",
-    "check:posting-hours": "tsx scripts/check-posting-hours.ts"
+    "check:posting-hours": "tsx scripts/check-posting-hours.ts",
+    "gen:evergreen": "tsx scripts/gen-evergreen-series.ts"
   },
   "dependencies": {
     "@google/genai": "^2.16.0",

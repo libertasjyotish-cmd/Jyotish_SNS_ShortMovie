@@ -559,6 +559,41 @@ export class GeminiService {
   }
 
   /**
+   * Writes an evergreen per-sign script for one of the weekly series. The reading comes from
+   * the sign's own sidereal Moon placement, so it carries no transit and stays usable in any
+   * week.
+   */
+  async generateSignThemeScript(
+    theme: string,
+    signName: string,
+    lang_code: Language,
+  ): Promise<GeneratedScript> {
+    const profile = LANGUAGE_PROFILES[lang_code];
+    const budget = narrationBudget(lang_code, '30s');
+    const prompt = [
+      `You are a native ${profile.name} writer scripting narration for a short video about ${profile.tradition}.`,
+      `The video is for people whose sidereal Moon sign is ${signName}, and its subject is: ${theme}.`,
+      '',
+      'Before you write, decide which common worry this answers (money / work and being judged / relationships / family / health / fear of the future / a decision that cannot be made / feeling unrewarded / feeling out of place) and speak to that worry. A classification of a field of life is not a worry.',
+      '',
+      `Say ${signName} inside hook_text, as a question the viewer recognises about themselves.`,
+      'The reading comes from the qualities of that Moon sign alone: no transit, no date, no week, nothing that expires. Never invent a placement, a number or a term.',
+      'Give something to do or to stop doing, in a scene the viewer can picture. No chores standing in for a planet (documents, furniture, moving house).',
+      '',
+      `Lengths (hard limits, hook_text + body_script together, the fixed closing excluded): ${budget.min}-${budget.max} ${budget.unit}. hook_text is ${profile.hook} and must be a complete sentence; it is shown on screen in full, so never shorten it by dropping words. If it does not fit, drop a whole detail rather than squeezing a sentence until words are missing.`,
+      `You do not write the closing: the app appends "${fixedCta(lang_code)}" after your body_script, so never mention the link yourself and never repeat what that closing says.`,
+      profile.note ?? '',
+      '',
+      'Return only the JSON object; no markdown fences, no commentary.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const raw = await this.generate<Partial<GeneratedScript>>(prompt, LONG_SCRIPT_SCHEMA);
+    return assertScript(raw, 'sign theme script', lang_code);
+  }
+
+  /**
    * Rewrites a script that reads badly, keeping what it claims about the sky and the house so
    * the reading stays true and no new astrology is invented.
    */
