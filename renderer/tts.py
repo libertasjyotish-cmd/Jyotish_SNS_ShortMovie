@@ -25,11 +25,25 @@ class Narrator:
     def __init__(self) -> None:
         self._client = texttospeech.TextToSpeechClient()
 
-    def synthesize(self, text: str, language: str, path: str, speaking_rate: float = 1.0) -> str:
-        """Speed is set on the voice itself; ffmpeg's `atempo` mangles the timestamps mixing needs."""
+    def synthesize(
+        self,
+        text: str,
+        language: str,
+        path: str,
+        speaking_rate: float = 1.0,
+        voice_name: str | None = None,
+        voice_language_code: str | None = None,
+    ) -> str:
+        """Speed is set on the voice itself; ffmpeg's `atempo` mangles the timestamps mixing needs.
+
+        A caller may name the voice: a script that comes back around after a full rotation is read
+        by a different speaker so the repeat is not the same audio as the first run.
+        """
         language_code, name = VOICES[language]
         language_code = os.environ.get(f"TTS_LANGUAGE_CODE_{language.upper()}", language_code)
         name = os.environ.get(f"TTS_VOICE_{language.upper()}", name)
+        language_code = voice_language_code or language_code
+        name = voice_name or name
 
         voice = texttospeech.VoiceSelectionParams(language_code=language_code, name=name)
         config = texttospeech.AudioConfig(

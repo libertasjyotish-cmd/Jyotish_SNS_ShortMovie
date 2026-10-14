@@ -148,6 +148,8 @@ def render_video():
         target_min=_optional_float(payload.get("target_min")),
         target_max=_optional_float(payload.get("target_max")),
         brand=bool(payload.get("brand", False)),
+        voice_name=payload.get("voice_name") or None,
+        voice_language_code=payload.get("voice_language_code") or None,
     )
 
     # A 65s render outlives any HTTP client, so the caller hands over a callback and hangs up
