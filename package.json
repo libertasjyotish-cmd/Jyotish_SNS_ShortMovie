@@ -30,6 +30,7 @@
     "backfill:render-backgrounds": "tsx scripts/backfill-render-backgrounds.ts",
     "audit:scripts": "tsx scripts/audit-stored-scripts.ts",
     "reschedule:overdue": "tsx scripts/reschedule-overdue.ts",
+    "repin:slots": "tsx scripts/repin-slots.ts",
     "schedule:today": "tsx scripts/today-schedule.ts",
     "resequence:signs": "tsx scripts/resequence-signs.ts",
     "sync:script-status": "tsx scripts/sync-script-status.ts",
