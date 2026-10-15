@@ -1,12 +1,6 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
-import {
-  buildDescription,
-  followUpLink,
-  playlistDescription,
-  youtubeComment,
-  type CommentPrompt,
-} from '@/lib/cta';
+import { buildDescription, followUpLink, playlistDescription, youtubeComment } from '@/lib/cta';
 import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { optionalEnv } from '@/lib/env';
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
@@ -127,15 +121,6 @@ async function playlistIds(args: {
  * description, together with the subscribe link that is the only tappable one a Short can carry.
  * Any of them failing leaves the video published.
  */
-/**
- * The pinned comment opens with a question, and a compatibility video has just talked about the
- * other person, so that is what it asks for there.
- */
-function commentPrompt(task: ContentQueue, signName?: string): CommentPrompt | undefined {
-  if (!signName) return undefined;
-  return `${task.theme_id ?? ''}${task.task_id}`.includes('compat') ? 'partner' : 'self';
-}
-
 async function addChannelSurfaces(args: {
   youtubeService: YouTubeService;
   channel: Channel;
@@ -166,7 +151,7 @@ async function addChannelSurfaces(args: {
     await youtubeService.postComment(
       channel,
       videoId,
-      youtubeComment(task.lang_code, subscribeChannelId, Boolean(signName), commentPrompt(task, signName)),
+      youtubeComment(task.lang_code, subscribeChannelId, Boolean(signName)),
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

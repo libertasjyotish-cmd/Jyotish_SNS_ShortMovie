@@ -151,10 +151,9 @@ export function youtubeComment(
   lang: Language,
   channelId?: string,
   daily = false,
-  ask?: CommentPrompt,
 ): string {
   return [
-    ask ? COMMENT_PROMPT[ask][lang] : undefined,
+    COMMENT_PROMPT[lang],
     youtubeNote(lang),
     daily ? dailyCta(lang, 'youtube', 'comment') : undefined,
     channelId ? subscribeBlock(lang, channelId) : undefined,
@@ -163,33 +162,19 @@ export function youtubeComment(
     .join('\n\n');
 }
 
-export type CommentPrompt = 'self' | 'partner';
-
 /**
  * Opens the pinned comment. A reply is the cheapest signal a viewer can leave, and the question
  * follows from what the video just said, so it reads as the next line rather than a request.
  */
-const COMMENT_PROMPT: Record<CommentPrompt, Record<Language, string>> = {
-  self: {
-    ja: 'あなたの月星座は何座でしたか。コメントで教えてください。',
-    en: 'Which Moon sign came out for you? Tell us in the comments.',
-    es: '¿Qué signo lunar te salió? Cuéntanoslo en los comentarios.',
-    pt: 'Qual signo lunar deu para você? Conte nos comentários.',
-    id: 'Zodiak bulan Anda apa? Tulis di kolom komentar.',
-    ar: 'ما هو برج القمر الذي ظهر لك؟ اكتبه في التعليقات.',
-    fr: 'Quel signe lunaire est ressorti pour vous ? Dites-le en commentaire.',
-    de: 'Welches Mondzeichen kam bei dir heraus? Schreib es in die Kommentare.',
-  },
-  partner: {
-    ja: 'あなたと、気になるお相手の月星座を、コメントで教えてください。',
-    en: 'Tell us your Moon sign and the one of the person you have in mind, in the comments.',
-    es: 'Cuéntanos en los comentarios tu signo lunar y el de la persona que tienes en mente.',
-    pt: 'Conte nos comentários o seu signo lunar e o da pessoa em quem você pensa.',
-    id: 'Tulis di komentar zodiak bulan Anda dan zodiak orang yang Anda pikirkan.',
-    ar: 'اكتب في التعليقات برج القمر الخاص بك وبرج الشخص الذي يخطر ببالك.',
-    fr: 'Dites-nous en commentaire votre signe lunaire et celui de la personne à laquelle vous pensez.',
-    de: 'Schreib in die Kommentare dein Mondzeichen und das der Person, an die du denkst.',
-  },
+const COMMENT_PROMPT: Record<Language, string> = {
+  ja: 'あなたの月星座は何座でしたか。コメントで教えてください。',
+  en: 'Which Moon sign came out for you? Tell us in the comments.',
+  es: '¿Qué signo lunar te salió? Cuéntanoslo en los comentarios.',
+  pt: 'Qual signo lunar deu para você? Conte nos comentários.',
+  id: 'Zodiak bulan Anda apa? Tulis di kolom komentar.',
+  ar: 'ما هو برج القمر الذي ظهر لك؟ اكتبه في التعليقات.',
+  fr: 'Quel signe lunaire est ressorti pour vous ? Dites-le en commentaire.',
+  de: 'Welches Mondzeichen kam bei dir heraus? Schreib es in die Kommentare.',
 };
 
 /**
