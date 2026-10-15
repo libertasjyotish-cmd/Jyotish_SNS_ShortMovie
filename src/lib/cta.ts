@@ -167,14 +167,14 @@ export function youtubeComment(
  * follows from what the video just said, so it reads as the next line rather than a request.
  */
 const COMMENT_PROMPT: Record<Language, string> = {
-  ja: 'あなたの月星座は何座でしたか。コメントで教えてください。',
-  en: 'Which Moon sign came out for you? Tell us in the comments.',
-  es: '¿Qué signo lunar te salió? Cuéntanoslo en los comentarios.',
-  pt: 'Qual signo lunar deu para você? Conte nos comentários.',
-  id: 'Zodiak bulan Anda apa? Tulis di kolom komentar.',
-  ar: 'ما هو برج القمر الذي ظهر لك؟ اكتبه في التعليقات.',
-  fr: 'Quel signe lunaire est ressorti pour vous ? Dites-le en commentaire.',
-  de: 'Welches Mondzeichen kam bei dir heraus? Schreib es in die Kommentare.',
+  ja: 'あなたの月星座は何座でしたか？いつもの太陽星座と違っていたらコメント欄で教えてください。',
+  en: 'Which Moon sign came out for you? If it differs from the Sun sign you know, tell us in the comments.',
+  es: '¿Qué signo lunar te salió? Si es distinto del signo solar que conoces, cuéntanoslo en los comentarios.',
+  pt: 'Qual signo lunar deu para você? Se for diferente do signo solar que você conhece, conte nos comentários.',
+  id: 'Zodiak bulan Anda apa? Kalau berbeda dari zodiak matahari yang Anda kenal, tulis di kolom komentar.',
+  ar: 'ما هو برج القمر الذي ظهر لك؟ إذا كان مختلفًا عن برجك الشمسي المعتاد، فاكتبه في التعليقات.',
+  fr: 'Quel signe lunaire est ressorti pour vous ? S’il diffère du signe solaire que vous connaissez, dites-le en commentaire.',
+  de: 'Welches Mondzeichen kam bei dir heraus? Wenn es von deinem gewohnten Sonnenzeichen abweicht, schreib es in die Kommentare.',
 };
 
 /**
