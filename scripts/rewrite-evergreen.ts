@@ -6,7 +6,9 @@
  * Usage: npm run rewrite:evergreen -- <lang> [--ids=W-07,R-07] [--out=file.json] [--apply]
  *
  * A script the model cannot converge on is rewritten by hand instead; pass that file back in
- * with --from=file.json to lint it and write it to the sheet without any paid call.
+ * with --from=file.json to lint it and write it to the sheet without any paid call. --cta-only
+ * narrows that check to the closing line, for a pass that swaps only the call to action and keeps
+ * the already approved hook and body of every row.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -39,9 +41,11 @@ function parseArgs(argv: string[]) {
   let apply = false;
   let resume: string | undefined;
   let from: string | undefined;
+  let ctaOnly = false;
 
   for (const arg of argv) {
     if (arg === '--apply') apply = true;
+    else if (arg === '--cta-only') ctaOnly = true;
     else if (arg.startsWith('--from=')) from = arg.slice('--from='.length);
     else if (arg.startsWith('--ids=')) ids = new Set(arg.slice('--ids='.length).split(','));
     else if (arg.startsWith('--out=')) out = arg.slice('--out='.length);
@@ -51,7 +55,7 @@ function parseArgs(argv: string[]) {
   }
 
   if (!lang && !from) throw new Error(`usage: rewrite-evergreen <${ALL_LANGS.join('|')}> [--apply]`);
-  return { lang, ids, out, apply, resume, from };
+  return { lang, ids, out, apply, resume, from, ctaOnly };
 }
 
 function asScript(target: { hook: string; body: string; cta: string }): GeneratedScript {
@@ -97,10 +101,12 @@ async function save(sheets: GoogleSheetsService, replacements: Replacement[]) {
 }
 
 /** Lints hand-written replacements and writes them, so a human rewrite costs no paid call. */
-async function applyFromFile(path: string, apply: boolean) {
+async function applyFromFile(path: string, apply: boolean, ctaOnly = false) {
   const replacements: Replacement[] = JSON.parse(readFileSync(path, 'utf8'));
   const rejected = replacements.flatMap((replacement) => {
-    const issues = lintEvergreenEntry(replacement);
+    const issues = ctaOnly
+      ? lintEvergreenEntry(replacement).filter((issue) => issue.field === 'cta_text')
+      : lintEvergreenEntry(replacement);
     return issues.length === 0
       ? []
       : [`${replacement.id} ${replacement.lang}: ${describeIssues(issues)}`];
@@ -120,8 +126,8 @@ async function applyFromFile(path: string, apply: boolean) {
 }
 
 async function main() {
-  const { lang, ids, out, apply, resume, from } = parseArgs(process.argv.slice(2));
-  if (from) return applyFromFile(from, apply);
+  const { lang, ids, out, apply, resume, from, ctaOnly } = parseArgs(process.argv.slice(2));
+  if (from) return applyFromFile(from, apply, ctaOnly);
   if (!lang) throw new Error('a language is required');
 
   const sheets = new GoogleSheetsService();
