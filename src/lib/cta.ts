@@ -147,8 +147,13 @@ function subscribeBlock(lang: Language, channelId: string): string {
  * The subscribe link is the only tappable subscribe surface a Short has: the player's own button
  * is out of our reach and the watermark does not render on Shorts.
  */
-export function youtubeComment(lang: Language, channelId?: string, daily = false): string {
+export function youtubeComment(
+  lang: Language,
+  channelId?: string,
+  daily = false,
+): string {
   return [
+    COMMENT_PROMPT[lang],
     youtubeNote(lang),
     daily ? dailyCta(lang, 'youtube', 'comment') : undefined,
     channelId ? subscribeBlock(lang, channelId) : undefined,
@@ -156,6 +161,21 @@ export function youtubeComment(lang: Language, channelId?: string, daily = false
     .filter(Boolean)
     .join('\n\n');
 }
+
+/**
+ * Opens the pinned comment. A reply is the cheapest signal a viewer can leave, and the question
+ * follows from what the video just said, so it reads as the next line rather than a request.
+ */
+const COMMENT_PROMPT: Record<Language, string> = {
+  ja: 'あなたの月星座は何座でしたか。コメントで教えてください。',
+  en: 'Which Moon sign came out for you? Tell us in the comments.',
+  es: '¿Qué signo lunar te salió? Cuéntanoslo en los comentarios.',
+  pt: 'Qual signo lunar deu para você? Conte nos comentários.',
+  id: 'Zodiak bulan Anda apa? Tulis di kolom komentar.',
+  ar: 'ما هو برج القمر الذي ظهر لك؟ اكتبه في التعليقات.',
+  fr: 'Quel signe lunaire est ressorti pour vous ? Dites-le en commentaire.',
+  de: 'Welches Mondzeichen kam bei dir heraus? Schreib es in die Kommentare.',
+};
 
 /**
  * Posted under every upload. It names what the sign in the video actually is, so a viewer who
