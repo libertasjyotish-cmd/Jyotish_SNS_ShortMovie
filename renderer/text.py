@@ -27,17 +27,57 @@ JA_READINGS = [
     ("山羊座", "やぎ座"),
     ("水瓶座", "みずがめ座"),
     ("魚座", "うお座"),
-    ("月星座", "つきせいざ"),
+    ("月星座", "ツキセイザ"),
+    ("太陽星座", "タイヨウセイザ"),
 ]
+
+JA_PERSON = re.compile(r"(座|人|あなた|読者)の方(?=[はにへもで、。]|$)")
+
+JA_BREATHS = (
+    "ですが",
+    "ますが",
+    "ので",
+    "のに",
+    "ても",
+    "たら",
+    "ながら",
+    "けれど",
+    "から",
+)
+"""Clause endings the voice runs straight through when no comma follows."""
+JA_PAUSES = "、。．.!?！？「」"
+MIN_CLAUSE = 8
+"""Shortest clause worth a breath, so a comma is not added every few characters."""
+
+
+def insert_breath_commas(text: str) -> str:
+    """Commas where a clause would otherwise be read in one breath with the next."""
+    out = ""
+    clause = 0
+    for index, char in enumerate(text):
+        out += char
+        clause = 0 if char in JA_PAUSES else clause + 1
+        next_char = text[index + 1] if index + 1 < len(text) else ""
+        if not next_char or next_char in JA_PAUSES or clause < MIN_CLAUSE:
+            continue
+        if out.endswith(JA_BREATHS):
+            out += "、"
+            clause = 0
+    return out
 
 
 def apply_reading_hints(text: str, language: str) -> str:
-    """Kana spellings for words the Japanese voice mispronounces."""
+    """Kana spellings for words the Japanese voice mispronounces, plus breathing commas.
+
+    A kana spelling is katakana where hiragana would be read as separate words: the voice
+    pauses inside a long hiragana run, so `つきせいざ` comes out as two words.
+    """
     if language != "ja":
         return text
     for word, reading in JA_READINGS:
         text = text.replace(word, reading)
-    return text
+    text = JA_PERSON.sub(r"\1のかた", text)
+    return insert_breath_commas(text)
 
 
 def split_sentences(text: str) -> list[str]:
