@@ -265,9 +265,20 @@ export async function GET(request: Request) {
     // A language that is not dispatched keeps accumulating due tasks forever, and reading their
     // scripts, renders and channels costs the run its whole time budget before it reaches the
     // languages that do publish, so they are dropped before any per-task lookup.
-    const duePosts = pendingPosts.filter(
+    const dueNow = pendingPosts.filter(
       (post) => isDue(post.scheduled_post_time, now) && isDispatchEnabledFor(post.lang_code),
     );
+    // A backlog posts in the order its windows opened, one video per channel per run: handing a
+    // channel several videos in the same run publishes them seconds apart, which the platforms
+    // read as a bulk upload and which makes the videos of one channel compete with each other.
+    const dueByLanguage = new Map<string, ContentQueue>();
+    for (const post of [...dueNow].sort((a, b) =>
+      a.scheduled_post_time.localeCompare(b.scheduled_post_time),
+    )) {
+      if (!dueByLanguage.has(post.lang_code)) dueByLanguage.set(post.lang_code, post);
+    }
+    const duePosts = Array.from(dueByLanguage.values());
+    const deferred = dueNow.length - duePosts.length;
     let posted = 0;
     let failed = 0;
     let skipped = 0;
@@ -580,6 +591,7 @@ export async function GET(request: Request) {
       posted,
       failed,
       skipped,
+      deferred,
       held: held.length,
       watchdog,
     });
