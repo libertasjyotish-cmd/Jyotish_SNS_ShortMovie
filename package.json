@@ -19,6 +19,7 @@
     "dump:week": "tsx scripts/dump-week-scripts.ts",
     "dump:evergreen": "tsx scripts/dump-evergreen.ts",
     "requeue:scripts": "tsx scripts/requeue-scripts.ts",
+    "repost:task": "tsx scripts/repost-task.ts",
     "rewrite:evergreen": "tsx scripts/rewrite-evergreen.ts",
     "load:evergreen": "tsx scripts/load-evergreen.ts",
     "refresh:seo": "tsx scripts/refresh-youtube-seo.ts",
