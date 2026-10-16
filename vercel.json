@@ -5,7 +5,7 @@
   "crons": [
     { "path": "/api/cron/weekly-plan", "schedule": "0 17 * * 1" },
     { "path": "/api/cron/weekly-generate", "schedule": "0 18 * * 1" },
-    { "path": "/api/cron/weekly-generate", "schedule": "0 5,11,23 * * *" },
+    { "path": "/api/cron/weekly-generate", "schedule": "0 5,11,13,23 * * *" },
     { "path": "/api/cron/render-batch", "schedule": "0 20 * * 1" },
     { "path": "/api/cron/render-batch", "schedule": "0 1,4,7,10,13,16,19,22 * * 2" },
     { "path": "/api/cron/render-batch", "schedule": "0 1,4,7,10,13,16,19,22 * * 3" },
