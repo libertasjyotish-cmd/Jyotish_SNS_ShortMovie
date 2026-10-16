@@ -723,7 +723,14 @@ export class GoogleSheetsService {
         const row = await this.findQueueRow(taskId);
         return {
           rowNumber: row.rowNumber,
-          patch: { script_status: 'Pending', [SCRIPT_ATTEMPTS_COLUMN]: String(attempts) },
+          patch: {
+            script_status: 'Pending',
+            [SCRIPT_ATTEMPTS_COLUMN]: String(attempts),
+            // The finished render still holds the previous text, so it is invalidated with the
+            // script: leaving it `Rendered` lets a dispatch publish the old video while the new
+            // script is being written.
+            render_status_30s: 'Pending',
+          },
         };
       }),
     );
@@ -982,7 +989,11 @@ export class GoogleSheetsService {
           row.values.task_id &&
           ['Pending', 'Error'].includes(row.values.post_status || 'Pending'),
       )
-      .filter((row) => row.values.render_status_30s === 'Rendered')
+      .filter(
+        (row) =>
+          row.values.render_status_30s === 'Rendered' &&
+          row.values.script_status === 'Script_Done',
+      )
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
 
@@ -1039,6 +1050,24 @@ export class GoogleSheetsService {
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
       post_status: status,
       [POSTED_REFS_COLUMN]: JSON.stringify(refs),
+    });
+  }
+
+  /**
+   * Forgets that a task was ever published, for a reading taken down because its script was
+   * superseded. The containers go with it, so the next dispatch uploads the new video instead of
+   * publishing the transcode of the old one.
+   */
+  async clearPostRecord(taskId: string): Promise<void> {
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [POSTED_REFS_COLUMN, EXPIRED_AT_COLUMN]);
+    const row = await this.findQueueRow(taskId);
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      post_status: 'Pending',
+      [POSTED_REFS_COLUMN]: '',
+      [EXPIRED_AT_COLUMN]: '',
+      [CONTAINER_COLUMNS.Instagram]: '',
+      [CONTAINER_COLUMNS.Threads]: '',
+      [CONTAINER_COLUMNS.Facebook]: '',
     });
   }
 

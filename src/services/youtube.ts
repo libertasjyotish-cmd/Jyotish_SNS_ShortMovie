@@ -225,4 +225,10 @@ export class YouTubeService {
       requestBody: { id: videoId, status: { privacyStatus: 'private' } },
     });
   }
+
+  /** Removes a video for good, for a reading that was published from a superseded script. */
+  async deleteVideo(channel: Channel, videoId: string): Promise<void> {
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    await youtube.videos.delete({ id: videoId });
+  }
 }
