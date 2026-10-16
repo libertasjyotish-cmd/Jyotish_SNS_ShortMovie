@@ -239,6 +239,7 @@ const REVIEW_SCHEMA = {
           subject_field: { type: Type.STRING, enum: [...SUBJECT_FIELDS] },
           viewer_concern: { type: Type.STRING },
           concern_is_common: { type: Type.STRING, enum: ['yes', 'no'] },
+          leaves_a_gain: { type: Type.STRING, enum: ['yes', 'no'] },
           verdict: { type: Type.STRING, enum: ['ok', 'awkward', 'broken'] },
           reason: { type: Type.STRING },
         },
@@ -248,6 +249,7 @@ const REVIEW_SCHEMA = {
           'subject_field',
           'viewer_concern',
           'concern_is_common',
+          'leaves_a_gain',
           'verdict',
           'reason',
         ],
@@ -285,6 +287,8 @@ export interface ReviewVerdict {
   viewer_concern: string;
   /** Whether a large audience actually holds that worry. */
   concern_is_common: string;
+  /** Whether the script leaves the viewer something to use, not only a difficulty. */
+  leaves_a_gain: string;
   verdict: 'ok' | 'awkward' | 'broken';
   reason: string;
 }
@@ -313,6 +317,7 @@ Mark "broken" when the reading turns a placement into a literal physical chore o
 Mark "broken" as well when the body tells the viewer something no one would stop to watch: a prediction that is trivial, obvious, or an everyday errand anyone does in any week.
 Then fill "subject_field" with the one field of life the script is actually about, chosen from the list in the schema. Judge the subject the viewer is told about, not the house the script names: a script that says "the first house" but talks about correcting documents is about documents, and documents are not a field of life, so the answer is "none of these". Choose "none of these" whenever the subject is an object, a task or an errand rather than something the viewer faces, feels or decides, and the verdict must then be "broken".
 The field of life is only where the reading comes from, not proof that it is worth watching, so fill "viewer_concern" next: in one sentence, in the words a viewer would use, the worry or question this script answers for them. Then answer "concern_is_common": "yes" only if that worry is one a large share of ordinary people actually carry — money, work and how they are judged at it, relationships and love, family, health, fear about the future, a decision they cannot make, feeling unrewarded, feeling out of place. Answer "no" when the worry is one almost nobody has, however correctly it follows from the sky: "am I correcting the same document too often", "is my desk untidy", "should I re-check an ordinary receipt" are not worries anyone brings to astrology. A "no" means the verdict is "broken", even when every sentence is fluent and the astrology is right.
+Then answer "leaves_a_gain". Read the hook and the body as one whole. If the script names no strain at all, answer "yes". If it does name strain, doubt, tiredness, friction or something going wrong — whatever the cause: a retrograde or combust planet, a debilitated planet, a malefic in or aspecting the house, Saturn, Rahu or Ketu passing through, an eclipse, a hard house from the Moon sign — answer "yes" only if the script both says what is causing it and says what releases it: when the planet turns direct, leaves the sign or the house, or what this period settles, rebuilds, strengthens or lets the viewer choose again. Answer "no" when the strain is left standing on its own, even when every sentence is true, calm and correctly read from the sky; a viewer who finishes the video with nothing but their own problem restated to them has been given nothing. A "no" means the verdict is "broken".
 Mark "broken" when a sentence is not grammatical ${profile.name}: a missing subject, a predicate that does not agree with its subject, particles or articles that do not connect, or a noun phrase that carries no meaning.
 Mark "awkward" when it parses but no fluent speaker would say it that way, including stitched-together clauses and mixed registers.
 Mark "awkward" when the hook is an announcement about the week rather than something said to the viewer about themselves, so that nobody scrolling past can tell it is about them.
@@ -467,7 +472,9 @@ function buildPrompt(request: GenerationRequest): string {
     '11. body_script contains one sentence that lets the viewer decide for themselves whether the transit is acting on them, by describing what it looks like in everyday actions, never symptoms, luck or loss. Say it the way a person speaks; do not reach for the same "the ones it reaches find that ..." frame every time, and never attach that condition to a predicate that describes the chart instead of the person.',
     `12. You do not write the closing. Every video ends with one approved sentence pair that the app appends after your body_script, and it already says that the personal answer needs the viewer's own Moon sign, the 108 divisions and the planetary period, and that the reading is free through the link: "${fixedCta(request.lang_code)}" Write the body so that closing follows on naturally, never repeat what it says, never mention the link yourself, and leave the personal answer to it.`,
     '13. Never create urgency through fear. Do not use danger, warning, running out of time, misfortune, or "if you do not do this" framings, and never promise that something will certainly happen.',
-    '13b. A retrograde, a difficult placement or a period of friction is said as what it is, but worded as a rebuilding period: the field is being gone over again so it holds better than before, and the viewer is told what this time is good for (reviewing, redoing, strengthening, choosing again) rather than what it takes away. Never soften by claiming an effect the reference does not support, and never leave the viewer with a sentence whose only content is that something is blocked, delayed or weakened.',
+    '13b. Pressure of every kind is named, never only retrograde motion: a planet retrograde or combust, a planet in the sign of its debilitation or in an enemy sign, a malefic occupying or aspecting the house, the transit of Saturn, Rahu or Ketu, an eclipse, a planet passing through the sixth, eighth or twelfth house from the Moon sign, a planet about to change sign — whichever of these the reference actually shows is the one the script names as the cause. The viewer is told what is doing this to them, in plain words, so the strain stops being their own failing.',
+    '13c. Naming the cause is only half of it: say in the same breath what releases it. Take the release from the reference and nothing else — the day or the week the planet turns direct, leaves the sign, leaves the house or the eclipse passes if the reference gives it, and otherwise what the period itself settles, rebuilds, strengthens or lets the viewer choose again. Never invent a date, a degree or a turning point that is not in the reference, and never promise an outcome.',
+    '13d. The worry of rule 0 is where the reading starts, never where it ends: a script whose every sentence names strain, doubt, tiredness or something going wrong is rejected even when each sentence is calm, true and read correctly from the sky. The last sentence of body_script carries the cause and the release of rules 13b and 13c, so the viewer is left with something to use. Say it as the reading itself, never as encouragement added on.',
     '14. Never let the video close its own loop: state the general principle and the individual variation, and stop before the viewer could conclude what their own case is. The unanswered question is what takes them to the site.',
     spokenPeriod
       ? `15. The reading covers one week and stays on the feed long afterwards, so body_script opens by saying the dates out loud, exactly as "${spokenPeriod}", as the time the reading is about. Write them as they are read, never as a week number, and say them in both scripts. Attach them to what happens in that week, never as a modifier of the name of the tradition ("the Indian astrology of October 12th to 18th" is not something anyone says), and never put a reading guide or any other parenthesis in a line that is read aloud.`
@@ -497,7 +504,7 @@ function buildPrompt(request: GenerationRequest): string {
     `Transit reference (the only allowed factual source):\n${request.transit_reference}`,
     '',
     'Produce two narration scripts for the same content:',
-    `- script_30s: hook_text + body_script together ${budget30.min}-${budget30.max} ${budget30.unit}, which is what is left of the 30 seconds once the fixed closing is added. Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence that opens on ${spokenPeriod ? 'the dates, then names' : 'naming'} Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them. Do not add a fourth body sentence: the total would break the limit.`,
+    `- script_30s: hook_text + body_script together ${budget30.min}-${budget30.max} ${budget30.unit}, which is what is left of the 30 seconds once the fixed closing is added. Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence that opens on ${spokenPeriod ? 'the dates, then names' : 'naming'} Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them and saying in the same breath what the period is good for in that field, so it does not end on the difficulty alone. Do not add a fourth body sentence: the total would break the limit.`,
     `- script_65s: hook_text + body_script together ${budget65.min}-${budget65.max} ${budget65.unit}, again without the fixed closing. This one is long: body_script needs five or six sentences. Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution.`,
     '',
     '',
@@ -669,6 +676,7 @@ export class GeminiService {
           subject_field: '',
           viewer_concern: '',
           concern_is_common: '',
+          leaves_a_gain: '',
           verdict: 'broken',
           reason: 'the reviewer returned no verdict',
         };
@@ -677,6 +685,7 @@ export class GeminiService {
       const subjectField = (review.subject_field ?? '').trim();
       const viewerConcern = (review.viewer_concern ?? '').trim();
       const concernIsCommon = (review.concern_is_common ?? '').trim();
+      const leavesAGain = (review.leaves_a_gain ?? '').trim();
       if (!meaning) {
         return {
           id: target.id,
@@ -684,6 +693,7 @@ export class GeminiService {
           subject_field: subjectField,
           viewer_concern: viewerConcern,
           concern_is_common: concernIsCommon,
+          leaves_a_gain: leavesAGain,
           verdict: 'broken',
           reason: 'the reviewer passed the script without restating what it says',
         };
@@ -695,6 +705,7 @@ export class GeminiService {
           subject_field: subjectField,
           viewer_concern: viewerConcern,
           concern_is_common: concernIsCommon,
+          leaves_a_gain: leavesAGain,
           verdict: 'broken',
           reason: 'the script is not about any field of life the viewer lives in',
         };
@@ -706,10 +717,23 @@ export class GeminiService {
           subject_field: subjectField,
           viewer_concern: viewerConcern,
           concern_is_common: concernIsCommon,
+          leaves_a_gain: leavesAGain,
           verdict: 'broken',
           reason: viewerConcern
             ? `nobody carries this worry: ${viewerConcern}`
             : 'the reviewer could not say what worry the script answers',
+        };
+      }
+      if (!target.promo && leavesAGain !== 'yes') {
+        return {
+          id: target.id,
+          meaning,
+          subject_field: subjectField,
+          viewer_concern: viewerConcern,
+          concern_is_common: concernIsCommon,
+          leaves_a_gain: leavesAGain,
+          verdict: 'broken',
+          reason: 'the script leaves the viewer only the difficulty, with nothing to use',
         };
       }
 
@@ -719,6 +743,7 @@ export class GeminiService {
         subject_field: subjectField,
         viewer_concern: viewerConcern,
         concern_is_common: concernIsCommon,
+        leaves_a_gain: leavesAGain,
         verdict: review.verdict,
         reason: (review.reason ?? '').trim(),
       };
