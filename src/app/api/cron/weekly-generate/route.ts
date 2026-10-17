@@ -317,7 +317,7 @@ export async function GET(request: Request) {
       },
       {
         concurrency: numberEnv('WEEKLY_GENERATE_CONCURRENCY', 4),
-        budgetMs: numberEnv('WEEKLY_GENERATE_BUDGET_MS', 25_000),
+        budgetMs: numberEnv('WEEKLY_GENERATE_BUDGET_MS', 240_000),
       }
     );
 

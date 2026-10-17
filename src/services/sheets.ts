@@ -818,7 +818,9 @@ export class GoogleSheetsService {
       .filter((row) => row.values.task_id.includes(match.taskIdContains))
       .filter((row) => !match.excludeWeekId || row.values.week_id !== match.excludeWeekId)
       .filter(
-        (row) => !match.zodiac_sign || (row.values.zodiac_sign || '') === match.zodiac_sign,
+        (row) =>
+          !match.zodiac_sign ||
+          (row.values.zodiac_sign || '').toLowerCase() === match.zodiac_sign.toLowerCase(),
       )
       .sort((a, b) => (a.values.created_at < b.values.created_at ? 1 : -1));
     const row = candidates[0];
