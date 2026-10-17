@@ -302,7 +302,7 @@ function turningJa(moon: Sign): EvergreenTemplate {
 interface HabitLine { hook: string; why: string; stop: string; relief: string }
 
 const JA_HABIT: Record<Sign, HabitLine> = {
-  Aries: { hook: '返事を、すぐに出そうとしていませんか？', why: '決める前に、つい先に動いてしまう', stop: '大事な返事だけ一晩置く', relief: '後から謝る場面がぐっと減ります' },
+  Aries: { hook: '返事を、すぐに出そうとしていませんか？', why: '決める前に、つい先に動いてしまう', stop: '大事な返事だけ一晩置く', relief: '後悔する場面がぐっと減ります' },
   Taurus: { hook: '合わない物や人を、手放せずにいませんか？', why: '一度手にしたものを、守り続けようとする', stop: '使っていない物を一つ手放す', relief: '気持ちに余裕が生まれます' },
   Gemini: { hook: '寝る前まで、スマホを見続けていませんか？', why: '新しい情報を、いつも追いかけてしまう', stop: '寝る一時間前に画面を閉じる', relief: '頭のざわつきが静まります' },
   Cancer: { hook: '人の機嫌を、いつも気にしていませんか？', why: '周りの気持ちを、自分のことのように受け取る', stop: '相手の機嫌を直そうとするのをやめる', relief: '自分の気持ちが戻ってきます' },
