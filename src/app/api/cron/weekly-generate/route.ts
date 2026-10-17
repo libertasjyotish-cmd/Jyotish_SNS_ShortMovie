@@ -6,6 +6,7 @@ import { fixedCta } from '@/lib/fixed-cta';
 import { buildPlacementBrief } from '@/lib/placements';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
+import { REUSED_PREFIX } from '@/lib/script-audit';
 import { describeIssues, lintRequirements, lintScript } from '@/lib/script-lint';
 import { GeminiService, GeneratedScript, isTransientGeminiError } from '@/services/gemini';
 import { ContentQueue, GoogleSheetsService, WeeklyTransit } from '@/services/sheets';
@@ -168,7 +169,7 @@ export async function GET(request: Request) {
           const settle = async (
             candidate: typeof scriptData,
             fixed: boolean,
-          ): Promise<{ data: typeof scriptData; failure?: string }> => {
+          ): Promise<{ data: typeof scriptData; failure?: string; reusedFrom?: string }> => {
             const withClosing = (script: GeneratedScript): GeneratedScript => ({
               ...script,
               cta_text: closingFor(candidate.script_30s, fixed),
@@ -219,7 +220,7 @@ export async function GET(request: Request) {
           // A fixed script that fails the gate is rewritten here and the Evergreen_Scripts row is
           // replaced with the text that passed, so the same row never blocks its slot again and
           // no slot waits for a hand-run `rewrite:evergreen`.
-          let settled = await settle(scriptData, isFixedScript);
+          let settled: Awaited<ReturnType<typeof settle>> = await settle(scriptData, isFixedScript);
           const rewroteFixedRow =
             isFixedScript &&
             !settled.failure &&
@@ -267,6 +268,7 @@ export async function GET(request: Request) {
             }
             console.warn(`${task.task_id}: reusing ${reuse.task_id} to keep the slot`);
             settled = {
+              reusedFrom: reuse.task_id,
               data: {
                 script_30s: JSON.parse(reuse.script_30s_json) as GeneratedScript,
                 script_65s: JSON.parse(reuse.script_65s_json) as GeneratedScript,
@@ -276,6 +278,9 @@ export async function GET(request: Request) {
           }
 
           scriptData = settled.data;
+          const savedReference = settled.reusedFrom
+            ? `${REUSED_PREFIX}${settled.reusedFrom}`
+            : transitReference;
 
           if (rewroteFixedRow && task.theme_id) {
             await sheetsService.updateEvergreenScripts([
@@ -294,7 +299,7 @@ export async function GET(request: Request) {
             week_id: task.week_id,
             lang_code: task.lang_code,
             zodiac_sign: task.zodiac_sign,
-            transit_reference: transitReference,
+            transit_reference: savedReference,
             script_30s_json: JSON.stringify(scriptData.script_30s),
             script_65s_json: JSON.stringify(scriptData.script_65s),
             hashtags: scriptData.hashtags,

@@ -14,6 +14,10 @@ export const MAX_RENDER_ATTEMPTS = 3;
 export const MAX_SCRIPT_ATTEMPTS = 3;
 /** A post is only reported as missed once it is this far past its scheduled time. */
 export const POST_OVERDUE_MINUTES = 90;
+/** How long before its slot a row without a finished script stops waiting for the generator. */
+export const SCRIPT_FILL_LEAD_MINUTES = 120;
+/** Dispatch runs every 15 minutes, so a 15-minute window makes a stateless alert fire once. */
+const ALERT_WINDOW_MINUTES = 15;
 
 export interface RenderRecovery {
   taskId: string;
@@ -152,4 +156,24 @@ export function findBlockedTasks(
   }
 
   return blocked;
+}
+
+/**
+ * Unposted rows whose slot is close or already past while the script is still missing. The
+ * generator has had its chances by then, so the slot is filled from a passed script instead of
+ * being left to die.
+ */
+export function findSlotsToFill(tasks: ContentQueue[], now: Date): ContentQueue[] {
+  return tasks.filter((task) => {
+    if (!['Pending', 'Error'].includes(task.post_status)) return false;
+    if (!['Pending', 'Error'].includes(task.script_status)) return false;
+    const elapsed = elapsedMinutes(task.scheduled_post_time, now);
+    return elapsed !== undefined && elapsed >= -SCRIPT_FILL_LEAD_MINUTES;
+  });
+}
+
+/** True only during the one dispatch run right after `minutes` have passed since `since`. */
+export function justCrossed(since: string | undefined, minutes: number, now: Date): boolean {
+  const elapsed = elapsedMinutes(since, now);
+  return elapsed !== undefined && elapsed >= minutes && elapsed < minutes + ALERT_WINDOW_MINUTES;
 }
