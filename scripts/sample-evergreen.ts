@@ -9,6 +9,7 @@ import { buildEvergreenTemplateEs } from '@/lib/evergreen-template-es';
 import { buildEvergreenTemplatePt } from '@/lib/evergreen-template-pt';
 import { buildEvergreenTemplateId } from '@/lib/evergreen-template-id';
 import { buildEvergreenTemplateFr } from '@/lib/evergreen-template-fr';
+import { buildEvergreenTemplateDe } from '@/lib/evergreen-template-de';
 import type { Language } from '@/lib/languages';
 import { lintScript } from '@/lib/script-lint';
 import { fixedCta } from '@/lib/fixed-cta';
@@ -17,7 +18,7 @@ import type { SignThemeSeries } from '@/lib/sign-themes';
 
 const series = (process.argv[2] ?? 'work') as SignThemeSeries;
 const lang = ((process.argv.find((a) => a.startsWith('--lang=')) ?? '--lang=ja').slice(7)) as Language;
-const BUILD = { ja: buildEvergreenTemplateJa, en: buildEvergreenTemplateEn, es: buildEvergreenTemplateEs, pt: buildEvergreenTemplatePt, id: buildEvergreenTemplateId, fr: buildEvergreenTemplateFr } as Partial<Record<Language, typeof buildEvergreenTemplateJa>>;
+const BUILD = { ja: buildEvergreenTemplateJa, en: buildEvergreenTemplateEn, es: buildEvergreenTemplateEs, pt: buildEvergreenTemplatePt, id: buildEvergreenTemplateId, fr: buildEvergreenTemplateFr, de: buildEvergreenTemplateDe } as Partial<Record<Language, typeof buildEvergreenTemplateJa>>;
 for (const sign of SIGNS) {
   const script = BUILD[lang]?.(series, sign) ?? null;
   if (!script) {
