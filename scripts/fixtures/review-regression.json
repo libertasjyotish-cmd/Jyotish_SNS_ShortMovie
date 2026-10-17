@@ -54,5 +54,40 @@
     "hook": "牡羊座のあなた、人間関係が急に難しく感じていませんか？",
     "body": "10月19日から10月25日の期間、インド占星術では月星座から7ハウス目に土星が留まります。相手の言葉の裏を考えてしまうのは、この土星の重さのためです。10月25日にこの位置を離れるので、関係の距離を選び直す時期として使えます。",
     "cta": ""
+  },
+  {
+    "id": "broken-ja-specific-event",
+    "lang": "ja",
+    "hook": "獅子座のあなた、数か月前の家族の話題がまた戻ってきていませんか。",
+    "body": "10月19日から10月25日は、インド占星術で月星座から3ハウス目の金星が逆行します。身内との連絡や以前の約束を見直す場面が増えそうです。焦らず言葉を選び直すことで、関係を整え直せます。",
+    "cta": ""
+  },
+  {
+    "id": "broken-fr-documents",
+    "lang": "fr",
+    "hook": "Gémeaux, ressentez-vous cette envie soudaine de réorganiser vos projets actuels ?",
+    "body": "Du 19 octobre au 25 octobre, l'astrologie indienne observe la rétrogradation de Vénus en Balance. Elle traverse la cinquième maison depuis votre signe lunaire. Vous remaniez peut-être sans cesse vos dossiers. Reconnaissez-vous cette envie de soigner la présentation de vos études ou de votre travail ? Cette phase d'arrêt imposée par la planète permet précisément de consolider vos créations avant de trancher.",
+    "cta": ""
+  },
+  {
+    "id": "broken-ja-no-planet",
+    "lang": "ja",
+    "hook": "乙女座のあなた、収入や言葉の重みに納得がいかなくなっていませんか？",
+    "body": "10月19日から10月25日、インド占星術では月星座から2ハウス目を巡る天体が経済や言葉に影響します。今は収入や家族関係を見直す時期です。丁寧な言葉選びで信頼を築ける好機です。",
+    "cta": ""
+  },
+  {
+    "id": "broken-ja-story-outside-house",
+    "lang": "ja",
+    "hook": "蠍座のあなたは、身近な人との決断をなぜか先延ばしにしていませんか？",
+    "body": "10月19日から10月25日は、インド占星術では月星座から12ハウス目にあたる天秤座で金星が逆行します。パートナーへの返答をためらってしまうのは、愛の星が逆行している影響です。今は無理に答えを出さず、関係を静かに見つめ直す機会としてお過ごしください。",
+    "cta": ""
+  },
+  {
+    "id": "ok-ja-feeling-from-house",
+    "lang": "ja",
+    "hook": "取れない疲れを天秤座のあなたは自分の気力不足だと責めていませんか？",
+    "body": "10月19日から10月25日は、インド占星術における月星座の天秤座から数えて6ハウス目の魚座で土星が逆行しています。日々の義務を一人で抱え込んで睡眠を削ってしまうなら、それは土星の影響です。今は過剰な負担を削ぎ落として生活の基礎を整え直す時期でもあります。",
+    "cta": ""
   }
 ]
