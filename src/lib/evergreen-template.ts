@@ -351,6 +351,32 @@ function natureJa(moon: Sign): EvergreenTemplate {
   };
 }
 
+interface SiderealLine { hook: string; truth: string; scene: string }
+
+/** Keyed by the Moon sign itself: what the sidereal Moon shows that a sun-sign reading misses. */
+const JA_SIDEREAL: Record<Sign, SiderealLine> = {
+  Aries: { hook: '星占いの性格が、自分と違うと感じていませんか？', truth: 'まっすぐで、思い立ったらすぐ動く心', scene: '迷うより先に体が動く' },
+  Taurus: { hook: '星占いの性格が、しっくりこないと感じていませんか？', truth: '落ち着いて、確かなものを守る心', scene: '急な変化に、心がついていかない' },
+  Gemini: { hook: '星占いに書かれた自分に、違和感はありませんか？', truth: '新しいことを、いつも知りたい心', scene: '一つのことだけでは、退屈してしまう' },
+  Cancer: { hook: '星占いの性格が、自分と違うと感じていませんか？', truth: '情が深く、身近な人を守りたい心', scene: '人の気持ちに、すぐ心が動く' },
+  Leo: { hook: '星占いに書かれた自分に、違和感はありませんか？', truth: '誇り高く、認められることで輝く心', scene: '軽く扱われると、深く傷つく' },
+  Virgo: { hook: '星占いの性格が、しっくりこないと感じていませんか？', truth: '細やかで、物事を整えずにいられない心', scene: '小さな乱れが、気になる' },
+  Libra: { hook: '星占いの性格が、自分と違うと感じていませんか？', truth: '争いを嫌い、釣り合いを大切にする心', scene: '場の空気が悪いと、落ち着かない' },
+  Scorpio: { hook: '星占いに書かれた自分に、違和感はありませんか？', truth: '何事にも、とことん向き合う心', scene: '表面だけの付き合いでは、満たされない' },
+  Sagittarius: { hook: '星占いの性格が、しっくりこないと感じていませんか？', truth: '自由を愛し、遠くを目指す心', scene: '同じ毎日が続くと、息苦しくなる' },
+  Capricorn: { hook: '星占いの性格が、自分と違うと感じていませんか？', truth: '責任感が強く、着実に積み上げる心', scene: '遊んでいても、仕事が頭を離れない' },
+  Aquarius: { hook: '星占いに書かれた自分に、違和感はありませんか？', truth: '人と違う見方をし、新しい形を求める心', scene: '周りに合わせると、窮屈になる' },
+  Pisces: { hook: '星占いの性格が、しっくりこないと感じていませんか？', truth: '感受性が豊かで、人に寄り添う心', scene: '人の悲しみに、すぐ心が痛む' },
+};
+
+function siderealJa(moon: Sign): EvergreenTemplate {
+  const line = JA_SIDEREAL[moon];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、性格を太陽ではなく心を表す月で読み、星座も実際の星の位置で決めます。あなたの月が示すのは、${line.truth}です。${line.scene}のは、そのためです。`,
+  };
+}
+
 const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate>> = {
   work: workJa,
   compat: compatJa,
@@ -363,6 +389,7 @@ const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTempla
   turning: turningJa,
   habit: habitJa,
   nature: natureJa,
+  sidereal: siderealJa,
 };
 
 /** The fixed script of one sign in one series, or null while that series has no template. */
