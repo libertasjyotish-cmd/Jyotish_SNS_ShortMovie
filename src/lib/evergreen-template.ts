@@ -324,6 +324,33 @@ function habitJa(moon: Sign): EvergreenTemplate {
   };
 }
 
+interface NatureLine { hook: string; core: string; scene: string }
+
+/** Keyed by the 9th sign from the Moon, the house of one's guiding principles (never spoken). */
+const JA_NATURE: Record<Sign, NatureLine> = {
+  Aries: { hook: '人に合わせてばかりで、疲れていませんか？', core: '自分の信じる道を、自分の足で切り開くこと', scene: '自分で決めたことに挑んでいる' },
+  Taurus: { hook: '周りの速さに、焦っていませんか？', core: '時間をかけて、確かなものを育てること', scene: '一つのことを、じっくり続けている' },
+  Gemini: { hook: '器用貧乏だと、自分を責めていませんか？', core: '知ることと、それを人に伝えること', scene: '学んだことを、誰かに話している' },
+  Cancer: { hook: '自分のことを、後回しにしていませんか？', core: '大切な人を、安心させること', scene: '身近な人と、穏やかに過ごしている' },
+  Leo: { hook: '目立つことに、気後れしていませんか？', core: '自分の誇りに恥じない生き方', scene: '自分の考えを、堂々と言葉にしている' },
+  Virgo: { hook: '自分には取り柄がないと、思っていませんか？', core: '人の役に立つ形で、力を尽くすこと', scene: '誰かの困りごとを、手際よく片づけている' },
+  Libra: { hook: '自分の意見がないと、悩んでいませんか？', core: '人と人との間に、調和をつくること', scene: '対立する人の間を、上手に取り持っている' },
+  Scorpio: { hook: '物事を、深く考えすぎていませんか？', core: '物事の奥にある、本当のこと', scene: '一つのことを、とことん掘り下げている' },
+  Sagittarius: { hook: '今の生き方に、物足りなさを感じていませんか？', core: '学び続け、視野を広げること', scene: '新しい考えや土地に触れている' },
+  Capricorn: { hook: '自分は真面目すぎると、思っていませんか？', core: '長い時間をかけて、責任を果たすこと', scene: '決めた目標に、一歩ずつ近づいている' },
+  Aquarius: { hook: '周りと話が合わないと、感じていませんか？', core: '決まった枠を越えて、新しい形を考えること', scene: '自分なりのやり方を、試している' },
+  Pisces: { hook: '人の痛みに敏感すぎると、悩んでいませんか？', core: '見えない痛みを感じ取り、寄り添うこと', scene: '誰かの話に、静かに耳を傾けている' },
+};
+
+function natureJa(moon: Sign): EvergreenTemplate {
+  const ninth = signFrom(moon, 9);
+  const line = JA_NATURE[ninth];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、生き方の軸を表す9ハウスに${JA_RULER[RULER[ninth]]}が関わっています。あなたが本当に大切にするのは、${line.core}です。${line.scene}とき、一番あなたらしくいられます。`,
+  };
+}
+
 const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate>> = {
   work: workJa,
   compat: compatJa,
@@ -335,6 +362,7 @@ const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTempla
   avoid: avoidJa,
   turning: turningJa,
   habit: habitJa,
+  nature: natureJa,
 };
 
 /** The fixed script of one sign in one series, or null while that series has no template. */
