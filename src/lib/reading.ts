@@ -41,6 +41,8 @@ const JA_BREATHS = [
 ];
 /** Characters already carrying a pause, so no comma is added after them. */
 const JA_PAUSES = '、。．.!?！？「」';
+/** Kana that turn a clause ending back into a word (`わから` + `ず`, `から` + `こそ`), so no comma goes there. */
+const JA_INFLECTIONS = 'ずぬなせさこ';
 /** Shortest clause worth a breath, so a comma is not added every few characters. */
 const MIN_CLAUSE = 8;
 
@@ -53,7 +55,7 @@ export function insertBreathCommas(text: string): string {
     out += char;
     clause = JA_PAUSES.includes(char) ? 0 : clause + 1;
     const next = text[i + 1];
-    if (!next || JA_PAUSES.includes(next) || clause < MIN_CLAUSE) continue;
+    if (!next || JA_PAUSES.includes(next) || JA_INFLECTIONS.includes(next) || clause < MIN_CLAUSE) continue;
     if (JA_BREATHS.some((ending) => out.endsWith(ending))) {
       out += '、';
       clause = 0;

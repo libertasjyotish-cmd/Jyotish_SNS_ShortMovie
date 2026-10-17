@@ -46,6 +46,8 @@ JA_BREATHS = (
 )
 """Clause endings the voice runs straight through when no comma follows."""
 JA_PAUSES = "、。．.!?！？「」"
+JA_INFLECTIONS = "ずぬなせさこ"
+"""Kana that turn a clause ending back into a verb stem (`わから` + `ず`), so no comma goes there."""
 MIN_CLAUSE = 8
 """Shortest clause worth a breath, so a comma is not added every few characters."""
 
@@ -58,7 +60,7 @@ def insert_breath_commas(text: str) -> str:
         out += char
         clause = 0 if char in JA_PAUSES else clause + 1
         next_char = text[index + 1] if index + 1 < len(text) else ""
-        if not next_char or next_char in JA_PAUSES or clause < MIN_CLAUSE:
+        if not next_char or next_char in JA_PAUSES or next_char in JA_INFLECTIONS or clause < MIN_CLAUSE:
             continue
         if out.endswith(JA_BREATHS):
             out += "、"
@@ -250,6 +252,11 @@ def _wrap_characters(measure, paragraph: str, max_width: float) -> list[str]:
     lines: list[str] = []
     line = ""
     for char in paragraph:
+        if line and char in "、。" and measure(line + char) > max_width:
+            # Closing punctuation hangs on the line it belongs to instead of being dropped.
+            lines.append(line + char)
+            line = ""
+            continue
         if line and measure(line + char) > max_width:
             # A number or Latin word is carried over whole rather than split across lines.
             carried = _trailing_run(line) if char.isascii() and char.isalnum() else ""
