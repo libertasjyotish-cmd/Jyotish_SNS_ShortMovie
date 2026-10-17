@@ -54,6 +54,25 @@ function modelList(envName: string, fallback: string[]): string[] {
 export const generationModels = (): string[] => modelList('GEMINI_MODEL', DEFAULT_MODELS);
 export const reviewModels = (): string[] => modelList('GEMINI_REVIEW_MODEL', DEFAULT_REVIEW_MODELS);
 
+/** Which quota a 429 hit and when it resets, e.g. "GenerateRequestsPerDayPerProjectPerModel (retry 39600s)". */
+function quotaDetail(body: string): string | undefined {
+  try {
+    const details = (JSON.parse(body) as { error?: { details?: Array<Record<string, unknown>> } }).error?.details ?? [];
+    const ids = details.flatMap((detail) =>
+      Array.isArray(detail.violations)
+        ? (detail.violations as Array<{ quotaId?: string; quotaValue?: string }>).map(
+            (violation) => `${violation.quotaId ?? '?'}${violation.quotaValue ? ` limit ${violation.quotaValue}` : ''}`,
+          )
+        : [],
+    );
+    const retry = details.find((detail) => typeof detail.retryDelay === 'string')?.retryDelay;
+    if (ids.length === 0) return undefined;
+    return `${ids.join(', ')}${retry ? ` (retry ${retry})` : ''}`;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface GeminiProbe {
   ok: boolean;
   detail: string;
@@ -105,9 +124,11 @@ export async function probeGemini(): Promise<GeminiProbe> {
     const latency = Date.now() - started;
     const body = await response.text();
     if (!response.ok) {
-      const detail = `${model} ${response.status} ${body.slice(0, 200)}`;
-      // 429 is a per-minute quota, which clears by itself; 402 needs the owner to pay.
-      return { ok: !isGeminiCreditError(detail) && response.status === 429, detail, latency_ms: latency, warnings };
+      const quota = quotaDetail(body);
+      const detail = `${model} ${response.status} ${quota ?? body.slice(0, 300)}`;
+      // A per-minute 429 clears by itself; a per-day cap or 402 stops generation for hours.
+      const perMinute = response.status === 429 && !/PerDay/i.test(detail);
+      return { ok: !isGeminiCreditError(detail) && perMinute, detail, latency_ms: latency, warnings };
     }
     let version: string | undefined;
     try {
