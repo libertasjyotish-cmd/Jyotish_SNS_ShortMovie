@@ -46,6 +46,8 @@ JA_BREATHS = (
 )
 """Clause endings the voice runs straight through when no comma follows."""
 JA_PAUSES = "、。．.!?！？「」"
+JA_INFLECTIONS = "ずぬなせさこ"
+"""Kana that turn a clause ending back into a verb stem (`わから` + `ず`), so no comma goes there."""
 MIN_CLAUSE = 8
 """Shortest clause worth a breath, so a comma is not added every few characters."""
 
@@ -58,7 +60,7 @@ def insert_breath_commas(text: str) -> str:
         out += char
         clause = 0 if char in JA_PAUSES else clause + 1
         next_char = text[index + 1] if index + 1 < len(text) else ""
-        if not next_char or next_char in JA_PAUSES or clause < MIN_CLAUSE:
+        if not next_char or next_char in JA_PAUSES or next_char in JA_INFLECTIONS or clause < MIN_CLAUSE:
             continue
         if out.endswith(JA_BREATHS):
             out += "、"
