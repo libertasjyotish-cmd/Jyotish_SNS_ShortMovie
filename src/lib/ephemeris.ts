@@ -56,7 +56,7 @@ function normalize(degrees: number): number {
 }
 
 /** Mean lunar node (Rahu), the point Jyotish uses for the shadow planets. */
-function meanNodeLongitude(date: Date): number {
+export function meanNodeLongitude(date: Date): number {
   const t = julianCenturies(date);
   return normalize(125.0445479 - 1934.1362891 * t + 0.0020754 * t * t);
 }
