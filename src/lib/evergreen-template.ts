@@ -246,6 +246,31 @@ function impressionJa(moon: Sign): EvergreenTemplate {
   };
 }
 
+/** Keyed by the 6th sign from the Moon, the house of strain and conflict (never spoken). */
+const JA_AVOID: Record<Sign, RestLine> = {
+  Aries: { hook: '言い争いの多い職場で、すり減っていませんか？', why: '怒りや競争が飛び交う場所で、心が消耗する', place: '穏やかに話し合える環境' },
+  Taurus: { hook: '慌ただしい環境で、落ち着かずにいませんか？', why: '急な変更が続く場所で、心が乱れる', place: '決まった流れで進む環境' },
+  Gemini: { hook: '連絡や雑談に追われて、疲れていませんか？', why: '言葉が多すぎる場所で、頭が休まらない', place: '静かに集中できる環境' },
+  Cancer: { hook: '冷たい空気の場所で、心細くなっていませんか？', why: '気持ちを分かり合えない場所で、心がしぼむ', place: '互いを気づかえる環境' },
+  Leo: { hook: '頑張りを認めてもらえない場所で、疲れていませんか？', why: '存在を軽く扱われる場所で、自信が削られる', place: '役目をきちんと任される環境' },
+  Virgo: { hook: 'いい加減な職場に、苛立っていませんか？', why: '決まりのない場所で、気が休まらない', place: '手順が整った環境' },
+  Libra: { hook: '人の争いの間に立って、疲れていませんか？', why: '不公平なやり取りが続く場所で、心が乱れる', place: '公平に扱われる環境' },
+  Scorpio: { hook: '駆け引きの多い場所で、疲れていませんか？', why: '本音の見えない人間関係で、心が張りつめる', place: '隠し事のない環境' },
+  Sagittarius: { hook: '細かい決まりに縛られて、息苦しくなっていませんか？', why: '目的の見えない決まりが多い場所で、心がしぼむ', place: '考えを任せてもらえる環境' },
+  Capricorn: { hook: '終わりの見えない忙しさに、疲れていませんか？', why: '責任ばかり重なる場所で、心が重くなる', place: '役割と休みがはっきりした環境' },
+  Aquarius: { hook: '古いやり方を押しつけられて、窮屈になっていませんか？', why: '変化を嫌う場所で、心が固まる', place: '新しい考えを試せる環境' },
+  Pisces: { hook: '人の悩みを背負う場所で、疲れ切っていませんか？', why: '際限なく頼られる場所で、心が擦り切れる', place: '自分の時間を守れる環境' },
+};
+
+function avoidJa(moon: Sign): EvergreenTemplate {
+  const sixth = signFrom(moon, 6);
+  const line = JA_AVOID[sixth];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、心をすり減らすものを表す6ハウスに${JA_RULER[RULER[sixth]]}が関わっています。${line.why}のは、そのためです。${line.place}なら、あなたらしさを取り戻せます。`,
+  };
+}
+
 const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate>> = {
   work: workJa,
   compat: compatJa,
@@ -254,6 +279,7 @@ const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTempla
   family: familyJa,
   rest: restJa,
   impression: impressionJa,
+  avoid: avoidJa,
 };
 
 /** The fixed script of one sign in one series, or null while that series has no template. */
