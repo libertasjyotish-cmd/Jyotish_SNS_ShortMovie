@@ -320,7 +320,7 @@ function habitJa(moon: Sign): EvergreenTemplate {
   const line = JA_HABIT[moon];
   return {
     hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
-    body: `インド占星術では、心を表す月に${JA_RULER[RULER[moon]]}が関わっています。${line.why}のは、そのためです。${line.stop}と、${line.relief}。`,
+    body: `インド占星術では、心を表すあなたの月は、${JA_RULER[RULER[moon]]}の性質を帯びています。${line.why}のは、そのためです。${line.stop}と、${line.relief}。`,
   };
 }
 
