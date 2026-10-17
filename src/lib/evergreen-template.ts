@@ -163,11 +163,231 @@ function moneyJa(moon: Sign): EvergreenTemplate {
   };
 }
 
+/** Keyed by the 4th sign from the Moon, the house of home and family (never spoken). */
+const JA_FAMILY: Record<Sign, LoveLine> = {
+  Aries: { hook: '家族と、ついぶつかってしまっていませんか？', strength: '家族を自分の手で守りたい', place: '言いたいことを言い合える家' },
+  Taurus: { hook: '家にいても、心が休まらずにいませんか？', strength: '穏やかで心地よい暮らしを大切にしたい', place: 'ゆったり過ごせる暮らし' },
+  Gemini: { hook: '家族と、ちゃんと話せていないと感じていませんか？', strength: '言葉を交わして、家族とつながりたい', place: '何でも話せる食卓' },
+  Cancer: { hook: '家族の心配ばかりして、疲れていませんか？', strength: '家族を温かく包んで守りたい', place: 'あなたも甘えられる家' },
+  Leo: { hook: '家族の中で、認めてもらえないと感じていませんか？', strength: '家族の中心で、皆を明るく支えたい', place: '頑張りを認め合える家族' },
+  Virgo: { hook: '家のことを、一人で抱えすぎていませんか？', strength: '細やかに気を配って、家族の暮らしを整えたい', place: '家のことを分け合える家族' },
+  Libra: { hook: '家族の間で、いつも仲裁役になっていませんか？', strength: '家族の釣り合いを取って、和やかに保ちたい', place: '皆が少しずつ譲り合える家' },
+  Scorpio: { hook: '家族にも、本音を言えずにいませんか？', strength: '家族と、心の底から深く結びつきたい', place: '本音を受け止め合える家族' },
+  Sagittarius: { hook: '家族と、生き方の考えが合わずにいませんか？', strength: '大切にしたい生き方を、家族と分かち合いたい', place: '互いの生き方を認め合える家' },
+  Capricorn: { hook: '家族への責任を、一人で背負っていませんか？', strength: '家族のために、しっかり責任を果たしたい', place: '頼り合える家族' },
+  Aquarius: { hook: '家族の中で、自分だけ違うと感じていませんか？', strength: '家族それぞれの違いを、そのまま認めたい', place: '一人ひとりの考えを尊重し合える家' },
+  Pisces: { hook: '家族のために、自分を後回しにしていませんか？', strength: '家族の痛みに寄り添い、支えたい', place: '優しさを返してくれる家族' },
+};
+
+function familyJa(moon: Sign): EvergreenTemplate {
+  const fourth = signFrom(moon, 4);
+  const line = JA_FAMILY[fourth];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、家族を表す4ハウスに${JA_RULER[RULER[fourth]]}が関わっています。${line.strength}気持ちになるのは、そのためです。${line.place}なら、心から安らげます。`,
+  };
+}
+
+interface RestLine {
+  /** Follows 「〈月星座〉のあなた、」 and ends with 「〜ていませんか？」. */
+  hook: string;
+  /** How this mind recovers; precedes 「のは、そのためです」. */
+  why: string;
+  /** What gives that recovery; precedes 「があれば」. */
+  place: string;
+}
+
+/** Keyed by the 12th sign from the Moon, the house of rest and sleep (never spoken). */
+const JA_REST: Record<Sign, RestLine> = {
+  Aries: { hook: '横になって休んでも、疲れが取れずにいませんか？', why: 'じっとしているより、体を動かした方が心が休まる', place: '汗をかく時間' },
+  Taurus: { hook: '忙しさに追われて、心まで疲れていませんか？', why: '心地よいものに囲まれると、心がほどける', place: '好きな音や香りに浸る時間' },
+  Gemini: { hook: '頭が休まらず、夜も眠れずにいませんか？', why: '考えを言葉にして外に出すと、心が軽くなる', place: '思いを誰かに話す時間' },
+  Cancer: { hook: '人の世話ばかりで、疲れ切っていませんか？', why: '安心できる場所で、心が満たされる', place: '自分が甘えられる場所' },
+  Leo: { hook: '頑張りすぎて、燃え尽きそうになっていませんか？', why: '誰にも見られない時間で、心が満ちる', place: '役目を下りる一人の時間' },
+  Virgo: { hook: '休みの日も、やることばかり考えていませんか？', why: '身の回りが整うと、心も落ち着く', place: '整った静かな場所' },
+  Libra: { hook: '人に気をつかいすぎて、ぐったりしていませんか？', why: '美しいものに触れると、心が整う', place: '好きな景色を眺める時間' },
+  Scorpio: { hook: '疲れを、誰にも見せられずにいませんか？', why: '一人で深く眠ると、心が立ち直る', place: '誰にも邪魔されない眠り' },
+  Sagittarius: { hook: '同じことの繰り返しで、疲れていませんか？', why: '新しい景色や学びに触れると、心が広がる', place: '知らない場所へ出かける時間' },
+  Capricorn: { hook: '休むことに、罪悪感を持っていませんか？', why: '決まった時間に休むと、心が安定する', place: '毎日決まった休みの時間' },
+  Aquarius: { hook: '人の中にいるだけで、疲れていませんか？', why: '人から離れて自分のペースに戻ると、心が回復する', place: '自分のペースで過ごす時間' },
+  Pisces: { hook: '人の気持ちを受け取りすぎて、疲れていませんか？', why: '音楽や水辺に身を置くと、心が洗われる', place: '静かに音楽を聴く時間' },
+};
+
+function restJa(moon: Sign): EvergreenTemplate {
+  const twelfth = signFrom(moon, 12);
+  const line = JA_REST[twelfth];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、休息を表す12ハウスに${JA_RULER[RULER[twelfth]]}が関わっています。${line.why}のは、そのためです。${line.place}があれば、自ずと力が戻ります。`,
+  };
+}
+
+/** Keyed by the Moon sign itself, the 1st house counted from the Moon (never spoken). */
+const JA_IMPRESSION: Record<Sign, RestLine> = {
+  Aries: { hook: '怖い人だと、誤解されていませんか？', why: '迷わず動く姿が、強く見える', place: '先頭に立つ場面' },
+  Taurus: { hook: 'のんびりしていると、思われていませんか？', why: '落ち着いた佇まいが、ゆったりして見える', place: '長く付き合う関係' },
+  Gemini: { hook: '軽い人だと、思われていませんか？', why: '話の早さと身軽さが、軽やかに見える', place: '人と人をつなぐ場面' },
+  Cancer: { hook: '気分屋だと、思われていませんか？', why: '心の動きが、そのまま顔に出る', place: '人を気づかう場面' },
+  Leo: { hook: '偉そうだと、誤解されていませんか？', why: '堂々とした姿が、自信に満ちて見える', place: '人をまとめる場面' },
+  Virgo: { hook: '細かくて厳しい人だと、思われていませんか？', why: 'よく気がつく目が、厳しく見える', place: '物事を整える場面' },
+  Libra: { hook: '八方美人だと、思われていませんか？', why: '誰にでも感じよく接する姿が、そう見える', place: '人の間を取り持つ場面' },
+  Scorpio: { hook: '何を考えているか分からないと、言われていませんか？', why: '心の奥を簡単に見せない姿が、謎めいて見える', place: '大事なことを任される場面' },
+  Sagittarius: { hook: '大ざっぱな人だと、思われていませんか？', why: '大きな目的を見る姿が、おおらかに見える', place: '人を導く場面' },
+  Capricorn: { hook: '冷たい人だと、誤解されていませんか？', why: '感情より責任を先に立てる姿が、硬く見える', place: '大事な仕事を任される場面' },
+  Aquarius: { hook: '変わった人だと、思われていませんか？', why: '周りに流されない考え方が、独特に見える', place: '新しい考えが求められる場面' },
+  Pisces: { hook: '頼りない人だと、思われていませんか？', why: '人を責めない優しさが、柔らかく見える', place: '人の心を癒やす場面' },
+};
+
+function impressionJa(moon: Sign): EvergreenTemplate {
+  const line = JA_IMPRESSION[moon];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、人に見せる顔を表す1ハウスに${JA_RULER[RULER[moon]]}が関わっています。${line.why}のは、そのためです。${line.place}なら、その印象が自ずと信頼に変わります。`,
+  };
+}
+
+/** Keyed by the 6th sign from the Moon, the house of strain and conflict (never spoken). */
+const JA_AVOID: Record<Sign, RestLine> = {
+  Aries: { hook: '言い争いの多い職場で、すり減っていませんか？', why: '怒りや競争が飛び交う場所で、心が消耗する', place: '穏やかに話し合える環境' },
+  Taurus: { hook: '慌ただしい環境で、落ち着かずにいませんか？', why: '急な変更が続く場所で、心が乱れる', place: '決まった流れで進む環境' },
+  Gemini: { hook: '連絡や雑談に追われて、疲れていませんか？', why: '言葉が多すぎる場所で、頭が休まらない', place: '静かに集中できる環境' },
+  Cancer: { hook: '冷たい空気の場所で、心細くなっていませんか？', why: '気持ちを分かり合えない場所で、心がしぼむ', place: '互いを気づかえる環境' },
+  Leo: { hook: '頑張りを認めてもらえない場所で、疲れていませんか？', why: '存在を軽く扱われる場所で、自信が削られる', place: '役目をきちんと任される環境' },
+  Virgo: { hook: 'いい加減な職場に、苛立っていませんか？', why: '決まりのない場所で、気が休まらない', place: '手順が整った環境' },
+  Libra: { hook: '人の争いの間に立って、疲れていませんか？', why: '不公平なやり取りが続く場所で、心が乱れる', place: '公平に扱われる環境' },
+  Scorpio: { hook: '駆け引きの多い場所で、疲れていませんか？', why: '本音の見えない人間関係で、心が張りつめる', place: '隠し事のない環境' },
+  Sagittarius: { hook: '細かい決まりに縛られて、息苦しくなっていませんか？', why: '目的の見えない決まりが多い場所で、心がしぼむ', place: '考えを任せてもらえる環境' },
+  Capricorn: { hook: '終わりの見えない忙しさに、疲れていませんか？', why: '責任ばかり重なる場所で、心が重くなる', place: '役割と休みがはっきりした環境' },
+  Aquarius: { hook: '古いやり方を押しつけられて、窮屈になっていませんか？', why: '変化を嫌う場所で、心が固まる', place: '新しい考えを試せる環境' },
+  Pisces: { hook: '人の悩みを背負う場所で、疲れ切っていませんか？', why: '際限なく頼られる場所で、心が擦り切れる', place: '自分の時間を守れる環境' },
+};
+
+function avoidJa(moon: Sign): EvergreenTemplate {
+  const sixth = signFrom(moon, 6);
+  const line = JA_AVOID[sixth];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、心をすり減らすものを表す6ハウスに${JA_RULER[RULER[sixth]]}が関わっています。${line.why}のは、そのためです。${line.place}なら、あなたらしさを取り戻せます。`,
+  };
+}
+
+/** Keyed by the 8th sign from the Moon, the house of life's turning points (never spoken). */
+interface TurningLine { hook: string; arrival: string; action: string }
+
+const JA_TURNING: Record<Sign, TurningLine> = {
+  Aries: { hook: '我慢の限界で、全部投げ出したくなっていませんか？', arrival: '衝突や我慢の限界をきっかけに、ある日突然', action: '勢いで辞める前に、次の行き先を一つ決めておく' },
+  Taurus: { hook: '収入や暮らしが変わるのが、怖くなっていませんか？', arrival: 'お金や住まいの入れ替わりとして、ゆっくり', action: '守りたい暮らしを一つだけ決めて、残りは手放す' },
+  Gemini: { hook: '人から聞いた話が、ずっと頭に残っていませんか？', arrival: '人の紹介や、何気なく聞いた話から', action: '気になった話は、その週のうちに会って確かめる' },
+  Cancer: { hook: '家族のことで、生き方を変えようか迷っていませんか？', arrival: '家族の事情や引っ越しをきっかけに', action: '家族の都合だけでなく、自分の望みも同じ重さで考える' },
+  Leo: { hook: '今の立場に、物足りなさを感じていませんか？', arrival: '昇進や、人前に立つ役目を頼まれる形で', action: '頼まれた役目は、迷っても一度引き受けてみる' },
+  Virgo: { hook: '体調や働き方に、無理を感じていませんか？', arrival: '体調の変化や、働き方の見直しとして', action: '不調を我慢せず、働き方そのものを変える' },
+  Libra: { hook: '結婚や別れで、人生が揺れていませんか？', arrival: '結婚や別れなど、大切な人との関係の変化として', action: '相手に合わせるのではなく、自分がどう生きたいかで選ぶ' },
+  Scorpio: { hook: '誰にも言えない悩みを、抱えていませんか？', arrival: '隠していた問題が表に出る形で', action: '一人で抱えず、信頼できる人に打ち明ける' },
+  Sagittarius: { hook: '学び直しや海外に、惹かれていませんか？', arrival: '学び直しや、遠い土地との縁として', action: '興味のある講座や土地に、まず一度足を運ぶ' },
+  Capricorn: { hook: '長く続けた仕事を、辞めるか迷っていませんか？', arrival: '何年も続けたことが区切りを迎える形で', action: '積み上げた経験を、次の場所へそのまま持っていく' },
+  Aquarius: { hook: '会社の外で働くことを、考えていませんか？', arrival: '組織を離れる、仲間と新しく始めるといった形で', action: '一人で抱えず、同じ考えの仲間を探す' },
+  Pisces: { hook: '説明できない予感に、心が揺れていませんか？', arrival: '理屈では説明できない予感や、偶然の出会いとして', action: '予感を打ち消さず、小さく試してみる' },
+};
+
+function turningJa(moon: Sign): EvergreenTemplate {
+  const eighth = signFrom(moon, 8);
+  const line = JA_TURNING[eighth];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、人生の変わり目を表す8ハウスに${JA_RULER[RULER[eighth]]}が関わっています。転機は、${line.arrival}訪れます。${line.action}と、それが追い風になります。`,
+  };
+}
+
+/** Keyed by the Moon sign itself: the mind's habit and what dropping it frees. */
+interface HabitLine { hook: string; why: string; stop: string; relief: string }
+
+const JA_HABIT: Record<Sign, HabitLine> = {
+  Aries: { hook: '返事を、すぐに出そうとしていませんか？', why: '決める前に、つい先に動いてしまう', stop: '大事な返事だけ一晩置く', relief: '後悔する場面がぐっと減ります' },
+  Taurus: { hook: '合わない物や人を、手放せずにいませんか？', why: '一度手にしたものを、守り続けようとする', stop: '使っていない物を一つ手放す', relief: '気持ちに余裕が生まれます' },
+  Gemini: { hook: '寝る前まで、スマホを見続けていませんか？', why: '新しい情報を、いつも追いかけてしまう', stop: '寝る一時間前に画面を閉じる', relief: '頭のざわつきが静まります' },
+  Cancer: { hook: '人の機嫌を、いつも気にしていませんか？', why: '周りの気持ちを、自分のことのように受け取る', stop: '相手の機嫌を直そうとするのをやめる', relief: '自分の気持ちが戻ってきます' },
+  Leo: { hook: '弱音を吐かずに、一人で頑張っていませんか？', why: '頼られる自分でいようとする', stop: '一つだけ、人に助けを頼む', relief: '肩の荷がすっと軽くなります' },
+  Virgo: { hook: '終わったことを、何度も見直していませんか？', why: '小さな粗まで、気になってしまう', stop: '見直しを一回で終える', relief: '時間と気力が残ります' },
+  Libra: { hook: '本当は嫌なのに、引き受けていませんか？', why: '場の空気を、壊さないようにする', stop: '一度だけ、はっきり断る', relief: '人付き合いが楽になります' },
+  Scorpio: { hook: '言われた一言を、ずっと引きずっていませんか？', why: '心に受けた傷を、深く刻み込む', stop: 'その一言を、信頼できる人に話してしまう', relief: '胸のつかえが取れます' },
+  Sagittarius: { hook: '予定を、詰め込みすぎていませんか？', why: '面白そうなことに、すぐ手を伸ばす', stop: '予定を一つ減らす', relief: '一つひとつを楽しめるようになります' },
+  Capricorn: { hook: '休みの日まで、仕事のことを考えていませんか？', why: '責任を、いつも先に立てる', stop: '休みの日は仕事の連絡を見ない', relief: '次の週の力が違ってきます' },
+  Aquarius: { hook: '人に頼らず、全部自分で決めていませんか？', why: '自分のやり方を、崩したくない', stop: '一つだけ、人の案に乗ってみる', relief: '思わぬ道が開けます' },
+  Pisces: { hook: '人の頼みを、断れずにいませんか？', why: '困っている人を、放っておけない', stop: 'すぐに返事をせず、一度持ち帰る', relief: '自分の時間が守れます' },
+};
+
+function habitJa(moon: Sign): EvergreenTemplate {
+  const line = JA_HABIT[moon];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、心を表すあなたの月は、${JA_RULER[RULER[moon]]}の性質を帯びています。${line.why}のは、そのためです。${line.stop}と、${line.relief}。`,
+  };
+}
+
+interface NatureLine { hook: string; core: string; scene: string }
+
+/** Keyed by the 9th sign from the Moon, the house of one's guiding principles (never spoken). */
+const JA_NATURE: Record<Sign, NatureLine> = {
+  Aries: { hook: '人に合わせてばかりで、疲れていませんか？', core: '自分の信じる道を、自分の足で切り開くこと', scene: '自分で決めたことに挑んでいる' },
+  Taurus: { hook: '周りの速さに、焦っていませんか？', core: '時間をかけて、確かなものを育てること', scene: '一つのことを、じっくり続けている' },
+  Gemini: { hook: '器用貧乏だと、自分を責めていませんか？', core: '知ることと、それを人に伝えること', scene: '学んだことを、誰かに話している' },
+  Cancer: { hook: '自分のことを、後回しにしていませんか？', core: '大切な人を、安心させること', scene: '身近な人と、穏やかに過ごしている' },
+  Leo: { hook: '目立つことに、気後れしていませんか？', core: '自分の誇りに恥じない生き方', scene: '自分の考えを、堂々と言葉にしている' },
+  Virgo: { hook: '自分の良さが、分からずにいませんか？', core: '人の役に立つ形で、力を尽くすこと', scene: '誰かの困りごとを、手際よく片づけている' },
+  Libra: { hook: '自分の意見がないと、悩んでいませんか？', core: '人と人との間に、調和をつくること', scene: '対立する人の間を、上手に取り持っている' },
+  Scorpio: { hook: '物事を、深く考えすぎていませんか？', core: '物事の奥にある、本当のこと', scene: '一つのことを、とことん掘り下げている' },
+  Sagittarius: { hook: '今の生き方に、物足りなさを感じていませんか？', core: '学び続け、視野を広げること', scene: '新しい考えや土地に触れている' },
+  Capricorn: { hook: '自分は真面目すぎると、思っていませんか？', core: '長い時間をかけて、責任を果たすこと', scene: '決めた目標に、一歩ずつ近づいている' },
+  Aquarius: { hook: '周りと話が合わないと、感じていませんか？', core: '決まった枠を越えて、新しい形を考えること', scene: '自分なりのやり方を、試している' },
+  Pisces: { hook: '人の痛みに敏感すぎると、悩んでいませんか？', core: '見えない痛みを感じ取り、寄り添うこと', scene: '誰かの話に、静かに耳を傾けている' },
+};
+
+function natureJa(moon: Sign): EvergreenTemplate {
+  const ninth = signFrom(moon, 9);
+  const line = JA_NATURE[ninth];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、生き方の軸を表す9ハウスに${JA_RULER[RULER[ninth]]}が関わっています。あなたが本当に大切にするのは、${line.core}です。${line.scene}とき、一番あなたらしくいられます。`,
+  };
+}
+
+/** What sun-sign horoscopes usually say about each sign; the viewer enters through their sun sign. */
+const JA_SUN_TRAIT: Record<Sign, string> = {
+  Aries: '情熱的で行動的',
+  Taurus: 'のんびりしてマイペース',
+  Gemini: '器用で社交的',
+  Cancer: '家庭的で情が深い',
+  Leo: '華やかでリーダー向き',
+  Virgo: '几帳面で完璧主義',
+  Libra: '社交的でおしゃれ',
+  Scorpio: '一途で秘密主義',
+  Sagittarius: '自由で楽観的',
+  Capricorn: '真面目で努力家',
+  Aquarius: '個性的で独創的',
+  Pisces: '優しくて夢見がち',
+};
+
+/** The one series keyed by the viewer's sun sign: it leads them to look up their Moon sign. */
+function siderealJa(sun: Sign): EvergreenTemplate {
+  return {
+    hook: `${JA_SIGN[sun]}のあなた、星占いで「${JA_SUN_TRAIT[sun]}」と言われて、自分とは違うと感じていませんか？`,
+    body: 'インド占星術では、性格を太陽ではなく心を表す月で読み、星座も実際の星の位置で決めます。太陽星座と月星座が違う人は多く、いつも占いが当たらない気がするのは、そのためかもしれません。',
+  };
+}
+
 const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate>> = {
   work: workJa,
   compat: compatJa,
   love: loveJa,
   money: moneyJa,
+  family: familyJa,
+  rest: restJa,
+  impression: impressionJa,
+  avoid: avoidJa,
+  turning: turningJa,
+  habit: habitJa,
+  nature: natureJa,
+  sidereal: siderealJa,
 };
 
 /** The fixed script of one sign in one series, or null while that series has no template. */

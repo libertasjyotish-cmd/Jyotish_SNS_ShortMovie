@@ -68,7 +68,10 @@ for (const lang of LANGUAGES) {
   for (const series of SIGN_THEME_SERIES) {
     const title = buildYouTubeTitle({ lang, zodiacSign: sign, hook: HOOKS[lang], series });
     check(`${lang} ${series}: over 100 chars`, title.length <= 100);
-    check(`${lang} ${series}: moon sign note missing`, title.includes(lang === 'ja' ? '（月星座）' : MOON_SIGN_NOTE[lang]));
+    const hasMoonNote = title.includes(lang === 'ja' ? '（月星座）' : MOON_SIGN_NOTE[lang]);
+    // The sidereal series addresses viewers by their sun sign; every other series names the Moon sign.
+    if (series === 'sidereal') check(`${lang} sidereal: titled as a Moon sign`, !hasMoonNote);
+    else check(`${lang} ${series}: moon sign note missing`, hasMoonNote);
   }
 }
 

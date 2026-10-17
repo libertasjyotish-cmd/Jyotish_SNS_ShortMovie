@@ -148,7 +148,9 @@ const MOON_SIGN_WORD: Record<Language, string> = {
 };
 
 /** Viewers read a bare sign name as their sun sign, so it always says it is the Moon sign. */
-export function moonSignLabel(zodiacSign: string, lang: Language): string {
+export function moonSignLabel(zodiacSign: string, lang: Language, series?: SignThemeSeries): string {
+  // The sidereal series addresses viewers by their Western sun sign.
+  if (series === 'sidereal') return zodiacSign;
   return lang === 'ja' ? `${zodiacSign}（${MOON_SIGN_WORD.ja}）` : `${zodiacSign} (${MOON_SIGN_WORD[lang]})`;
 }
 
@@ -160,7 +162,8 @@ export function moonSignHeadline(zodiacSign: string, lang: Language): string {
 }
 
 /** Note under a sign headline. */
-function coverSignNote(lang: Language): string {
+function coverSignNote(lang: Language, series?: SignThemeSeries): string {
+  if (series === 'sidereal') return TITLE_KEYWORDS[lang].theme;
   return lang === 'ja' ? `${TITLE_KEYWORDS.ja.theme} ${MOON_SIGN_WORD.ja}` : MOON_SIGN_NOTE[lang];
 }
 
@@ -229,7 +232,7 @@ export function buildCaptionLead({ lang, zodiacSign, period, series }: CaptionLe
   if (!zodiacSign) return period;
   const keywords = TITLE_KEYWORDS[lang];
   const phrase = series ? SERIES_KEYWORDS[lang][series] : keywords.weekly;
-  return [`${moonSignLabel(zodiacSign, lang)} ${phrase}`, period].filter(Boolean).join(' · ');
+  return [`${moonSignLabel(zodiacSign, lang, series)} ${phrase}`, period].filter(Boolean).join(' · ');
 }
 
 /**
@@ -256,7 +259,7 @@ export function buildCoverText({ lang, zodiacSign, series, period, hook }: Cover
   const headline = (zodiacSign && moonSignHeadline(zodiacSign, lang)) ?? coverHook(hook, lang) ?? keywords.theme;
   return {
     sign: headline,
-    note: zodiacSign ? coverSignNote(lang) : keywords.theme,
+    note: zodiacSign ? coverSignNote(lang, series) : keywords.theme,
     // An evergreen series carries no dates, so it names itself where the week would sit.
     period: (series ? SERIES_KEYWORDS[lang][series] : period) ?? '',
   };
@@ -396,7 +399,9 @@ export function buildYouTubeTitle({
   const phrase = series ? SERIES_KEYWORDS[lang][series] : keywords.weekly;
   // Outside ja the full note sits beside the sign instead of at the end, where a long hook
   // would otherwise leave no room after both the note and the Moon-sign label.
-  const signLabel = zodiacSign && (lang === 'ja' ? moonSignLabel(zodiacSign, lang) : `${zodiacSign} (${MOON_SIGN_NOTE[lang]})`);
+  const signLabel =
+    zodiacSign &&
+    (lang === 'ja' || series === 'sidereal' ? moonSignLabel(zodiacSign, lang, series) : `${zodiacSign} (${MOON_SIGN_NOTE[lang]})`);
   const lead = signLabel ? [signLabel, phrase, period].filter(Boolean).join(' ') : keywords.theme;
   const separator = lang === 'ja' ? '｜' : ' | ';
   const tail = zodiacSign && lang !== 'ja' ? '' : `${separator}${zodiacSign ? keywords.theme : BRAND}`;
