@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
         sheets.getScriptOutput(task.task_id),
         sheets.getRenderOutput(task.task_id),
       ]);
-      if (!scriptOutput || !renderOutput?.video_url_65s) continue;
+      if (!scriptOutput?.script_65s_json || !renderOutput?.video_url_65s) continue;
       const script: GeneratedScript = JSON.parse(scriptOutput.script_65s_json);
       items.push({
         task_id: task.task_id,

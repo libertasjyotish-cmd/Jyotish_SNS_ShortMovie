@@ -193,7 +193,8 @@ export interface GeneratedContent {
   zodiac_sign?: string;
   transit_reference: string;
   script_30s: GeneratedScript;
-  script_65s: GeneratedScript;
+  /** Paused with the TikTok queue (docs/TIKTOK-MANUAL.md); no longer generated. */
+  script_65s?: GeneratedScript;
   hashtags: string;
 }
 
@@ -294,17 +295,9 @@ const RESPONSE_SCHEMA = {
       },
       required: ['hook_text', 'body_script'],
     },
-    script_65s: {
-      type: Type.OBJECT,
-      properties: {
-        hook_text: { type: Type.STRING },
-        body_script: { type: Type.STRING },
-      },
-      required: ['hook_text', 'body_script'],
-    },
     hashtags: { type: Type.STRING },
   },
-  required: ['viewer_concern', 'script_30s', 'script_65s', 'hashtags'],
+  required: ['viewer_concern', 'script_30s', 'hashtags'],
 } as const;
 
 /**
@@ -618,7 +611,6 @@ function buildPrompt(request: GenerationRequest): string {
       ? hookAssignment(request.week_id, request.zodiac_sign)
       : undefined;
   const budget30 = narrationBudget(request.lang_code, '30s', spokenPeriod);
-  const budget65 = narrationBudget(request.lang_code, '65s', spokenPeriod);
   const options = request.placement_options?.length ? request.placement_options : undefined;
 
   return [
@@ -669,7 +661,6 @@ function buildPrompt(request: GenerationRequest): string {
     '18c. A house is a field of life, so read it as what the viewer faces, feels or decides in that field — the fourth house is home life, family, roots and the ground a person stands on. Never turn it into a physical chore or object: rearranging furniture, tidying a desk, clearing clutter, checking a receipt or buying something are not readings, and a viewer told she will move the furniture has been told nothing about herself.',
     '18d. The subject of the reading must be the field of life itself — what the viewer comes across as, what sustains them, the people close to them, home and family, judgement, obligation, the other person, upheaval, conviction, position, hopes, letting go. Never make an object, a task or an errand the subject: if the sentence could name a thing the viewer handles instead of something they face, feel or decide, it is not a reading and must be rewritten.',
     '18e. The narration speaks to a customer, so it is written throughout in the polite register of the language (for Japanese, です・ます). A question to the viewer is asked politely — 「〜ていませんか？」「〜ではありませんか？」 — never in plain form or as a tag question (「〜ない？」「〜だよね」「〜でしょ？」), which reads as over-familiar and does not belong to this brand.',
-    '19. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
     profile.note ?? '',
@@ -678,11 +669,10 @@ function buildPrompt(request: GenerationRequest): string {
     `Audience: ${audience}`,
     `Transit reference (the only allowed factual source):\n${request.transit_reference}`,
     '',
-    'Produce two narration scripts for the same content:',
+    'Produce one narration script:',
     options
       ? structured30s(options, budget30)
       : `- script_30s: hook_text + body_script together ${budget30.min}-${budget30.max} ${budget30.unit}, which is what is left of the 30 seconds once the fixed closing is added. Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence that opens on ${spokenPeriod ? 'the dates, then names' : 'naming'} Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them and saying in the same breath what the period is good for in that field, so it does not end on the difficulty alone. Do not add a fourth body sentence: the total would break the limit.`,
-    `- script_65s: hook_text + body_script together ${budget65.min}-${budget65.max} ${budget65.unit}, again without the fixed closing. This one is long: body_script needs five or six sentences. Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution.`,
     '',
     '',
     'Worked example of the structure (English, different topic; copy the shape, not the words):',
@@ -740,7 +730,6 @@ export class GeminiService {
       zodiac_sign: request.zodiac_sign,
       transit_reference: request.transit_reference,
       script_30s: assertScript(raw.script_30s, 'script_30s', request.lang_code),
-      script_65s: assertScript(raw.script_65s, 'script_65s', request.lang_code),
       hashtags: (raw.hashtags || '').trim(),
     };
   }

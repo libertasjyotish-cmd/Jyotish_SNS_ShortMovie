@@ -1,5 +1,10 @@
 # TikTok 手動投稿マニュアル
 
+> **2026-10-17 から一時停止中。** TikTok は API で自動投稿できないため、65s 版の原稿作成・lint・審査を
+> `weekly-generate` から外した（`script_65s_json` は空で保存、65s の動画作成もしない）。
+> 再開するときは、`GeminiService.generateScript` の `script_65s`（スキーマ・プロンプト）、
+> テーマ枠の `expandThemeScript`、`weekly-generate` の 65s lint と保存を戻し、`ALL_PATTERNS` の 65s を動画作成に含める。
+
 TikTok だけ自動投稿しない。Content Posting API の本番申請が
 「自社・個人の内部利用のアプリは承認しない（Not acceptable: 自分たちが運用する
 TikTok アカウントへの投稿）」という理由で却下されたため、API 経由の投稿は使えない。
