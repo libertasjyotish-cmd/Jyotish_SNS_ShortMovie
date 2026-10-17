@@ -38,6 +38,8 @@ for (const script of scripts) {
     target_min: 26,
     target_max: 32,
     brand: true,
+    brand_label: script.label,
+    note: script.note,
     output_path: `${OUT_PREFIX}/${script.id}.mp4`,
   };
   const res = await fetch(`${RENDERER}/render`, {

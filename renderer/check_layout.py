@@ -45,6 +45,13 @@ def main() -> int:
             bounds = _draw(work, language, copy, theme)
             brand_bottom = _bounds(overlays.brand(f"{work}/brand.png"))[1]
             highest = min(top for top, _ in bounds.values())
+            # Product ads carry no period plate, so their labelled lockup only has to clear the hook.
+            labelled = _bounds(overlays.brand(f"{work}/brand-label.png", copy["hook"][:20], language))[1]
+            if labelled + MIN_GAP > bounds["hook"][0]:
+                failures.append(
+                    f"{language}/{theme}: labelled brand ends at {labelled} and the hook "
+                    f"starts at {bounds['hook'][0]}"
+                )
             if brand_bottom + MIN_GAP > highest:
                 failures.append(
                     f"{language}/{theme}: brand ends at {brand_bottom} and the first "

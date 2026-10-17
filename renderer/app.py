@@ -148,6 +148,7 @@ def render_video():
         target_min=_optional_float(payload.get("target_min")),
         target_max=_optional_float(payload.get("target_max")),
         brand=bool(payload.get("brand", False)),
+        brand_label=payload.get("brand_label") or None,
         voice_name=payload.get("voice_name") or None,
         voice_language_code=payload.get("voice_language_code") or None,
     )

@@ -55,6 +55,8 @@ class RenderRequest:
     target_max: float | None = None
     """Paid-ad videos display the Libertas Jyotish seal and wordmark throughout."""
     brand: bool = False
+    """Product name shown under the brand lockup on a product ad."""
+    brand_label: str | None = None
     """Speaker a repeated script is read by, so the second run is not the same audio."""
     voice_name: str | None = None
     voice_language_code: str | None = None
@@ -167,7 +169,10 @@ def render(request: RenderRequest) -> RenderResult:
         if veil:
             layers.insert(0, (*veil, 0.0, total))
         if request.brand:
-            layers.append((*overlays.brand(os.path.join(work, "brand.png")), 0.0, total))
+            lockup = overlays.brand(
+                os.path.join(work, "brand.png"), request.brand_label, request.language
+            )
+            layers.append((*lockup, 0.0, total))
         if request.period:
             layers.append(
                 (
