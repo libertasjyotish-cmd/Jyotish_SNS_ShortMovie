@@ -250,6 +250,11 @@ def _wrap_characters(measure, paragraph: str, max_width: float) -> list[str]:
     lines: list[str] = []
     line = ""
     for char in paragraph:
+        if line and char in "、。" and measure(line + char) > max_width:
+            # Closing punctuation hangs on the line it belongs to instead of being dropped.
+            lines.append(line + char)
+            line = ""
+            continue
         if line and measure(line + char) > max_width:
             # A number or Latin word is carried over whole rather than split across lines.
             carried = _trailing_run(line) if char.isascii() and char.isalnum() else ""
