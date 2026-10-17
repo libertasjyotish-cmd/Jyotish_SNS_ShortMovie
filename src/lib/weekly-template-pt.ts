@@ -36,7 +36,7 @@ const FIELD: Record<number, string> = {
   9: 'as suas crenças e o rumo da sua vida',
   10: 'o seu trabalho e a sua posição',
   11: 'o aumento da renda e as amizades',
-  12: 'a forma como você descansa e se desapega',
+  12: 'o seu descanso e o desapego',
 };
 
 /** The reason clause is the hook without its question mark unless given. */
