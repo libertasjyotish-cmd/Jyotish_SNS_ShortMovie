@@ -222,6 +222,30 @@ function restJa(moon: Sign): EvergreenTemplate {
   };
 }
 
+/** Keyed by the Moon sign itself, the 1st house counted from the Moon (never spoken). */
+const JA_IMPRESSION: Record<Sign, RestLine> = {
+  Aries: { hook: '怖い人だと、誤解されていませんか？', why: '迷わず動く姿が、強く見える', place: '先頭に立つ場面' },
+  Taurus: { hook: 'のんびりしていると、思われていませんか？', why: '落ち着いた佇まいが、ゆったりして見える', place: '長く付き合う関係' },
+  Gemini: { hook: '軽い人だと、思われていませんか？', why: '話の早さと身軽さが、軽やかに見える', place: '人と人をつなぐ場面' },
+  Cancer: { hook: '気分屋だと、思われていませんか？', why: '心の動きが、そのまま顔に出る', place: '人を気づかう場面' },
+  Leo: { hook: '偉そうだと、誤解されていませんか？', why: '堂々とした姿が、自信に満ちて見える', place: '人をまとめる場面' },
+  Virgo: { hook: '細かくて厳しい人だと、思われていませんか？', why: 'よく気がつく目が、厳しく見える', place: '物事を整える場面' },
+  Libra: { hook: '八方美人だと、思われていませんか？', why: '誰にでも感じよく接する姿が、そう見える', place: '人の間を取り持つ場面' },
+  Scorpio: { hook: '何を考えているか分からないと、言われていませんか？', why: '心の奥を簡単に見せない姿が、謎めいて見える', place: '大事なことを任される場面' },
+  Sagittarius: { hook: '大ざっぱな人だと、思われていませんか？', why: '大きな目的を見る姿が、おおらかに見える', place: '人を導く場面' },
+  Capricorn: { hook: '冷たい人だと、誤解されていませんか？', why: '感情より責任を先に立てる姿が、硬く見える', place: '大事な仕事を任される場面' },
+  Aquarius: { hook: '変わった人だと、思われていませんか？', why: '周りに流されない考え方が、独特に見える', place: '新しい考えが求められる場面' },
+  Pisces: { hook: '頼りない人だと、思われていませんか？', why: '人を責めない優しさが、柔らかく見える', place: '人の心を癒やす場面' },
+};
+
+function impressionJa(moon: Sign): EvergreenTemplate {
+  const line = JA_IMPRESSION[moon];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、人に見せる顔を表す1ハウスに${JA_RULER[RULER[moon]]}が関わっています。${line.why}のは、そのためです。${line.place}なら、その印象が自ずと信頼に変わります。`,
+  };
+}
+
 const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate>> = {
   work: workJa,
   compat: compatJa,
@@ -229,6 +253,7 @@ const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTempla
   money: moneyJa,
   family: familyJa,
   rest: restJa,
+  impression: impressionJa,
 };
 
 /** The fixed script of one sign in one series, or null while that series has no template. */
