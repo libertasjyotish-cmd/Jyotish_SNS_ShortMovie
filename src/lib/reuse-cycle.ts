@@ -12,11 +12,20 @@
 import { SIGN_THEME_SERIES } from '@/lib/sign-themes';
 import { Language } from '@/services/sheets';
 
-/** Weeks since the rotation started, counted the way `seriesForWeek` counts them. */
-function rotationIndex(weekId: string): number | undefined {
+/** Week index counted the way `seriesForWeek` counts it. */
+function weekIndex(weekId: string): number | undefined {
   const [year, week] = weekId.split('-W').map(Number);
   if (!Number.isFinite(year) || !Number.isFinite(week)) return undefined;
   return year * 53 + week + 4;
+}
+
+/** 2026-W42 carried the first series of the first pass. */
+const FIRST_PASS_START = 2026 * 53 + 42 + 4;
+
+/** Weeks since the first pass started. */
+function rotationIndex(weekId: string): number | undefined {
+  const index = weekIndex(weekId);
+  return index === undefined ? undefined : index - FIRST_PASS_START;
 }
 
 /**
@@ -25,7 +34,7 @@ function rotationIndex(weekId: string): number | undefined {
  */
 export function reuseCycle(weekId: string): number {
   const index = rotationIndex(weekId);
-  if (index === undefined) return 0;
+  if (index === undefined || index < 0) return 0;
   return Math.floor(index / SIGN_THEME_SERIES.length);
 }
 
@@ -35,23 +44,23 @@ export function weekIdOf(taskId: string): string | undefined {
 }
 
 /**
- * Chirp3-HD speakers, who exist under the same name in all eight locales. The list is the
- * rotation order, so each repeat of a script is read by the next voice and a speaker is not
- * heard again for twelve cycles - far longer than the videos stay in circulation.
+ * Male Chirp3-HD speakers, who exist under the same name in all eight locales; the female
+ * speakers read Japanese noticeably worse than the default Enceladus. The list is the rotation
+ * order, so each repeat of a script is read by the next voice.
  */
 const CYCLE_SPEAKERS = [
   'Charon',
-  'Kore',
   'Puck',
-  'Aoede',
   'Orus',
-  'Leda',
   'Fenrir',
-  'Zephyr',
   'Schedar',
   'Umbriel',
   'Algieba',
-  'Despina',
+  'Iapetus',
+  'Achird',
+  'Algenib',
+  'Alnilam',
+  'Sadaltager',
 ] as const;
 
 /** Locale each language is spoken in, matching the renderer's own defaults. */
