@@ -5,7 +5,10 @@
 import { GoogleSheetsService } from '@/services/sheets';
 import { SIGNS } from '@/lib/placements';
 import { buildWeeklyTemplateJa, listJaWorries } from '@/lib/weekly-template';
-import { buildWeeklyTemplateEn, listEnWorries } from '@/lib/weekly-template-en';
+import { listEnWorries } from '@/lib/weekly-template-en';
+import { WEEKLY_PACKS, WEEKLY_TEMPLATES } from '@/lib/weekly-templates';
+import { listPackWorries } from '@/lib/weekly-template-pack';
+import type { Language } from '@/services/sheets';
 import { lintScript } from '@/lib/script-lint';
 import { weekPeriodSpoken } from '@/lib/period';
 import { fixedCta } from '@/lib/fixed-cta';
@@ -14,8 +17,10 @@ import { zodiacName } from '@/lib/zodiac-names';
 async function main() {
   const [week, ...flags] = process.argv.slice(2);
   const flag = flags.find((f) => f.startsWith('--worries'));
-  const lang = flags.includes('--en') ? 'en' : 'ja';
-  const build = lang === 'en' ? buildWeeklyTemplateEn : buildWeeklyTemplateJa;
+  const lang = (flags.find((f) => f.startsWith('--lang='))?.slice(7) ??
+    (flags.includes('--en') ? 'en' : 'ja')) as Language;
+  const build = WEEKLY_TEMPLATES[lang];
+  if (!build) throw new Error(`no weekly template for ${lang}`);
   const transit = await new GoogleSheetsService().getWeeklyTransits(week);
   if (!transit) throw new Error(`no transit for ${week}`);
   const period = weekPeriodSpoken(week, lang) ?? '';
@@ -35,11 +40,11 @@ async function main() {
       zodiacName(sign.toLowerCase(), lang),
       { template: true },
     );
-    const chars = lang === 'en' ? `${(script.hook_text + ' ' + script.body_script).split(/\s+/).length} words` : `${(script.hook_text + script.body_script).length}字`;
+    const chars = lang !== 'ja' ? `${(script.hook_text + ' ' + script.body_script).split(/\s+/).length} words` : `${(script.hook_text + script.body_script).length}字`;
     console.log(`■${zodiacName(sign.toLowerCase(), 'ja')}（${script.house}ハウス・${script.planet}、${chars}、lint: ${issues.map((i) => i.code).join(',') || 'ok'}）`);
     console.log(`フック：${script.hook_text}\n本文：${script.body_script}\n`);
   }
-  if (flag) console.log((lang === 'en' ? listEnWorries() : listJaWorries()).join('\n'));
+  if (flag) console.log((lang === 'ja' ? listJaWorries() : lang === 'en' ? listEnWorries() : listPackWorries(WEEKLY_PACKS[lang]!)).join('\n'));
 }
 
 main().catch((error) => {

@@ -7,18 +7,36 @@
 import { SIGNS, asSign } from '@/lib/placements';
 import { buildWeeklyTemplateJa, TemplateScript } from '@/lib/weekly-template';
 import { buildWeeklyTemplateEn } from '@/lib/weekly-template-en';
+import { buildFromPack, LanguagePack } from '@/lib/weekly-template-pack';
+import { ES } from '@/lib/weekly-template-es';
+import { PT } from '@/lib/weekly-template-pt';
+import { ID } from '@/lib/weekly-template-id';
+import { AR } from '@/lib/weekly-template-ar';
+import { FR } from '@/lib/weekly-template-fr';
+import { DE } from '@/lib/weekly-template-de';
 import type { Language } from '@/services/sheets';
 
 type Builder = typeof buildWeeklyTemplateJa;
 
+export const WEEKLY_PACKS: Partial<Record<Language, LanguagePack>> = { es: ES, pt: PT, id: ID, ar: AR, fr: FR, de: DE };
+
 export const WEEKLY_TEMPLATES: Partial<Record<Language, Builder>> = {
   ja: buildWeeklyTemplateJa,
   en: buildWeeklyTemplateEn,
+  ...Object.fromEntries(
+    Object.entries(WEEKLY_PACKS).map(([lang, pack]) => [lang, buildFromPack(pack as LanguagePack)]),
+  ),
 };
 
 export const WEEKLY_TEMPLATE_HASHTAGS: Partial<Record<Language, (sign: string) => string>> = {
   ja: (sign) => `#インド占星術 #月星座 #${sign}`,
   en: (sign) => `#VedicAstrology #MoonSign #${sign}`,
+  es: (sign) => `#AstrologiaVedica #SignoLunar #${sign}`,
+  pt: (sign) => `#AstrologiaVedica #SignoLunar #${sign}`,
+  id: (sign) => `#AstrologiWeda #ZodiakBulan #${sign}`,
+  ar: (sign) => `#التنجيم_الفيدي #البرج_القمري #${sign}`,
+  fr: (sign) => `#AstrologieVedique #SigneLunaire #${sign}`,
+  de: (sign) => `#VedischeAstrologie #Mondzeichen #${sign}`,
 };
 
 export function buildWeeklyFromTemplate(
