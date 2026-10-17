@@ -7,6 +7,7 @@ const RENDER_NOW_WINDOW_MS = 36 * 60 * 60 * 1000;
 import { evergreenClosing } from '@/lib/evergreen-cta';
 import { fixedCta } from '@/lib/fixed-cta';
 import { buildPlacementBrief } from '@/lib/placements';
+import { buildWeeklyTemplateJa } from '@/lib/weekly-template';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
 import { REUSED_PREFIX } from '@/lib/script-audit';
@@ -83,8 +84,32 @@ export async function GET(request: Request) {
             hashtags: string;
           };
 
+          // Japanese weekly readings are assembled from fixed sentences and promos are approved
+          // texts reused as they are: neither is written or rewritten by Gemini, only linted.
+          const codeOnly =
+            task.target_type === 'Promo' ||
+            (task.target_type === 'Zodiac_Sign' && task.lang_code === 'ja');
           if (task.target_type === 'Theme' || task.target_type === 'Promo') {
             scriptData = await generateThemeScript(sheetsService, geminiService, task);
+          } else if (codeOnly) {
+            const transit = await sheetsService.getWeeklyTransits(task.week_id);
+            if (!transit) {
+              throw new Error(`No transit data for week_id "${task.week_id}"`);
+            }
+            transitReference = transit.transit_data;
+            const built = buildWeeklyTemplateJa(
+              transitReference,
+              task.zodiac_sign ?? '',
+              weekPeriodSpoken(task.week_id, 'ja') ?? '',
+              Number(/W(\d+)/.exec(task.week_id)?.[1] ?? 0),
+            );
+            if (!built) {
+              throw new Error(`No template placement for ${task.zodiac_sign} in ${task.week_id}`);
+            }
+            scriptData = {
+              script_30s: { hook_text: built.hook_text, body_script: built.body_script, cta_text: '' },
+              hashtags: `#インド占星術 #月星座 #${zodiacName(task.zodiac_sign, 'ja') ?? ''}`.trim(),
+            };
           } else {
             if (!transitCache.has(task.week_id)) {
               transitCache.set(task.week_id, sheetsService.getWeeklyTransits(task.week_id));
@@ -171,6 +196,9 @@ export async function GET(request: Request) {
             });
             let data = { ...candidate, script_30s: withClosing(candidate.script_30s) };
             let issues = lint(data);
+            if (codeOnly) {
+              return issues.length ? { data, failure: issues.join('; ') } : { data };
+            }
             let verdict = await proofread(data.script_30s);
 
             for (let pass = 1; issues.length > 0 || verdict?.verdict !== 'ok'; pass += 1) {
@@ -214,7 +242,7 @@ export async function GET(request: Request) {
             (settled.data.script_30s.hook_text !== scriptData.script_30s.hook_text ||
               settled.data.script_30s.body_script !== scriptData.script_30s.body_script);
 
-          if (settled.failure) {
+          if (settled.failure && !codeOnly) {
             // Nothing in the rewritten text passed, so the slot stops depending on this source:
             // the writer is given the week's own reference and asked for a fresh script. A weekly
             // reading cannot be borrowed from another week, so this is its real second chance.
