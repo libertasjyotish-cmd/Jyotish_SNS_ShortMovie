@@ -253,14 +253,17 @@ export async function GET(request: Request) {
             settled = await settle(fresh, isFixedScript);
           }
 
+          if (settled.failure && !isFixedScript) {
+            // A weekly reading is written from this week's sky, so no other text can stand in
+            // for it; the row goes to script_error and the watchdog regenerates it.
+            throw new Error(settled.failure);
+          }
           if (settled.failure) {
-            // Last resort: a script for this sign and language that already passed the gate in
-            // another week. Only week-independent texts qualify, so a weekly reading borrows the
-            // sign's evergreen rather than another week's forecast.
+            // Last resort for a fixed script: the same evergreen row as it passed in another week.
             const reuse = await sheetsService.findApprovedScript({
               lang_code: task.lang_code,
               zodiac_sign: task.zodiac_sign,
-              taskIdContains: isFixedScript ? (task.theme_id ?? 'sign-') : 'sign-',
+              taskIdContains: task.theme_id ?? 'sign-',
               excludeWeekId: task.week_id,
             });
             if (!reuse) {
