@@ -298,6 +298,32 @@ function turningJa(moon: Sign): EvergreenTemplate {
   };
 }
 
+/** Keyed by the Moon sign itself: the mind's habit and what dropping it frees. */
+interface HabitLine { hook: string; why: string; stop: string; relief: string }
+
+const JA_HABIT: Record<Sign, HabitLine> = {
+  Aries: { hook: '返事を、すぐに出そうとしていませんか？', why: '決める前に、つい先に動いてしまう', stop: '大事な返事だけ一晩置く', relief: '後から謝る場面がぐっと減ります' },
+  Taurus: { hook: '合わない物や人を、手放せずにいませんか？', why: '一度手にしたものを、守り続けようとする', stop: '使っていない物を一つ手放す', relief: '気持ちに余裕が生まれます' },
+  Gemini: { hook: '寝る前まで、スマホを見続けていませんか？', why: '新しい情報を、いつも追いかけてしまう', stop: '寝る一時間前に画面を閉じる', relief: '頭のざわつきが静まります' },
+  Cancer: { hook: '人の機嫌を、いつも気にしていませんか？', why: '周りの気持ちを、自分のことのように受け取る', stop: '相手の機嫌を直そうとするのをやめる', relief: '自分の気持ちが戻ってきます' },
+  Leo: { hook: '弱音を吐かずに、一人で頑張っていませんか？', why: '頼られる自分でいようとする', stop: '一つだけ、人に助けを頼む', relief: '肩の荷がすっと軽くなります' },
+  Virgo: { hook: '終わったことを、何度も見直していませんか？', why: '小さな粗まで、気になってしまう', stop: '見直しを一回で終える', relief: '時間と気力が残ります' },
+  Libra: { hook: '本当は嫌なのに、引き受けていませんか？', why: '場の空気を、壊さないようにする', stop: '一度だけ、はっきり断る', relief: '人付き合いが楽になります' },
+  Scorpio: { hook: '言われた一言を、ずっと引きずっていませんか？', why: '心に受けた傷を、深く刻み込む', stop: 'その一言を、信頼できる人に話してしまう', relief: '胸のつかえが取れます' },
+  Sagittarius: { hook: '予定を、詰め込みすぎていませんか？', why: '面白そうなことに、すぐ手を伸ばす', stop: '予定を一つ減らす', relief: '一つひとつを楽しめるようになります' },
+  Capricorn: { hook: '休みの日まで、仕事のことを考えていませんか？', why: '責任を、いつも先に立てる', stop: '休みの日は仕事の連絡を見ない', relief: '次の週の力が違ってきます' },
+  Aquarius: { hook: '人に頼らず、全部自分で決めていませんか？', why: '自分のやり方を、崩したくない', stop: '一つだけ、人の案に乗ってみる', relief: '思わぬ道が開けます' },
+  Pisces: { hook: '人の頼みを、断れずにいませんか？', why: '困っている人を、放っておけない', stop: 'すぐに返事をせず、一度持ち帰る', relief: '自分の時間が守れます' },
+};
+
+function habitJa(moon: Sign): EvergreenTemplate {
+  const line = JA_HABIT[moon];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、心を表す月に${JA_RULER[RULER[moon]]}が関わっています。${line.why}のは、そのためです。${line.stop}と、${line.relief}。`,
+  };
+}
+
 const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate>> = {
   work: workJa,
   compat: compatJa,
@@ -308,6 +334,7 @@ const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTempla
   impression: impressionJa,
   avoid: avoidJa,
   turning: turningJa,
+  habit: habitJa,
 };
 
 /** The fixed script of one sign in one series, or null while that series has no template. */
