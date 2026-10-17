@@ -1,3 +1,4 @@
+import { reuseCycle, voiceForTask } from '@/lib/reuse-cycle';
 /**
  * Asserts that a weekday always carries the same four signs in zodiac order and that the whole
  * week runs one series, which the next weeks rotate through.
@@ -55,6 +56,15 @@ if (new Set(weeks).size !== SIGN_THEME_SERIES.length) {
 
 if (seriesForWeek('2026-W43') !== 'nature') {
   failures.push(`2026-W43 runs ${seriesForWeek('2026-W43')}, want nature`);
+}
+
+// The first pass keeps the default narrator; only a repeat changes voice, and only to a male one.
+for (const week of ['2026-W42', '2026-W43', '2026-W53']) {
+  if (reuseCycle(week) !== 0) failures.push(`${week} is cycle ${reuseCycle(week)}, want 0`);
+}
+if (reuseCycle('2027-W01') !== 1) failures.push(`2027-W01 is cycle ${reuseCycle('2027-W01')}, want 1`);
+if (voiceForTask('2026-W43-ja-libra', 'ja') !== undefined) {
+  failures.push('2026-W43 ja is read by a rotated voice instead of the default');
 }
 
 if (failures.length) {
