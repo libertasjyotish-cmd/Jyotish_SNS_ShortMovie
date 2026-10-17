@@ -163,11 +163,72 @@ function moneyJa(moon: Sign): EvergreenTemplate {
   };
 }
 
+/** Keyed by the 4th sign from the Moon, the house of home and family (never spoken). */
+const JA_FAMILY: Record<Sign, LoveLine> = {
+  Aries: { hook: '家族と、ついぶつかってしまっていませんか？', strength: '家族を自分の手で守りたい', place: '言いたいことを言い合える家' },
+  Taurus: { hook: '家にいても、心が休まらずにいませんか？', strength: '穏やかで心地よい暮らしを大切にしたい', place: 'ゆったり過ごせる暮らし' },
+  Gemini: { hook: '家族と、ちゃんと話せていないと感じていませんか？', strength: '言葉を交わして、家族とつながりたい', place: '何でも話せる食卓' },
+  Cancer: { hook: '家族の心配ばかりして、疲れていませんか？', strength: '家族を温かく包んで守りたい', place: 'あなたも甘えられる家' },
+  Leo: { hook: '家族の中で、認めてもらえないと感じていませんか？', strength: '家族の中心で、皆を明るく支えたい', place: '頑張りを認め合える家族' },
+  Virgo: { hook: '家のことを、一人で抱えすぎていませんか？', strength: '細やかに気を配って、家族の暮らしを整えたい', place: '家のことを分け合える家族' },
+  Libra: { hook: '家族の間で、いつも仲裁役になっていませんか？', strength: '家族の釣り合いを取って、和やかに保ちたい', place: '皆が少しずつ譲り合える家' },
+  Scorpio: { hook: '家族にも、本音を言えずにいませんか？', strength: '家族と、心の底から深く結びつきたい', place: '本音を受け止め合える家族' },
+  Sagittarius: { hook: '家族と、生き方の考えが合わずにいませんか？', strength: '大切にしたい生き方を、家族と分かち合いたい', place: '互いの生き方を認め合える家' },
+  Capricorn: { hook: '家族への責任を、一人で背負っていませんか？', strength: '家族のために、しっかり責任を果たしたい', place: '頼り合える家族' },
+  Aquarius: { hook: '家族の中で、自分だけ違うと感じていませんか？', strength: '家族それぞれの違いを、そのまま認めたい', place: '一人ひとりの考えを尊重し合える家' },
+  Pisces: { hook: '家族のために、自分を後回しにしていませんか？', strength: '家族の痛みに寄り添い、支えたい', place: '優しさを返してくれる家族' },
+};
+
+function familyJa(moon: Sign): EvergreenTemplate {
+  const fourth = signFrom(moon, 4);
+  const line = JA_FAMILY[fourth];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、家族を表す4ハウスに${JA_RULER[RULER[fourth]]}が関わっています。${line.strength}気持ちになるのは、そのためです。${line.place}なら、心から安らげます。`,
+  };
+}
+
+interface RestLine {
+  /** Follows 「〈月星座〉のあなた、」 and ends with 「〜ていませんか？」. */
+  hook: string;
+  /** How this mind recovers; precedes 「のは、そのためです」. */
+  why: string;
+  /** What gives that recovery; precedes 「があれば」. */
+  place: string;
+}
+
+/** Keyed by the 12th sign from the Moon, the house of rest and sleep (never spoken). */
+const JA_REST: Record<Sign, RestLine> = {
+  Aries: { hook: '横になって休んでも、疲れが取れずにいませんか？', why: 'じっとしているより、体を動かした方が心が休まる', place: '汗をかく時間' },
+  Taurus: { hook: '忙しさに追われて、心まで疲れていませんか？', why: '心地よいものに囲まれると、心がほどける', place: '好きな音や香りに浸る時間' },
+  Gemini: { hook: '頭が休まらず、夜も眠れずにいませんか？', why: '考えを言葉にして外に出すと、心が軽くなる', place: '思いを誰かに話す時間' },
+  Cancer: { hook: '人の世話ばかりで、疲れ切っていませんか？', why: '安心できる場所で、心が満たされる', place: '自分が甘えられる場所' },
+  Leo: { hook: '頑張りすぎて、燃え尽きそうになっていませんか？', why: '誰にも見られない時間で、心が満ちる', place: '役目を下りる一人の時間' },
+  Virgo: { hook: '休みの日も、やることばかり考えていませんか？', why: '身の回りが整うと、心も落ち着く', place: '整った静かな場所' },
+  Libra: { hook: '人に気をつかいすぎて、ぐったりしていませんか？', why: '美しいものに触れると、心が整う', place: '好きな景色を眺める時間' },
+  Scorpio: { hook: '疲れを、誰にも見せられずにいませんか？', why: '一人で深く眠ると、心が立ち直る', place: '誰にも邪魔されない眠り' },
+  Sagittarius: { hook: '同じことの繰り返しで、疲れていませんか？', why: '新しい景色や学びに触れると、心が広がる', place: '知らない場所へ出かける時間' },
+  Capricorn: { hook: '休むことに、罪悪感を持っていませんか？', why: '決まった時間に休むと、心が安定する', place: '毎日決まった休みの時間' },
+  Aquarius: { hook: '人の中にいるだけで、疲れていませんか？', why: '人から離れて自分のペースに戻ると、心が回復する', place: '自分のペースで過ごす時間' },
+  Pisces: { hook: '人の気持ちを受け取りすぎて、疲れていませんか？', why: '音楽や水辺に身を置くと、心が洗われる', place: '静かに音楽を聴く時間' },
+};
+
+function restJa(moon: Sign): EvergreenTemplate {
+  const twelfth = signFrom(moon, 12);
+  const line = JA_REST[twelfth];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、休息を表す12ハウスに${JA_RULER[RULER[twelfth]]}が関わっています。${line.why}のは、そのためです。${line.place}があれば、自ずと力が戻ります。`,
+  };
+}
+
 const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate>> = {
   work: workJa,
   compat: compatJa,
   love: loveJa,
   money: moneyJa,
+  family: familyJa,
+  rest: restJa,
 };
 
 /** The fixed script of one sign in one series, or null while that series has no template. */
