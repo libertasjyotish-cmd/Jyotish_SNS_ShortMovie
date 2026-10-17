@@ -241,6 +241,9 @@ const REVIEW_SCHEMA = {
           other_field: { type: Type.STRING },
           viewer_concern: { type: Type.STRING },
           concern_is_common: { type: Type.STRING, enum: ['yes', 'no'] },
+          needs_specific_event: { type: Type.STRING, enum: ['yes', 'no'] },
+          stated_planet: { type: Type.STRING },
+          story_fits_house: { type: Type.STRING, enum: ['yes', 'no', 'no house named'] },
           leaves_a_gain: { type: Type.STRING, enum: ['yes', 'no'] },
           verdict: { type: Type.STRING, enum: ['ok', 'awkward', 'broken'] },
           reason: { type: Type.STRING },
@@ -251,6 +254,9 @@ const REVIEW_SCHEMA = {
           'subject_field',
           'viewer_concern',
           'concern_is_common',
+          'needs_specific_event',
+          'stated_planet',
+          'story_fits_house',
           'leaves_a_gain',
           'verdict',
           'reason',
@@ -291,6 +297,12 @@ export interface ReviewVerdict {
   viewer_concern: string;
   /** Whether a large audience actually holds that worry. */
   concern_is_common: string;
+  /** Whether a viewer could only answer yes if one particular thing had happened to them. */
+  needs_specific_event?: string;
+  /** The planet the script names as the cause, empty when it names none. */
+  stated_planet?: string;
+  /** Whether the viewer's story stays inside what the named house governs. */
+  story_fits_house?: string;
   /** Whether the script leaves the viewer something to use, not only a difficulty. */
   leaves_a_gain: string;
   verdict: 'ok' | 'awkward' | 'broken';
@@ -320,7 +332,7 @@ Do not judge the length, and do not judge whether the placement in the sky is co
 Mark "broken" when the reading turns a placement into a literal physical chore or object — rearranging furniture, tidying a room, moving things around the house, buying an item — instead of what it means for the viewer's situation, mood or decisions. A house of the chart is a field of life, so "the fourth house" is home life, family, roots and inner ground, never the furniture in a room.
 Mark "broken" as well when the body tells the viewer something no one would stop to watch: a prediction that is trivial, obvious, or an everyday errand anyone does in any week.
 Then fill "subject_field" with the one field of life the script is actually about, chosen from the list in the schema. Judge the subject the viewer is told about, not the house the script names: a script that says "the first house" but talks about correcting documents is about documents, and documents are not a field of life, so the answer is "none of these". Choose "none of these" whenever the subject is an object, a task or an errand rather than something the viewer faces, feels or decides, and the verdict must then be "broken". The list is not closed: when the subject is something the viewer faces, feels or decides that none of the listed fields covers (for example health and how the body holds up, self-worth, fear of the future), choose "another field of life the viewer faces, feels or decides (name it in other_field)" and write that field in "other_field" in a few English words. A document, a file, a room, furniture or any other object or errand is never a field of life, whatever house it comes from.
-The field of life is only where the reading comes from, not proof that it is worth watching, so fill "viewer_concern" next: in one sentence, in the words a viewer would use, the worry or question this script answers for them. Then answer "concern_is_common": "yes" only if that worry is one a large share of ordinary people actually carry — money, work and how they are judged at it, relationships and love, family, health, fear about the future, a decision they cannot make, feeling unrewarded, feeling out of place. Answer "no" when the worry is one almost nobody has, however correctly it follows from the sky: "am I correcting the same document too often", "is my desk untidy", "should I re-check an ordinary receipt" are not worries anyone brings to astrology. A "no" means the verdict is "broken", even when every sentence is fluent and the astrology is right.
+The field of life is only where the reading comes from, not proof that it is worth watching, so fill "viewer_concern" next: in one sentence, in the words a viewer would use, the worry or question this script answers for them. Then answer "concern_is_common": "yes" only if that worry is one a large share of ordinary people actually carry — money, work and how they are judged at it, relationships and love, family, health, fear about the future, a decision they cannot make, feeling unrewarded, feeling out of place. Answer "no" when the worry is one almost nobody has, however correctly it follows from the sky: "am I correcting the same document too often", "is my desk untidy", "should I re-check an ordinary receipt" are not worries anyone brings to astrology. A "no" means the verdict is "broken", even when every sentence is fluent and the astrology is right. Then answer "needs_specific_event": imagine a hundred ordinary viewers of this sign for whom nothing particular has happened this week. Answer "yes" when the hook or the body only fits someone to whom one particular thing has happened — a matter coming back, a message arriving, a plan being redone, a promise being reviewed — so most of the hundred would say "that is not me" and scroll on. Answer "no" only when the hook names a feeling or state most of them already carry, so they can say "yes, that is me" without anything having happened. A placement read as an event that must occur is a prediction, not a reading of the feeling the placement strengthens. "yes" means the verdict is "broken". Then fill "stated_planet" with the planet (or node) the script names as the cause, exactly as it is named; leave it empty when the script only speaks of "a planet", "the stars" or a house without saying which body is there — empty means the verdict is "broken". Then answer "story_fits_house": when the script names a house counted from the Moon sign, "yes" only if the viewer's story stays inside what that house governs, taking the house fields in the order listed above (the first field is the 1st house, the twelfth is the 12th); "no" when the story belongs to another house — a partner or a reply owed to them read out of the 12th house, money read out of the 5th; "no house named" when the script names none. "no" means the verdict is "broken".
 Then answer "leaves_a_gain". Read the hook and the body as one whole. If the script names no strain at all, answer "yes". If it does name strain, doubt, tiredness, friction or something going wrong — whatever the cause: a retrograde or combust planet, a debilitated planet, a malefic in or aspecting the house, Saturn, Rahu or Ketu passing through, an eclipse, a hard house from the Moon sign — answer "yes" only if the script both says what is causing it and says what releases it: when the planet turns direct, leaves the sign or the house, or what this period settles, rebuilds, strengthens or lets the viewer choose again. Answer "no" when the strain is left standing on its own, even when every sentence is true, calm and correctly read from the sky; a viewer who finishes the video with nothing but their own problem restated to them has been given nothing. A "no" means the verdict is "broken".
 Mark "broken" when a sentence is not grammatical ${profile.name}: a missing subject, a predicate that does not agree with its subject, particles or articles that do not connect, or a noun phrase that carries no meaning.
 Mark "awkward" when it parses but no fluent speaker would say it that way, including stitched-together clauses and mixed registers.
@@ -460,7 +472,7 @@ function buildPrompt(request: GenerationRequest): string {
     'viewer need their own chart? A sentence that only describes the sky fails and must be rewritten.',
     '',
     'Absolute rules:',
-    '0. Before writing a single sentence, fill "viewer_concern": the worry this video answers, in one sentence, in the words the viewer would use. It has to be a worry a large share of ordinary people actually carry — money, work and how they are judged at it, relationships and love, family, health, fear about the future, a decision they cannot make, feeling unrewarded, feeling out of place. Then write the hook and the body as the answer to that worry, read out of the placement you were given. If the placement suggests nothing that answers a real worry, choose another placement from the reference; never write about a task, an object or an errand instead, and never write a sentence whose worry you could not have stated here.',
+    '0. Before writing a single sentence, fill "viewer_concern": the worry this video answers, in one sentence, in the words the viewer would use. It has to be a worry a large share of ordinary people actually carry — money, work and how they are judged at it, relationships and love, family, health, fear about the future, a decision they cannot make, feeling unrewarded, feeling out of place. Then write the hook and the body as the answer to that worry, read out of the placement you were given. If the placement suggests nothing that answers a real worry, choose another placement from the reference; never write about a task, an object or an errand instead, and never write a sentence whose worry you could not have stated here. Read the placement as the feeling it strengthens in ordinary life, never as an event that has to happen this week (something coming back, a message, a plan being redone): a viewer to whom nothing particular has happened must still be able to answer the hook with "yes, that is me". The placement stays the reason, and it is always one from this week\'s reference. Name the planet itself, never just "a planet" or "the stars", and keep the viewer\'s story inside what the named house governs: a partner belongs to the 7th house, not the 12th.',
     '1. Never write vague, unfounded fortunes such as "You are lucky this week!".',
     '2. Base every statement solely on the supplied transit reference and its house relationship to the target Moon sign. Never invent transits, dates, planetary positions, proper nouns, or numbers that are not present in the reference.',
     '3. Never add original interpretations that contradict classical Jyotish (dasha, nakshatra, planetary rulership).',
@@ -719,7 +731,44 @@ export class GeminiService {
           concern_is_common: concernIsCommon,
           leaves_a_gain: leavesAGain,
           verdict: 'broken',
-          reason: 'the script is not about any field of life the viewer lives in',
+          reason: `the script is not about any field of life the viewer lives in: its subject reads as "${viewerConcern || meaning}", an object, task or errand; write about something the viewer faces, feels or decides instead`,
+        };
+      }
+      if (!(review.stated_planet ?? '').trim()) {
+        return {
+          id: target.id,
+          meaning,
+          subject_field: subjectField,
+          viewer_concern: viewerConcern,
+          concern_is_common: concernIsCommon,
+          leaves_a_gain: leavesAGain,
+          verdict: 'broken',
+          reason: 'the script never says which planet causes what it describes; name the planet from the reference',
+        };
+      }
+      if ((review.story_fits_house ?? '').trim() === 'no') {
+        return {
+          id: target.id,
+          meaning,
+          subject_field: subjectField,
+          viewer_concern: viewerConcern,
+          concern_is_common: concernIsCommon,
+          leaves_a_gain: leavesAGain,
+          verdict: 'broken',
+          reason: 'the viewer\'s story belongs to a different house than the one the script names; keep the story inside what that house governs',
+        };
+      }
+      if ((review.needs_specific_event ?? '').trim() !== 'no') {
+        return {
+          id: target.id,
+          meaning,
+          subject_field: subjectField,
+          viewer_concern: viewerConcern,
+          concern_is_common: concernIsCommon,
+          leaves_a_gain: leavesAGain,
+          verdict: 'broken',
+          reason:
+            'the script only fits a viewer to whom one particular thing has happened; read the placement as the feeling it strengthens, which most viewers already carry',
         };
       }
       if (!viewerConcern || concernIsCommon !== 'yes') {

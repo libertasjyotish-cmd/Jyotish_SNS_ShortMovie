@@ -11,6 +11,7 @@ import { GeminiService, isTransientGeminiError, type ReviewTarget } from '@/serv
 import { GoogleSheetsService, type Language } from '@/services/sheets';
 import { describeIssues, lintScript, type ScriptIssue } from '@/lib/script-lint';
 import { zodiacName } from '@/lib/zodiac-names';
+import { fixedCta } from '@/lib/fixed-cta';
 import { weekPeriodSpoken } from '@/lib/period';
 
 const ALL_LANGS: Language[] = ['ja', 'en', 'es', 'pt', 'id', 'ar', 'fr', 'de'];
@@ -117,7 +118,7 @@ function targetsFromFile(file: string): Map<Language, ReviewTarget[]> {
   const byLang = new Map<Language, ReviewTarget[]>();
   for (const entry of entries) {
     const list = byLang.get(entry.lang) ?? [];
-    list.push({ id: entry.id, hook: entry.hook, body: entry.body, cta: entry.cta });
+    list.push({ id: entry.id, hook: entry.hook, body: entry.body, cta: entry.cta || fixedCta(entry.lang) });
     byLang.set(entry.lang, list);
   }
   return byLang;
