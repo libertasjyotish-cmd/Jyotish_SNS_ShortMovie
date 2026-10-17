@@ -272,19 +272,21 @@ function avoidJa(moon: Sign): EvergreenTemplate {
 }
 
 /** Keyed by the 8th sign from the Moon, the house of life's turning points (never spoken). */
-const JA_TURNING: Record<Sign, RestLine> = {
-  Aries: { hook: '急に何かを変えたくなって、戸惑っていませんか？', why: '思い切って動いたときに、流れが大きく変わる', place: '自分から一歩を踏み出した' },
-  Taurus: { hook: '慣れた暮らしを変えるのが、怖くなっていませんか？', why: '大切なものを選び直したときに、人生が動く', place: '本当に大事なものを選んだ' },
-  Gemini: { hook: '迷いが多くて、決められずにいませんか？', why: '人との出会いや新しい知らせから、流れが変わる', place: '新しい話に耳を傾けた' },
-  Cancer: { hook: '居場所が変わることに、不安を感じていませんか？', why: '住まいや家族の形が変わるときに、心が新しくなる', place: '安心できる場所を選び直した' },
-  Leo: { hook: '今の自分のままでいいのか、迷っていませんか？', why: '自分の役目に気づいたときに、人生が大きく動く', place: '自分が立つ場所を決めた' },
-  Virgo: { hook: '小さな違和感を、見て見ぬふりしていませんか？', why: '日々の小さな見直しが、大きな転機につながる', place: '違和感を一つ直した' },
-  Libra: { hook: '人との関係が変わることに、揺れていませんか？', why: '大切な人との出会いや別れから、流れが変わる', place: '関係を選び直した' },
-  Scorpio: { hook: '何かを終わらせることを、怖がっていませんか？', why: '古いものを手放したときに、生まれ変わる力が働く', place: '一つを手放した' },
-  Sagittarius: { hook: '今いる場所の外に、惹かれていませんか？', why: '学びや遠い場所との縁から、人生が開ける', place: '新しい学びに踏み出した' },
-  Capricorn: { hook: '長く続けてきたことを、やめるか迷っていませんか？', why: '時間をかけて積んだものが、ある時ふっと形を変える', place: '積み重ねを信じて進んだ' },
-  Aquarius: { hook: '周りと違う道に、惹かれていませんか？', why: '自分だけの考えを選んだときに、流れが変わる', place: '自分の考えを選んだ' },
-  Pisces: { hook: '先が見えなくて、不安になっていませんか？', why: '理屈より直感に従ったときに、道が開ける', place: '心の声に従った' },
+interface TurningLine { hook: string; arrival: string; action: string }
+
+const JA_TURNING: Record<Sign, TurningLine> = {
+  Aries: { hook: '我慢の限界で、全部投げ出したくなっていませんか？', arrival: '衝突や我慢の限界をきっかけに、ある日突然', action: '勢いで辞める前に、次の行き先を一つ決めておく' },
+  Taurus: { hook: '収入や暮らしが変わるのが、怖くなっていませんか？', arrival: 'お金や住まいの入れ替わりとして、ゆっくり', action: '守りたい暮らしを一つだけ決めて、残りは手放す' },
+  Gemini: { hook: '人から聞いた話が、ずっと頭に残っていませんか？', arrival: '人の紹介や、何気なく聞いた話から', action: '気になった話は、その週のうちに会って確かめる' },
+  Cancer: { hook: '家族のことで、生き方を変えようか迷っていませんか？', arrival: '家族の事情や引っ越しをきっかけに', action: '家族の都合だけでなく、自分の望みも同じ重さで考える' },
+  Leo: { hook: '今の立場に、物足りなさを感じていませんか？', arrival: '昇進や、人前に立つ役目を頼まれる形で', action: '頼まれた役目は、迷っても一度引き受けてみる' },
+  Virgo: { hook: '体調や働き方に、無理を感じていませんか？', arrival: '体調の変化や、働き方の見直しとして', action: '不調を我慢せず、働き方そのものを変える' },
+  Libra: { hook: '結婚や別れで、人生が揺れていませんか？', arrival: '結婚や別れなど、大切な人との関係の変化として', action: '相手に合わせるのではなく、自分がどう生きたいかで選ぶ' },
+  Scorpio: { hook: '誰にも言えない悩みを、抱えていませんか？', arrival: '隠していた問題が表に出る形で', action: '一人で抱えず、信頼できる人に打ち明ける' },
+  Sagittarius: { hook: '学び直しや海外に、惹かれていませんか？', arrival: '学び直しや、遠い土地との縁として', action: '興味のある講座や土地に、まず一度足を運ぶ' },
+  Capricorn: { hook: '長く続けた仕事を、辞めるか迷っていませんか？', arrival: '何年も続けたことが区切りを迎える形で', action: '積み上げた経験を、次の場所へそのまま持っていく' },
+  Aquarius: { hook: '会社の外で働くことを、考えていませんか？', arrival: '組織を離れる、仲間と新しく始めるといった形で', action: '一人で抱えず、同じ考えの仲間を探す' },
+  Pisces: { hook: '説明できない予感に、心が揺れていませんか？', arrival: '理屈では説明できない予感や、偶然の出会いとして', action: '予感を打ち消さず、小さく試してみる' },
 };
 
 function turningJa(moon: Sign): EvergreenTemplate {
@@ -292,7 +294,7 @@ function turningJa(moon: Sign): EvergreenTemplate {
   const line = JA_TURNING[eighth];
   return {
     hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
-    body: `インド占星術では、人生の変わり目を表す8ハウスに${JA_RULER[RULER[eighth]]}が関わっています。${line.why}のは、そのためです。${line.place}とき、人生が自ずと新しく開けます。`,
+    body: `インド占星術では、人生の変わり目を表す8ハウスに${JA_RULER[RULER[eighth]]}が関わっています。あなたの転機は、${line.arrival}訪れます。そのときは、${line.action}と、変化が自ずと追い風になります。`,
   };
 }
 
