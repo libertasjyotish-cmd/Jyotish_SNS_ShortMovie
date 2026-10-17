@@ -12,9 +12,18 @@ const DEFAULT_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 const DEFAULT_REVIEW_MODELS = ['gemini-3.1-pro-preview', 'gemini-flash-latest'];
 const MAX_ATTEMPTS = 3;
 const BASE_BACKOFF_MS = 2_000;
-const ATTEMPT_TIMEOUT_MS = 120_000;
-/** Proofreading runs on the reasoning model, which needs far longer than a generation call. */
-const REVIEW_TIMEOUT_MS = 180_000;
+/**
+ * Only the function's own 300s limit cuts a call short: a fixed short cutoff silently
+ * failed every script the day the `-latest` alias moved to a slower model. The daily
+ * probe warns long before calls get near this.
+ */
+const ATTEMPT_TIMEOUT_MS = 240_000;
+const REVIEW_TIMEOUT_MS = 240_000;
+const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta/models';
+/** A canary slower than this share of the timeout means real scripts are at risk. */
+const SLOW_SHARE = 1 / 3;
+const CANARY_PROMPT =
+  'Return a JSON object {"text": string} whose text is a 1000-character Japanese explanation of how the sidereal Moon sign differs from the tropical Sun sign, in polite form.';
 
 /**
  * A depleted prepaid balance also comes back as RESOURCE_EXHAUSTED, but no amount of
@@ -34,32 +43,113 @@ export function isTransientGeminiError(error: unknown): boolean {
   );
 }
 
-/**
- * Smallest possible call, used by the daily health check so a depleted balance surfaces
- * before a weekly generation run loses the week.
- */
-export async function probeGeminiCredit(): Promise<{ ok: boolean; detail: string }> {
-  const model = DEFAULT_MODELS[0];
+function modelList(envName: string, fallback: string[]): string[] {
+  const configured = (optionalEnv(envName) ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  return configured.length > 0 ? configured : fallback;
+}
+
+export const generationModels = (): string[] => modelList('GEMINI_MODEL', DEFAULT_MODELS);
+export const reviewModels = (): string[] => modelList('GEMINI_REVIEW_MODEL', DEFAULT_REVIEW_MODELS);
+
+/** Which quota a 429 hit and when it resets, e.g. "GenerateRequestsPerDayPerProjectPerModel (retry 39600s)". */
+function quotaDetail(body: string): string | undefined {
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'x-goog-api-key': requireEnv('GEMINI_API_KEY'),
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ contents: [{ parts: [{ text: 'ok' }] }] }),
-        signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
-      },
+    const details = (JSON.parse(body) as { error?: { details?: Array<Record<string, unknown>> } }).error?.details ?? [];
+    const ids = details.flatMap((detail) =>
+      Array.isArray(detail.violations)
+        ? (detail.violations as Array<{ quotaId?: string; quotaValue?: string }>).map(
+            (violation) => `${violation.quotaId ?? '?'}${violation.quotaValue ? ` limit ${violation.quotaValue}` : ''}`,
+          )
+        : [],
     );
-    if (response.ok) return { ok: true, detail: model };
+    const retry = details.find((detail) => typeof detail.retryDelay === 'string')?.retryDelay;
+    if (ids.length === 0) return undefined;
+    return `${ids.join(', ')}${retry ? ` (retry ${retry})` : ''}`;
+  } catch {
+    return undefined;
+  }
+}
+
+export interface GeminiProbe {
+  ok: boolean;
+  detail: string;
+  /** What the `-latest` alias currently resolves to. */
+  model_version?: string;
+  latency_ms?: number;
+  /** Not an outage yet, but one is coming: a retired model name, a model near the timeout. */
+  warnings: string[];
+}
+
+/**
+ * Daily canary run by the health check, without Devin: every configured model must still
+ * exist, and a script-sized call must finish well inside the timeout.
+ */
+export async function probeGemini(): Promise<GeminiProbe> {
+  const headers = { 'x-goog-api-key': requireEnv('GEMINI_API_KEY'), 'content-type': 'application/json' };
+  const warnings: string[] = [];
+  const generation = generationModels();
+  const names = Array.from(new Set([...generation, ...reviewModels()]));
+  await Promise.all(
+    names.map(async (name) => {
+      try {
+        const response = await fetch(`${GEMINI_API}/${name}`, { headers, signal: AbortSignal.timeout(30_000) });
+        if (response.status === 404) {
+          const others = generation.filter((other) => other !== name);
+          warnings.push(
+            `モデル「${name}」が見つかりません（Google側で廃止された可能性）。` +
+              (others.length > 0 ? `残りの候補（${others.join(', ')}）で生成は続きます。` : ''),
+          );
+        }
+      } catch {
+        // A network blip is not a retired model; the canary below reports real outages.
+      }
+    }),
+  );
+
+  const model = generation[0];
+  const started = Date.now();
+  try {
+    const response = await fetch(`${GEMINI_API}/${model}:generateContent`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: CANARY_PROMPT }] }],
+        generationConfig: { responseMimeType: 'application/json' },
+      }),
+      signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
+    });
+    const latency = Date.now() - started;
     const body = await response.text();
-    const detail = `${model} ${response.status} ${body.slice(0, 200)}`;
-    // 429 is a per-minute quota, which clears by itself; 402 needs the owner to pay.
-    return { ok: !isGeminiCreditError(detail) && response.status === 429, detail };
+    if (!response.ok) {
+      const quota = quotaDetail(body);
+      const detail = `${model} ${response.status} ${quota ?? body.slice(0, 300)}`;
+      // A per-minute 429 clears by itself; a per-day cap or 402 stops generation for hours.
+      const perMinute = response.status === 429 && !/PerDay/i.test(detail);
+      return { ok: !isGeminiCreditError(detail) && perMinute, detail, latency_ms: latency, warnings };
+    }
+    let version: string | undefined;
+    try {
+      version = (JSON.parse(body) as { modelVersion?: string }).modelVersion;
+    } catch {
+      version = undefined;
+    }
+    if (latency > ATTEMPT_TIMEOUT_MS * SLOW_SHARE) {
+      warnings.push(
+        `Gemini が遅くなっています：試験生成に${Math.round(latency / 1000)}秒（モデル ${version ?? model}、上限${ATTEMPT_TIMEOUT_MS / 1000}秒）。` +
+          '時間切れの枠は次の生成に自動で回すので配信は止まりませんが、遅れが続く場合はモデルの切り替えが必要です。',
+      );
+    }
+    return { ok: true, detail: model, model_version: version, latency_ms: latency, warnings };
   } catch (error) {
-    return { ok: false, detail: error instanceof Error ? error.message : String(error) };
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+      latency_ms: Date.now() - started,
+      warnings,
+    };
   }
 }
 
@@ -552,11 +642,7 @@ export class GeminiService {
    */
   constructor() {
     this.ai = new GoogleGenAI({ apiKey: requireEnv('GEMINI_API_KEY') });
-    const configured = (optionalEnv('GEMINI_MODEL') ?? '')
-      .split(',')
-      .map((name) => name.trim())
-      .filter(Boolean);
-    this.models = configured.length > 0 ? configured : DEFAULT_MODELS;
+    this.models = generationModels();
   }
 
   async generateScript(request: GenerationRequest): Promise<GeneratedContent> {
@@ -672,14 +758,10 @@ export class GeminiService {
   async reviewScripts(targets: ReviewTarget[], lang_code: Language): Promise<ReviewVerdict[]> {
     if (targets.length === 0) return [];
 
-    const configured = (optionalEnv('GEMINI_REVIEW_MODEL') ?? '')
-      .split(',')
-      .map((name) => name.trim())
-      .filter(Boolean);
     const raw = await this.generate<RawReview>(
       buildReviewPrompt(targets, lang_code),
       REVIEW_SCHEMA,
-      configured.length > 0 ? configured : DEFAULT_REVIEW_MODELS,
+      reviewModels(),
       REVIEW_TIMEOUT_MS,
     );
     const byId = new Map((raw.reviews ?? []).map((review) => [review.id, review]));
