@@ -72,6 +72,9 @@ NOTE_MAX_HEIGHT = 100
 BRAND_LOGO_SIZE = 100
 BRAND_GAP = 22
 BRAND_TOP = 25
+"""Gap between the wordmark lockup and the product name set under it."""
+BRAND_LABEL_GAP = 14
+BRAND_LABEL_SIZE = 40
 
 FONTS: dict[str, dict[str, tuple[str, str | None]]] = {
     "ja": {
@@ -187,8 +190,11 @@ def _draw_block(
     return total
 
 
-def brand(path: str) -> tuple[str, int, int]:
-    """Draws the paid-ad brand lockup: the transparent seal beside its wordmark."""
+def brand(path: str, label: str | None = None, language: str = "ja") -> tuple[str, int, int]:
+    """
+    Draws the paid-ad brand lockup: the transparent seal beside its wordmark, and, for a
+    product ad, the product's menu name centred underneath for the whole video.
+    """
     img = _blank()
     draw = ImageDraw.Draw(img)
     logo = Image.open(os.path.join(ASSET_DIR, "libertas-logo.png")).convert("RGBA")
@@ -224,6 +230,19 @@ def brand(path: str) -> tuple[str, int, int]:
         fill=(172, 119, 36, 170),
         width=1,
     )
+    if label:
+        label_font = _font(language, "button", BRAND_LABEL_SIZE)
+        label_y = BRAND_TOP + BRAND_LOGO_SIZE + BRAND_LABEL_GAP
+        label_x = (WIDTH - draw.textlength(label, font=label_font)) / 2
+        draw.text(
+            (label_x, label_y),
+            label,
+            font=label_font,
+            fill=(150, 101, 28, 255),
+            direction="rtl" if language in RTL_LANGUAGES else None,
+            stroke_width=3,
+            stroke_fill=(255, 248, 229, 215),
+        )
     return _save_cropped(img, path)
 
 
