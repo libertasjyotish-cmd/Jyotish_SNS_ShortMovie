@@ -157,6 +157,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export interface PlacementOption {
+  planet: string;
+  sentence: string;
+  /** What the house governs and worries that belong to it, in the output language. */
+  field?: string;
+  worries?: string[];
+}
+
 export interface GenerationRequest {
   week_id: string;
   lang_code: Language;
@@ -169,7 +177,7 @@ export interface GenerationRequest {
    * Placement sentences written by code for the 30s body. When given, the model only picks
    * one of them and writes the two sentences that follow it.
    */
-  placement_options?: { planet: string; sentence: string }[];
+  placement_options?: PlacementOption[];
 }
 
 export interface GeneratedScript {
@@ -536,7 +544,7 @@ function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language)
 }
 
 function structured30s(
-  options: { planet: string; sentence: string }[],
+  options: PlacementOption[],
   budget: { min: number; max: number; unit: string },
 ): string {
   const lengths = options.map((option) => option.sentence.replace(/\s/g, '').length);
@@ -544,11 +552,31 @@ function structured30s(
   const max = budget.max - Math.max(...lengths);
   return [
     '- script_30s: the app writes the first sentence of body_script itself, word for word, from the placement you choose, and that sentence already says the dates, the tradition, the Moon sign, the house, the sign and the planet, so rules 8, 15, 16, 18 and 18b are met by it. Never repeat any of that in your own sentences.',
-    '  Fill "placement" with the planet whose sentence below answers the worry of rule 0 best:',
-    ...options.map((option) => `  - ${option.planet}: ${option.sentence}`),
-    '  Then write the two sentences that follow it. "reason_sentence" names the feeling or state this placement strengthens in the viewer\'s ordinary life — the worry of rule 0 — and says that this placement is why. "use_sentence" says what this period is good for in that field, as rules 13c and 13d ask. Each is one complete sentence a person would say out loud, with its subject, object and particles; there is room for that, so never compress a sentence.',
+    '  Fill "placement" with one value of its list: the planet, and when the planet lists worries, the one worry of its house this video is about. That worry is the worry of rule 0, the hook asks about it and reason_sentence names it. The placements:',
+    ...options.map((option) =>
+      [
+        `  - ${option.planet}: ${option.sentence}`,
+        option.field ? `    field of this house: ${option.field}` : '',
+        option.worries?.length ? `    worries that belong to this field: ${option.worries.join(' / ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    ),
+    '  When a placement lists worries, the video is about one of them, in your own words but never outside that field: the hook asks the viewer whether they carry it, as a feeling they live with now, never as something that happened. Do not invent another story for the house.',
+    '  Then write the two sentences that follow it. "reason_sentence" names the feeling or state this placement strengthens in the viewer\'s ordinary life — the worry of rule 0 — and says that this placement is why; do not describe the planet\'s movement again, the opening sentence already did. Write both sentences the way a person talks about their own life, not the way a horoscope column describes a planet. "use_sentence" says what this period is good for in that field, as rules 13c and 13d ask. Each is one complete sentence a person would say out loud, with its subject, object and particles; there is room for that, so never compress a sentence.',
     `  hook_text + reason_sentence + use_sentence together ${min}-${max} ${budget.unit}.`,
   ].join('\n');
+}
+
+const CHOICE_SEP = ' | ';
+
+/** `Venus | お金の不安が消えない` style values: the model must commit to one worry of the house. */
+function placementChoices(options: PlacementOption[]): string[] {
+  return options.flatMap((option) =>
+    option.worries?.length
+      ? option.worries.map((worry) => `${option.planet}${CHOICE_SEP}${worry}`)
+      : [option.planet],
+  );
 }
 
 function structuredSchema(planets: string[]) {
@@ -692,11 +720,11 @@ export class GeminiService {
     const options = request.placement_options?.length ? request.placement_options : undefined;
     const raw = await this.generate<RawGeneration>(
       buildPrompt(request),
-      options ? structuredSchema(options.map((option) => option.planet)) : RESPONSE_SCHEMA,
+      options ? structuredSchema(placementChoices(options)) : RESPONSE_SCHEMA,
     );
     if (options) {
       const chosen = raw.script_30s as Record<string, string> | undefined;
-      const opening = options.find((option) => option.planet === chosen?.placement)?.sentence;
+      const opening = options.find((option) => option.planet === chosen?.placement?.split(CHOICE_SEP)[0])?.sentence;
       raw.script_30s = {
         hook_text: chosen?.hook_text,
         body_script:

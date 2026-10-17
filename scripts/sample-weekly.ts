@@ -4,7 +4,7 @@
  */
 import { GeminiService } from '@/services/gemini';
 import { GoogleSheetsService, Language } from '@/services/sheets';
-import { buildPlacementBrief, placementSentence, placementsFor } from '@/lib/placements';
+import { buildPlacementBrief, jaHouseGuide, placementSentence, placementsFor } from '@/lib/placements';
 import { lintScript } from '@/lib/script-lint';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
@@ -21,7 +21,8 @@ async function main() {
     const moon = sign[0].toUpperCase() + sign.slice(1);
     const options = placementsFor(transit.transit_data, moon).flatMap((placement) => {
       const sentence = placementSentence(lang, period, moon, placement);
-      return sentence ? [{ planet: placement.planet, sentence }] : [];
+      const guide = lang === 'ja' ? jaHouseGuide(placement.house) : null;
+      return sentence ? [{ planet: placement.planet, sentence, ...(guide ?? {}) }] : [];
     });
     const brief = buildPlacementBrief(transit.transit_data, moon);
     const content = await gemini.generateScript({
