@@ -13,11 +13,12 @@ import { PT } from '@/lib/weekly-template-pt';
 import { ID } from '@/lib/weekly-template-id';
 import { AR } from '@/lib/weekly-template-ar';
 import { FR } from '@/lib/weekly-template-fr';
+import { DE } from '@/lib/weekly-template-de';
 import type { Language } from '@/services/sheets';
 
 type Builder = typeof buildWeeklyTemplateJa;
 
-export const WEEKLY_PACKS: Partial<Record<Language, LanguagePack>> = { es: ES, pt: PT, id: ID, ar: AR, fr: FR };
+export const WEEKLY_PACKS: Partial<Record<Language, LanguagePack>> = { es: ES, pt: PT, id: ID, ar: AR, fr: FR, de: DE };
 
 export const WEEKLY_TEMPLATES: Partial<Record<Language, Builder>> = {
   ja: buildWeeklyTemplateJa,
@@ -35,6 +36,7 @@ export const WEEKLY_TEMPLATE_HASHTAGS: Partial<Record<Language, (sign: string) =
   id: (sign) => `#AstrologiWeda #ZodiakBulan #${sign}`,
   ar: (sign) => `#التنجيم_الفيدي #البرج_القمري #${sign}`,
   fr: (sign) => `#AstrologieVedique #SigneLunaire #${sign}`,
+  de: (sign) => `#VedischeAstrologie #Mondzeichen #${sign}`,
 };
 
 export function buildWeeklyFromTemplate(
