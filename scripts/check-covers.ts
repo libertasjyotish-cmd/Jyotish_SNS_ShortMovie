@@ -9,7 +9,7 @@
 import { LANGUAGES, type Language } from '@/lib/languages';
 import { weekPeriodLabel } from '@/lib/period';
 import { SIGN_THEME_SERIES } from '@/lib/sign-themes';
-import { MOON_SIGN_NOTE, TITLE_KEYWORDS, buildCoverText } from '@/lib/youtube-seo';
+import { MOON_SIGN_NOTE, TITLE_KEYWORDS, buildCoverText, moonSignHeadline } from '@/lib/youtube-seo';
 import { zodiacName } from '@/lib/zodiac-names';
 
 const HOOKS: Record<Language, string> = {
@@ -44,13 +44,13 @@ for (const lang of LANGUAGES) {
   const sign = zodiacName('Aries', lang) ?? 'Aries';
 
   const weekly = buildCoverText({ lang, zodiacSign: sign, period, hook: HOOKS[lang] });
-  check(`${lang} weekly: sign missing`, weekly.sign === sign);
-  check(`${lang} weekly: moon sign note missing`, weekly.note === MOON_SIGN_NOTE[lang]);
+  check(`${lang} weekly: sign missing`, weekly.sign === moonSignHeadline(sign, lang));
+  check(`${lang} weekly: moon sign note missing`, weekly.note === (lang === 'ja' ? `${keywords.theme} 月星座` : MOON_SIGN_NOTE[lang]));
   check(`${lang} weekly: week missing`, weekly.period === period);
 
   for (const series of SIGN_THEME_SERIES) {
     const themed = buildCoverText({ lang, zodiacSign: sign, series, hook: HOOKS[lang] });
-    check(`${lang} ${series}: sign missing`, themed.sign === sign);
+    check(`${lang} ${series}: sign missing`, themed.sign === moonSignHeadline(sign, lang));
     check(`${lang} ${series}: series missing`, themed.period.length > 0);
   }
 

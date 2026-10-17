@@ -49,10 +49,10 @@ for (const lang of LANGUAGES) {
       check(`${label}: over 100 chars`, title.length <= 100);
       check(`${label}: sign name missing`, title.includes(sign));
       check(`${label}: weekly keyword missing`, title.includes(TITLE_KEYWORDS[lang].weekly));
-      check(`${label}: moon sign note missing`, title.includes(MOON_SIGN_NOTE[lang]));
+      check(`${label}: moon sign note missing`, title.includes(lang === 'ja' ? '（月星座）' : MOON_SIGN_NOTE[lang]));
       if (!hook) continue;
 
-      const kept = title.slice(title.indexOf(': ') + 2, title.lastIndexOf(MOON_SIGN_NOTE[lang]));
+      const kept = title.slice(title.indexOf(': ') + 2, lang === 'ja' ? title.lastIndexOf('｜') : undefined);
       const shown = kept.replace(lang === 'ja' ? '｜' : ' | ', '').trim();
       check(`${label}: hook missing`, shown.length >= Math.min(hook.length, MIN_KEPT_HOOK));
       check(
@@ -68,7 +68,7 @@ for (const lang of LANGUAGES) {
   for (const series of SIGN_THEME_SERIES) {
     const title = buildYouTubeTitle({ lang, zodiacSign: sign, hook: HOOKS[lang], series });
     check(`${lang} ${series}: over 100 chars`, title.length <= 100);
-    check(`${lang} ${series}: moon sign note missing`, title.includes(MOON_SIGN_NOTE[lang]));
+    check(`${lang} ${series}: moon sign note missing`, title.includes(lang === 'ja' ? '（月星座）' : MOON_SIGN_NOTE[lang]));
   }
 }
 

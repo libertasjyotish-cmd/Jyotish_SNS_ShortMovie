@@ -235,7 +235,7 @@ export function buildWeeklyTemplateJa(
   }
 
   return {
-    hook_text: `${JA_SIGN[moon]}のあなたは、${worry.hook}`,
+    hook_text: `月星座が${JA_SIGN[moon]}のあなた、${worry.hook}`,
     body_script: `${opening}${worry.reason}のは、${cause}ためです。${worry.use}`,
     planet: chosen.planet,
     house,

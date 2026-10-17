@@ -191,7 +191,7 @@ export function buildWeeklyTemplateEn(
   }
 
   return {
-    hook_text: `${EN_SIGN[moon]}, ${hook}`,
+    hook_text: `${EN_SIGN[moon]} Moon, ${hook}`,
     body_script: `${opening} If you ${reason}, it is because ${nature} ${cause}. This is a good time to ${use}`,
     planet: chosen.planet,
     house,

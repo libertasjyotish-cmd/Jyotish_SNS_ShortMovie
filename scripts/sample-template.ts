@@ -1,8 +1,10 @@
 /**
  * Prints the code-assembled weekly 30s readings for one week, without Gemini and without
- * writing to the sheet: `npm run sample:template -- <week> [--worries]`.
+ * writing to the sheet: `npm run sample:template -- <week> [--worries] [--local]`.
+ * `--local` computes the transits from the ephemeris instead of reading them from the sheet.
  */
 import { GoogleSheetsService } from '@/services/sheets';
+import { buildTransitReference } from '@/lib/ephemeris';
 import { SIGNS } from '@/lib/placements';
 import { buildWeeklyTemplateJa, listJaWorries } from '@/lib/weekly-template';
 import { listEnWorries } from '@/lib/weekly-template-en';
@@ -21,7 +23,9 @@ async function main() {
     (flags.includes('--en') ? 'en' : 'ja')) as Language;
   const build = WEEKLY_TEMPLATES[lang];
   if (!build) throw new Error(`no weekly template for ${lang}`);
-  const transit = await new GoogleSheetsService().getWeeklyTransits(week);
+  const transit = flags.includes('--local')
+    ? { transit_data: buildTransitReference(week, isoWeekMonday(week)) }
+    : await new GoogleSheetsService().getWeeklyTransits(week);
   if (!transit) throw new Error(`no transit for ${week}`);
   const period = weekPeriodSpoken(week, lang) ?? '';
   const weekNumber = Number(/W(\d+)/.exec(week)?.[1] ?? 0);
@@ -45,6 +49,14 @@ async function main() {
     console.log(`フック：${script.hook_text}\n本文：${script.body_script}\n`);
   }
   if (flag) console.log((lang === 'ja' ? listJaWorries() : lang === 'en' ? listEnWorries() : listPackWorries(WEEKLY_PACKS[lang]!)).join('\n'));
+}
+
+function isoWeekMonday(weekId: string): Date {
+  const [, year, week] = /^(\d{4})-W(\d{2})$/.exec(weekId) ?? [];
+  if (!year) throw new Error(`bad week id ${weekId}`);
+  const jan4 = Date.UTC(Number(year), 0, 4);
+  const day = new Date(jan4).getUTCDay() || 7;
+  return new Date(jan4 + ((Number(week) - 1) * 7 - (day - 1)) * 86_400_000);
 }
 
 main().catch((error) => {

@@ -153,6 +153,11 @@ const TEMPLATE_BOUNDS: Record<Language, { min: number; max: number }> = {
   de: { min: 68, max: 96 },
 };
 
+/** Room for the fixed "月星座が〇〇座のあなた、" opening the template puts before every hook. */
+const TEMPLATE_MOON_PREFIX: Record<Language, number> = {
+  ja: 10, en: 3, es: 3, pt: 3, id: 3, ar: 3, fr: 3, de: 3,
+};
+
 const TEMPLATE_SIGN_ALLOWANCE: Record<Language, number> = {
   ja: 55, en: 25, es: 23, pt: 24, id: 22, ar: 21, fr: 28, de: 25,
 };
@@ -229,10 +234,11 @@ export function narrationBudget(
   const timed = template && pattern === '30s';
   const bounds = timed ? TEMPLATE_BOUNDS[language] : LENGTH_BOUNDS[pattern][language];
   const allowance = period ? (timed ? TEMPLATE_SIGN_ALLOWANCE : SIGN_ALLOWANCE)[language] : 0;
+  const prefix = timed ? TEMPLATE_MOON_PREFIX[language] : 0;
   const cta = scriptLength(fixedCta(language), language);
   return {
     min: Math.max(1, bounds.min + allowance - cta),
-    max: Math.max(1, bounds.max + allowance - cta),
+    max: Math.max(1, bounds.max + allowance + prefix - cta),
     unit: CHARACTER_COUNTED.includes(language) ? 'characters excluding spaces' : 'words',
   };
 }
@@ -314,7 +320,8 @@ export function lintScript(
   }
 
   const hookLength = scriptLength(hook, language);
-  if (hookLength > HOOK_BOUNDS[language]) {
+  // Template hooks are fixed sentences checked on screen by renderer/check_layout.py.
+  if (!options.template && hookLength > HOOK_BOUNDS[language]) {
     issues.push({
       field: 'hook_text',
       code: 'hook_too_long',
