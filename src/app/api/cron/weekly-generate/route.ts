@@ -7,7 +7,7 @@ const RENDER_NOW_WINDOW_MS = 36 * 60 * 60 * 1000;
 import { evergreenClosing } from '@/lib/evergreen-cta';
 import { fixedCta } from '@/lib/fixed-cta';
 import { buildPlacementBrief } from '@/lib/placements';
-import { buildWeeklyTemplateJa } from '@/lib/weekly-template';
+import { WEEKLY_TEMPLATES, WEEKLY_TEMPLATE_HASHTAGS, buildWeeklyFromTemplate } from '@/lib/weekly-templates';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
 import { REUSED_PREFIX } from '@/lib/script-audit';
@@ -84,31 +84,33 @@ export async function GET(request: Request) {
             hashtags: string;
           };
 
-          // Japanese weekly readings are assembled from fixed sentences and promos are approved
-          // texts reused as they are: neither is written or rewritten by Gemini, only linted.
-          const codeOnly =
-            task.target_type === 'Promo' ||
-            (task.target_type === 'Zodiac_Sign' && task.lang_code === 'ja');
+          // Weekly readings of a template language are assembled from fixed sentences and promos
+          // are approved texts reused as they are: neither is written or rewritten by Gemini.
+          const templated =
+            task.target_type === 'Zodiac_Sign' && Boolean(WEEKLY_TEMPLATES[task.lang_code]);
+          const codeOnly = task.target_type === 'Promo' || templated;
           if (task.target_type === 'Theme' || task.target_type === 'Promo') {
             scriptData = await generateThemeScript(sheetsService, geminiService, task);
-          } else if (codeOnly) {
+          } else if (templated) {
             const transit = await sheetsService.getWeeklyTransits(task.week_id);
             if (!transit) {
               throw new Error(`No transit data for week_id "${task.week_id}"`);
             }
             transitReference = transit.transit_data;
-            const built = buildWeeklyTemplateJa(
+            const built = buildWeeklyFromTemplate(
+              task.lang_code,
               transitReference,
               task.zodiac_sign ?? '',
-              weekPeriodSpoken(task.week_id, 'ja') ?? '',
+              weekPeriodSpoken(task.week_id, task.lang_code) ?? '',
               Number(/W(\d+)/.exec(task.week_id)?.[1] ?? 0),
             );
             if (!built) {
               throw new Error(`No template placement for ${task.zodiac_sign} in ${task.week_id}`);
             }
+            const tags = WEEKLY_TEMPLATE_HASHTAGS[task.lang_code];
             scriptData = {
               script_30s: { hook_text: built.hook_text, body_script: built.body_script, cta_text: '' },
-              hashtags: `#インド占星術 #月星座 #${zodiacName(task.zodiac_sign, 'ja') ?? ''}`.trim(),
+              hashtags: tags ? tags(zodiacName(task.zodiac_sign, task.lang_code) ?? '').trim() : '',
             };
           } else {
             if (!transitCache.has(task.week_id)) {
@@ -145,7 +147,9 @@ export async function GET(request: Request) {
           const signName = zodiacName(task.zodiac_sign, task.lang_code);
 
           const lint = (data: typeof scriptData) =>
-            lintScript(data.script_30s, task.lang_code, '30s', spokenPeriod, signName).map(
+            lintScript(data.script_30s, task.lang_code, '30s', spokenPeriod, signName, {
+              template: templated,
+            }).map(
               (issue) => `(30s) ${describeIssues([issue])}`,
             );
 
