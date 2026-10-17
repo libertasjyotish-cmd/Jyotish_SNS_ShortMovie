@@ -223,6 +223,7 @@ const SUBJECT_FIELDS = [
   'position: career, duty, public standing',
   'gain and circle: networks, hopes worked towards',
   'release: loss, withdrawal, distance, letting go',
+  'another field of life the viewer faces, feels or decides (name it in other_field)',
   'none of these',
 ] as const;
 
@@ -237,6 +238,7 @@ const REVIEW_SCHEMA = {
           id: { type: Type.STRING },
           meaning: { type: Type.STRING },
           subject_field: { type: Type.STRING, enum: [...SUBJECT_FIELDS] },
+          other_field: { type: Type.STRING },
           viewer_concern: { type: Type.STRING },
           concern_is_common: { type: Type.STRING, enum: ['yes', 'no'] },
           leaves_a_gain: { type: Type.STRING, enum: ['yes', 'no'] },
@@ -283,6 +285,8 @@ export interface ReviewVerdict {
   meaning: string;
   /** Which field of life the script is about, or that it is about none of them. */
   subject_field: string;
+  /** The field named by the reviewer when none of the listed ones fits. */
+  other_field?: string;
   /** The worry or question the script answers, stated in the viewer's own words. */
   viewer_concern: string;
   /** Whether a large audience actually holds that worry. */
@@ -315,7 +319,7 @@ Mark "broken" when the restatement is not something a person could mean — "Mar
 Do not judge the length, and do not judge whether the placement in the sky is correct.
 Mark "broken" when the reading turns a placement into a literal physical chore or object — rearranging furniture, tidying a room, moving things around the house, buying an item — instead of what it means for the viewer's situation, mood or decisions. A house of the chart is a field of life, so "the fourth house" is home life, family, roots and inner ground, never the furniture in a room.
 Mark "broken" as well when the body tells the viewer something no one would stop to watch: a prediction that is trivial, obvious, or an everyday errand anyone does in any week.
-Then fill "subject_field" with the one field of life the script is actually about, chosen from the list in the schema. Judge the subject the viewer is told about, not the house the script names: a script that says "the first house" but talks about correcting documents is about documents, and documents are not a field of life, so the answer is "none of these". Choose "none of these" whenever the subject is an object, a task or an errand rather than something the viewer faces, feels or decides, and the verdict must then be "broken".
+Then fill "subject_field" with the one field of life the script is actually about, chosen from the list in the schema. Judge the subject the viewer is told about, not the house the script names: a script that says "the first house" but talks about correcting documents is about documents, and documents are not a field of life, so the answer is "none of these". Choose "none of these" whenever the subject is an object, a task or an errand rather than something the viewer faces, feels or decides, and the verdict must then be "broken". The list is not closed: when the subject is something the viewer faces, feels or decides that none of the listed fields covers (for example health and how the body holds up, self-worth, fear of the future), choose "another field of life the viewer faces, feels or decides (name it in other_field)" and write that field in "other_field" in a few English words. A document, a file, a room, furniture or any other object or errand is never a field of life, whatever house it comes from.
 The field of life is only where the reading comes from, not proof that it is worth watching, so fill "viewer_concern" next: in one sentence, in the words a viewer would use, the worry or question this script answers for them. Then answer "concern_is_common": "yes" only if that worry is one a large share of ordinary people actually carry — money, work and how they are judged at it, relationships and love, family, health, fear about the future, a decision they cannot make, feeling unrewarded, feeling out of place. Answer "no" when the worry is one almost nobody has, however correctly it follows from the sky: "am I correcting the same document too often", "is my desk untidy", "should I re-check an ordinary receipt" are not worries anyone brings to astrology. A "no" means the verdict is "broken", even when every sentence is fluent and the astrology is right.
 Then answer "leaves_a_gain". Read the hook and the body as one whole. If the script names no strain at all, answer "yes". If it does name strain, doubt, tiredness, friction or something going wrong — whatever the cause: a retrograde or combust planet, a debilitated planet, a malefic in or aspecting the house, Saturn, Rahu or Ketu passing through, an eclipse, a hard house from the Moon sign — answer "yes" only if the script both says what is causing it and says what releases it: when the planet turns direct, leaves the sign or the house, or what this period settles, rebuilds, strengthens or lets the viewer choose again. Answer "no" when the strain is left standing on its own, even when every sentence is true, calm and correctly read from the sky; a viewer who finishes the video with nothing but their own problem restated to them has been given nothing. A "no" means the verdict is "broken".
 Mark "broken" when a sentence is not grammatical ${profile.name}: a missing subject, a predicate that does not agree with its subject, particles or articles that do not connect, or a noun phrase that carries no meaning.
@@ -698,7 +702,15 @@ export class GeminiService {
           reason: 'the reviewer passed the script without restating what it says',
         };
       }
-      if (!subjectField || subjectField === 'none of these') {
+      const otherField = (review.other_field ?? '').trim();
+      if (subjectField.startsWith('another field') && otherField) {
+        console.warn(`${target.id}: reviewer named a field outside the list: ${otherField}`);
+      }
+      if (
+        !subjectField ||
+        subjectField === 'none of these' ||
+        (subjectField.startsWith('another field') && !otherField)
+      ) {
         return {
           id: target.id,
           meaning,

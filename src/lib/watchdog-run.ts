@@ -17,7 +17,7 @@ import {
   planScriptRecovery,
 } from '@/lib/watchdog';
 import { CreatomateService } from '@/services/creatomate';
-import { GoogleSheetsService } from '@/services/sheets';
+import { ContentQueue, GoogleSheetsService } from '@/services/sheets';
 
 export interface WatchdogResult {
   requeued: number;
@@ -99,7 +99,13 @@ export async function runWatchdog(
   // same sign and language, so a generator outage never costs a post.
   const filledSlots: string[] = [];
   const urgent: string[] = [];
+  const weeklyToWrite: ContentQueue[] = [];
   for (const task of findSlotsToFill(tasks, now)) {
+    if (task.target_type !== 'Theme' && task.target_type !== 'Promo') {
+      // A weekly reading cannot be borrowed from another week: it is regenerated first.
+      weeklyToWrite.push(task);
+      continue;
+    }
     const reuse = await sheets.findApprovedScript({
       lang_code: task.lang_code,
       zodiac_sign: task.zodiac_sign,
@@ -153,8 +159,20 @@ export async function runWatchdog(
     tasks.filter((task) => task.script_status === 'Pending').length +
     requeuedScripts.length +
     requeuedAudit.length;
+  // Weekly readings close to their slot are retried even past MAX_SCRIPT_ATTEMPTS and are
+  // generated alone, ahead of the rest of the backlog.
+  const weeklyErrors = weeklyToWrite.filter((task) => task.script_status === 'Error');
+  await sheets.requeueScripts(
+    weeklyErrors.map((task) => ({ taskId: task.task_id, attempts: task.script_attempts + 1 })),
+  );
+  const urgentParams =
+    weeklyToWrite.length > 0
+      ? new URLSearchParams({ tasks: weeklyToWrite.map((task) => task.task_id).join(',') })
+      : undefined;
   const generationResumed =
-    pendingScripts > 0 ? await triggerNextBatch('/api/cron/weekly-generate', 0) : false;
+    pendingScripts + weeklyToWrite.length > 0
+      ? await triggerNextBatch('/api/cron/weekly-generate', 0, urgentParams)
+      : false;
 
   // Recovery runs with every dispatch (96×/day); the mail about what still cannot be fixed is
   // sent only by the daily watchdog cron, or the same report arrives every 15 minutes.
