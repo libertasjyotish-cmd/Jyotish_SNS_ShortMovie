@@ -244,5 +244,5 @@ const EN_SERIES: Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate> = {
 export function buildEvergreenTemplateEn(series: SignThemeSeries, moonSign: string): EvergreenTemplate | null {
   const moon = asSign(moonSign);
   const build = EN_SERIES[series];
-  return moon && build && SIGNS.includes(moon) ? build(moon) : null;
+  return moon && SIGNS.includes(moon) ? build(moon) : null;
 }
