@@ -294,7 +294,7 @@ function turningJa(moon: Sign): EvergreenTemplate {
   const line = JA_TURNING[eighth];
   return {
     hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
-    body: `インド占星術では、人生の変わり目を表す8ハウスに${JA_RULER[RULER[eighth]]}が関わっています。あなたの転機は、${line.arrival}訪れます。そのときは、${line.action}と、変化が自ずと追い風になります。`,
+    body: `インド占星術では、人生の変わり目を表す8ハウスに${JA_RULER[RULER[eighth]]}が関わっています。転機は、${line.arrival}訪れます。${line.action}と、それが追い風になります。`,
   };
 }
 
