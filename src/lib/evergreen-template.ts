@@ -271,6 +271,31 @@ function avoidJa(moon: Sign): EvergreenTemplate {
   };
 }
 
+/** Keyed by the 8th sign from the Moon, the house of life's turning points (never spoken). */
+const JA_TURNING: Record<Sign, RestLine> = {
+  Aries: { hook: '急に何かを変えたくなって、戸惑っていませんか？', why: '思い切って動いたときに、流れが大きく変わる', place: '自分から一歩を踏み出した' },
+  Taurus: { hook: '慣れた暮らしを変えるのが、怖くなっていませんか？', why: '大切なものを選び直したときに、人生が動く', place: '本当に大事なものを選んだ' },
+  Gemini: { hook: '迷いが多くて、決められずにいませんか？', why: '人との出会いや新しい知らせから、流れが変わる', place: '新しい話に耳を傾けた' },
+  Cancer: { hook: '居場所が変わることに、不安を感じていませんか？', why: '住まいや家族の形が変わるときに、心が新しくなる', place: '安心できる場所を選び直した' },
+  Leo: { hook: '今の自分のままでいいのか、迷っていませんか？', why: '自分の役目に気づいたときに、人生が大きく動く', place: '自分が立つ場所を決めた' },
+  Virgo: { hook: '小さな違和感を、見て見ぬふりしていませんか？', why: '日々の小さな見直しが、大きな転機につながる', place: '違和感を一つ直した' },
+  Libra: { hook: '人との関係が変わることに、揺れていませんか？', why: '大切な人との出会いや別れから、流れが変わる', place: '関係を選び直した' },
+  Scorpio: { hook: '何かを終わらせることを、怖がっていませんか？', why: '古いものを手放したときに、生まれ変わる力が働く', place: '一つを手放した' },
+  Sagittarius: { hook: '今いる場所の外に、惹かれていませんか？', why: '学びや遠い場所との縁から、人生が開ける', place: '新しい学びに踏み出した' },
+  Capricorn: { hook: '長く続けてきたことを、やめるか迷っていませんか？', why: '時間をかけて積んだものが、ある時ふっと形を変える', place: '積み重ねを信じて進んだ' },
+  Aquarius: { hook: '周りと違う道に、惹かれていませんか？', why: '自分だけの考えを選んだときに、流れが変わる', place: '自分の考えを選んだ' },
+  Pisces: { hook: '先が見えなくて、不安になっていませんか？', why: '理屈より直感に従ったときに、道が開ける', place: '心の声に従った' },
+};
+
+function turningJa(moon: Sign): EvergreenTemplate {
+  const eighth = signFrom(moon, 8);
+  const line = JA_TURNING[eighth];
+  return {
+    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    body: `インド占星術では、人生の変わり目を表す8ハウスに${JA_RULER[RULER[eighth]]}が関わっています。${line.why}のは、そのためです。${line.place}とき、人生が自ずと新しく開けます。`,
+  };
+}
+
 const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate>> = {
   work: workJa,
   compat: compatJa,
@@ -280,6 +305,7 @@ const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTempla
   rest: restJa,
   impression: impressionJa,
   avoid: avoidJa,
+  turning: turningJa,
 };
 
 /** The fixed script of one sign in one series, or null while that series has no template. */
