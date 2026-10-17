@@ -164,7 +164,7 @@ export const PT: LanguagePack = {
             : `atua com força sobre ${field}`;
     }
     return {
-      hook: `${SIGN[moon]}, ${hook}`,
+      hook: `Lua em ${SIGN[moon]}, ${hook}`,
       body: `${opening} Se ${reason}, é porque ${NATURE[chosen.planet]} ${cause}. É hora de ${use}`,
     };
   },

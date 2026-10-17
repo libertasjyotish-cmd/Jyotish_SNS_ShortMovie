@@ -135,6 +135,35 @@ export const SERIES_KEYWORDS: Record<Language, Record<SignThemeSeries, string>> 
   },
 };
 
+/** Short word for the Moon sign, attached to the sign name wherever it is shown. */
+const MOON_SIGN_WORD: Record<Language, string> = {
+  ja: '月星座',
+  en: 'Moon Sign',
+  es: 'Signo lunar',
+  pt: 'Signo lunar',
+  id: 'Zodiak Bulan',
+  ar: 'برج القمر',
+  fr: 'Signe lunaire',
+  de: 'Mondzeichen',
+};
+
+/** Viewers read a bare sign name as their sun sign, so it always says it is the Moon sign. */
+export function moonSignLabel(zodiacSign: string, lang: Language): string {
+  return lang === 'ja' ? `${zodiacSign}（${MOON_SIGN_WORD.ja}）` : `${zodiacSign} (${MOON_SIGN_WORD[lang]})`;
+}
+
+/** Cover headline of a sign video. */
+export function moonSignHeadline(zodiacSign: string, lang: Language): string {
+  // The note right under the headline says it is the Moon sign; a bracketed label would wrap
+  // the sign name onto two lines at cover size.
+  return zodiacSign;
+}
+
+/** Note under a sign headline. */
+function coverSignNote(lang: Language): string {
+  return lang === 'ja' ? `${TITLE_KEYWORDS.ja.theme} ${MOON_SIGN_WORD.ja}` : MOON_SIGN_NOTE[lang];
+}
+
 /**
  * Viewers search for the sign they were told they are, which is their Western sun sign, so a
  * title that names a sign says which system it belongs to. It sits at the end because phones
@@ -200,7 +229,7 @@ export function buildCaptionLead({ lang, zodiacSign, period, series }: CaptionLe
   if (!zodiacSign) return period;
   const keywords = TITLE_KEYWORDS[lang];
   const phrase = series ? SERIES_KEYWORDS[lang][series] : keywords.weekly;
-  return [`${zodiacSign} ${phrase}`, period].filter(Boolean).join(' · ');
+  return [`${moonSignLabel(zodiacSign, lang)} ${phrase}`, period].filter(Boolean).join(' · ');
 }
 
 /**
@@ -224,10 +253,10 @@ export function buildCoverText({ lang, zodiacSign, series, period, hook }: Cover
   const keywords = TITLE_KEYWORDS[lang];
   // A video with no sign has nothing of its own to put on the cover but what it is about, so its
   // own hook is the headline: the category name alone lists every such video under one still.
-  const headline = zodiacSign ?? coverHook(hook, lang) ?? keywords.theme;
+  const headline = (zodiacSign && moonSignHeadline(zodiacSign, lang)) ?? coverHook(hook, lang) ?? keywords.theme;
   return {
     sign: headline,
-    note: zodiacSign ? MOON_SIGN_NOTE[lang] : keywords.theme,
+    note: zodiacSign ? coverSignNote(lang) : keywords.theme,
     // An evergreen series carries no dates, so it names itself where the week would sit.
     period: (series ? SERIES_KEYWORDS[lang][series] : period) ?? '',
   };
@@ -365,9 +394,12 @@ export function buildYouTubeTitle({
 }: TitleParams): string {
   const keywords = TITLE_KEYWORDS[lang];
   const phrase = series ? SERIES_KEYWORDS[lang][series] : keywords.weekly;
-  const lead = zodiacSign ? [zodiacSign, phrase, period].filter(Boolean).join(' ') : keywords.theme;
+  // Outside ja the full note sits beside the sign instead of at the end, where a long hook
+  // would otherwise leave no room after both the note and the Moon-sign label.
+  const signLabel = zodiacSign && (lang === 'ja' ? moonSignLabel(zodiacSign, lang) : `${zodiacSign} (${MOON_SIGN_NOTE[lang]})`);
+  const lead = signLabel ? [signLabel, phrase, period].filter(Boolean).join(' ') : keywords.theme;
   const separator = lang === 'ja' ? '｜' : ' | ';
-  const tail = `${separator}${zodiacSign ? MOON_SIGN_NOTE[lang] : BRAND}`;
+  const tail = zodiacSign && lang !== 'ja' ? '' : `${separator}${zodiacSign ? keywords.theme : BRAND}`;
   // A series keyword already says what the video is, so its hook would only repeat it.
   if (hook && !series) {
     const room = TITLE_LIMIT - lead.length - 2 - tail.length;
