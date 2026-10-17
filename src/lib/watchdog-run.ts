@@ -3,12 +3,15 @@ import { triggerNextBatch } from '@/lib/batch';
 import { isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { plannedLanguages } from '@/lib/plan-languages';
 import { runRenderBatch } from '@/lib/render-batch';
-import { auditStoredScripts, storedScriptsOf } from '@/lib/script-audit';
+import { REUSED_PREFIX, auditStoredScripts, storedScriptsOf } from '@/lib/script-audit';
 import { isoWeekId, nextWeekStart } from '@/lib/schedule';
 import {
   MAX_RENDER_ATTEMPTS,
   MAX_SCRIPT_ATTEMPTS,
+  POST_OVERDUE_MINUTES,
   findBlockedTasks,
+  findSlotsToFill,
+  justCrossed,
   findIncompletePlan,
   planRenderRecovery,
   planScriptRecovery,
@@ -26,6 +29,7 @@ export interface WatchdogResult {
   pendingScripts: number;
   requeuedScripts: number;
   auditedScripts: number;
+  filledSlots: string[];
   generationResumed: boolean;
   replanTriggered: boolean;
   alerts: string[];
@@ -91,7 +95,46 @@ export async function runWatchdog(
     }
   }
 
-  alerts.push(...findBlockedTasks(tasks, now, { isDispatchEnabledFor }));
+  // A slot whose script is still missing shortly before it airs borrows a passed script for the
+  // same sign and language, so a generator outage never costs a post.
+  const filledSlots: string[] = [];
+  const urgent: string[] = [];
+  for (const task of findSlotsToFill(tasks, now)) {
+    const reuse = await sheets.findApprovedScript({
+      lang_code: task.lang_code,
+      zodiac_sign: task.zodiac_sign,
+      taskIdContains: task.theme_id ?? 'sign-',
+      excludeWeekId: task.week_id,
+    });
+    if (!reuse) {
+      const line = `${task.task_id}: no script and nothing passed to borrow for the ${task.scheduled_post_time} slot`;
+      alerts.push(line);
+      urgent.push(line);
+      continue;
+    }
+    await sheets.saveScriptOutput({
+      ...reuse,
+      task_id: task.task_id,
+      week_id: task.week_id,
+      lang_code: task.lang_code,
+      zodiac_sign: task.zodiac_sign,
+      transit_reference: `${REUSED_PREFIX}${reuse.task_id}`,
+      created_at: now.toISOString(),
+    });
+    await sheets.updateScriptStatus(task.task_id, 'Script_Done');
+    filledSlots.push(task.task_id);
+    console.warn(`${task.task_id}: script still missing near its slot, filled from ${reuse.task_id}`);
+  }
+  if (filledSlots.length > 0) await runRenderBatch(sheets, new CreatomateService());
+
+  const blocked = findBlockedTasks(tasks, now, { isDispatchEnabledFor });
+  alerts.push(...blocked);
+  urgent.push(
+    ...tasks
+      .filter((task) => justCrossed(task.scheduled_post_time, POST_OVERDUE_MINUTES, now))
+      .map((task) => task.task_id)
+      .flatMap((id) => blocked.filter((line) => line.startsWith(`${id}:`))),
+  );
 
   // A plan that died partway through leaves the week short of slots. Planning is idempotent,
   // so running it again fills the gap instead of waiting for next Monday's cron.
@@ -115,9 +158,12 @@ export async function runWatchdog(
 
   // Recovery runs with every dispatch (96×/day); the mail about what still cannot be fixed is
   // sent only by the daily watchdog cron, or the same report arrives every 15 minutes.
+  // What recovery could not fix is mailed the moment it happens; each case falls in exactly one
+  // 15-minute dispatch window, so it arrives once instead of every run.
+  const report = notify ? alerts : urgent;
   const alerted =
-    notify && alerts.length > 0
-      ? await sendAlert(['Jyotish SNS pipeline needs attention:', ...alerts])
+    report.length > 0
+      ? await sendAlert(['Jyotish SNS pipeline needs attention:', ...report])
       : false;
 
   return {
@@ -130,6 +176,7 @@ export async function runWatchdog(
     pendingScripts,
     requeuedScripts: requeuedScripts.length,
     auditedScripts: requeuedAudit.length,
+    filledSlots,
     generationResumed,
     replanTriggered,
     alerts,
