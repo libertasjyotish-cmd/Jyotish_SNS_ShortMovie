@@ -370,7 +370,7 @@ const JA_SUN_TRAIT: Record<Sign, string> = {
 /** The one series keyed by the viewer's sun sign: it leads them to look up their Moon sign. */
 function siderealJa(sun: Sign): EvergreenTemplate {
   return {
-    hook: `${JA_SIGN[sun]}のあなた、星占いで「${JA_SUN_TRAIT[sun]}」と言われても、ピンときていませんか？`,
+    hook: `${JA_SIGN[sun]}のあなた、星占いで「${JA_SUN_TRAIT[sun]}」と言われて、自分とは違うと感じていませんか？`,
     body: 'インド占星術では、性格を太陽ではなく心を表す月で読み、星座も実際の星の位置で決めます。太陽星座と月星座が違う人は多く、いつも占いが当たらない気がするのは、そのためかもしれません。',
   };
 }
