@@ -136,6 +136,27 @@ const CHARACTER_COUNTED: Language[] = ['ja'];
  * spoken week at the start, and the clause telling the viewer the sign meant here is the
  * sidereal Moon sign they can look up.
  */
+/**
+ * Caps for the code-assembled weekly readings, set from measured narration speed so every
+ * language runs the same seconds as ja's 213 characters (≈37 s): units per second measured
+ * on rendered W41–W43 videos with `npm run measure:narration`. Gemini-written scripts keep
+ * LENGTH_BOUNDS until their language moves to the template, so stored rows are not re-failed.
+ */
+const TEMPLATE_BOUNDS: Record<Language, { min: number; max: number }> = {
+  ja: { min: 150, max: 213 },
+  en: { min: 67, max: 95 },
+  es: { min: 63, max: 90 },
+  pt: { min: 64, max: 91 },
+  id: { min: 59, max: 83 },
+  ar: { min: 57, max: 81 },
+  fr: { min: 76, max: 108 },
+  de: { min: 68, max: 96 },
+};
+
+const TEMPLATE_SIGN_ALLOWANCE: Record<Language, number> = {
+  ja: 55, en: 25, es: 23, pt: 24, id: 22, ar: 21, fr: 28, de: 25,
+};
+
 const SIGN_ALLOWANCE: Record<Language, number> = {
   ja: 55,
   en: 24,
@@ -202,9 +223,12 @@ export function narrationBudget(
   language: Language,
   pattern: Pattern,
   period?: string,
+  /** Code-assembled weekly reading: judged on the seconds-matched caps. */
+  template = false,
 ): { min: number; max: number; unit: string } {
-  const bounds = LENGTH_BOUNDS[pattern][language];
-  const allowance = period ? SIGN_ALLOWANCE[language] : 0;
+  const timed = template && pattern === '30s';
+  const bounds = timed ? TEMPLATE_BOUNDS[language] : LENGTH_BOUNDS[pattern][language];
+  const allowance = period ? (timed ? TEMPLATE_SIGN_ALLOWANCE : SIGN_ALLOWANCE)[language] : 0;
   const cta = scriptLength(fixedCta(language), language);
   return {
     min: Math.max(1, bounds.min + allowance - cta),
@@ -233,6 +257,7 @@ export function lintScript(
   period?: string,
   /** Sign the reading is for, in the audience's language; it must be named out loud too. */
   signName?: string,
+  options: { template?: boolean } = {},
 ): ScriptIssue[] {
   const issues: ScriptIssue[] = [];
   const fields: { field: ScriptIssue['field']; text: string }[] = [
@@ -339,7 +364,7 @@ export function lintScript(
   // shorter CTA, so the length is judged on the hook and body against the narration budget.
   const total =
     scriptLength(script.hook_text, language) + scriptLength(script.body_script, language);
-  const { min, max } = narrationBudget(language, pattern, period);
+  const { min, max } = narrationBudget(language, pattern, period, options.template);
   if (total < min) {
     issues.push({ field: 'script', code: 'too_short', detail: `${total} < ${min}` });
   } else if (total > max) {

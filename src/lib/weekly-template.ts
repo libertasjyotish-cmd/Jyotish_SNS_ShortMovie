@@ -2,7 +2,7 @@
  * Weekly 30s readings assembled entirely from fixed sentences: the placement is computed,
  * the worry is picked from the house's list, and no model writes any of it.
  */
-import { JA_PLANET, JA_SIGN, Placement, SIGNS, asSign, jaDay, placementsFor } from '@/lib/placements';
+import { JA_PLANET, JA_SIGN, Placement, SIGNS, Sign, asSign, jaDay, placementsFor } from '@/lib/placements';
 
 interface Worry {
   /** Follows 「〈星座〉のあなたは、」 and ends with 「〜ていませんか？」. */
@@ -129,7 +129,7 @@ const JA_NATURE: Record<string, string> = {
   Ketu: '執着をほどくケートゥ',
 };
 
-const PRIORITY = ['Saturn', 'Jupiter', 'Rahu', 'Ketu', 'Mars', 'Venus', 'Mercury', 'Sun'];
+export const PRIORITY = ['Saturn', 'Jupiter', 'Rahu', 'Ketu', 'Mars', 'Venus', 'Mercury', 'Sun'];
 
 function rank(placement: Placement): number {
   const base = PRIORITY.indexOf(placement.planet);
@@ -146,14 +146,25 @@ export interface TemplateScript {
 }
 
 /** `weekNumber` rotates the worry so the same house does not repeat the same question every week. */
-export function buildWeeklyTemplateJa(
+export interface WeeklyPick {
+  moon: Sign;
+  chosen: Placement;
+  /** The house the reading talks about: the one entered on an ingress, else the current one. */
+  house: number;
+  /** Index into the house's worry list, shared by every language. */
+  worry: number;
+}
+
+/**
+ * Which placement and which worry a sign's weekly reading uses. Shared by every language so
+ * the planet × worry fit is decided once, from the Japanese table.
+ */
+export function pickWeekly(
   reference: string,
   moonSign: string,
-  spokenPeriod: string,
   weekNumber: number,
-  /** Worries already used this week, so two signs never ask the same question. */
   used: Set<string> = new Set(),
-): TemplateScript | null {
+): WeeklyPick | null {
   const moon = asSign(moonSign);
   if (!moon) return null;
   const placements = placementsFor(reference, moonSign).filter((p) => JA_PLANET[p.planet] && JA_NATURE[p.planet]);
@@ -179,16 +190,30 @@ export function buildWeeklyTemplateJa(
   }
   if (!chosen) return null;
 
-  const planet = JA_PLANET[chosen.planet];
-  const node = chosen.planet === 'Rahu' || chosen.planet === 'Ketu';
-  const day = chosen.ingress ? jaDay(chosen.ingress.day) : null;
-  const field = JA_HOUSE_FIELD[house];
   let pick = (weekNumber + SIGNS.indexOf(moon)) % fitting.length;
   for (let step = 0; step < fitting.length && used.has(`${house}:${fitting[pick]}`); step += 1) {
     pick = (pick + 1) % fitting.length;
   }
   used.add(`${house}:${fitting[pick]}`);
-  const worry = JA_WORRIES[house][fitting[pick]];
+  return { moon, chosen, house, worry: fitting[pick] };
+}
+
+export function buildWeeklyTemplateJa(
+  reference: string,
+  moonSign: string,
+  spokenPeriod: string,
+  weekNumber: number,
+  /** Worries already used this week, so two signs never ask the same question. */
+  used: Set<string> = new Set(),
+): TemplateScript | null {
+  const picked = pickWeekly(reference, moonSign, weekNumber, used);
+  if (!picked) return null;
+  const { moon, chosen, house } = picked;
+  const planet = JA_PLANET[chosen.planet];
+  const node = chosen.planet === 'Rahu' || chosen.planet === 'Ketu';
+  const day = chosen.ingress ? jaDay(chosen.ingress.day) : null;
+  const field = JA_HOUSE_FIELD[house];
+  const worry = JA_WORRIES[house][picked.worry];
 
   const where = `インド占星術では、${spokenPeriod}、月星座の${JA_SIGN[moon]}から${chosen.house}ハウス目の${JA_SIGN[chosen.sign]}`;
   let opening: string;
