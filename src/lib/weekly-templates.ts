@@ -9,11 +9,12 @@ import { buildWeeklyTemplateJa, TemplateScript } from '@/lib/weekly-template';
 import { buildWeeklyTemplateEn } from '@/lib/weekly-template-en';
 import { buildFromPack, LanguagePack } from '@/lib/weekly-template-pack';
 import { ES } from '@/lib/weekly-template-es';
+import { PT } from '@/lib/weekly-template-pt';
 import type { Language } from '@/services/sheets';
 
 type Builder = typeof buildWeeklyTemplateJa;
 
-export const WEEKLY_PACKS: Partial<Record<Language, LanguagePack>> = { es: ES };
+export const WEEKLY_PACKS: Partial<Record<Language, LanguagePack>> = { es: ES, pt: PT };
 
 export const WEEKLY_TEMPLATES: Partial<Record<Language, Builder>> = {
   ja: buildWeeklyTemplateJa,
@@ -27,6 +28,7 @@ export const WEEKLY_TEMPLATE_HASHTAGS: Partial<Record<Language, (sign: string) =
   ja: (sign) => `#インド占星術 #月星座 #${sign}`,
   en: (sign) => `#VedicAstrology #MoonSign #${sign}`,
   es: (sign) => `#AstrologiaVedica #SignoLunar #${sign}`,
+  pt: (sign) => `#AstrologiaVedica #SignoLunar #${sign}`,
 };
 
 export function buildWeeklyFromTemplate(
