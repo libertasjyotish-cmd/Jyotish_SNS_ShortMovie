@@ -249,6 +249,7 @@ export async function GET(request: Request) {
               transit_reference: placements
                 ? `${transitReference}\n\n${placements}`
                 : transitReference,
+              lint_feedback: settled.failure,
             });
             settled = await settle(fresh, isFixedScript);
           }
