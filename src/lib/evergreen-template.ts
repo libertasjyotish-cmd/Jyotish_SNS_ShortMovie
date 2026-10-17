@@ -351,29 +351,27 @@ function natureJa(moon: Sign): EvergreenTemplate {
   };
 }
 
-interface SiderealLine { hook: string; truth: string; scene: string }
-
-/** Keyed by the Moon sign itself: what the sidereal Moon shows that a sun-sign reading misses. */
-const JA_SIDEREAL: Record<Sign, SiderealLine> = {
-  Aries: { hook: '星占いの性格が、自分と違うと感じていませんか？', truth: 'まっすぐで、思い立ったらすぐ動く心', scene: '迷うより先に体が動く' },
-  Taurus: { hook: '星占いの性格が、しっくりこないと感じていませんか？', truth: '落ち着いて、確かなものを守る心', scene: '急な変化に、心がついていかない' },
-  Gemini: { hook: '星占いに書かれた自分に、違和感はありませんか？', truth: '新しいことを、いつも知りたい心', scene: '一つのことだけでは、退屈してしまう' },
-  Cancer: { hook: '星占いの性格が、自分と違うと感じていませんか？', truth: '情が深く、身近な人を守りたい心', scene: '人の気持ちに、すぐ心が動く' },
-  Leo: { hook: '星占いに書かれた自分に、違和感はありませんか？', truth: '誇り高く、認められることで輝く心', scene: '軽く扱われると、深く傷つく' },
-  Virgo: { hook: '星占いの性格が、しっくりこないと感じていませんか？', truth: '細やかで、物事を整えずにいられない心', scene: '小さな乱れが、気になる' },
-  Libra: { hook: '星占いの性格が、自分と違うと感じていませんか？', truth: '争いを嫌い、釣り合いを大切にする心', scene: '場の空気が悪いと、落ち着かない' },
-  Scorpio: { hook: '星占いに書かれた自分に、違和感はありませんか？', truth: '何事にも、とことん向き合う心', scene: '表面だけの付き合いでは、満たされない' },
-  Sagittarius: { hook: '星占いの性格が、しっくりこないと感じていませんか？', truth: '自由を愛し、遠くを目指す心', scene: '同じ毎日が続くと、息苦しくなる' },
-  Capricorn: { hook: '星占いの性格が、自分と違うと感じていませんか？', truth: '責任感が強く、着実に積み上げる心', scene: '遊んでいても、仕事が頭を離れない' },
-  Aquarius: { hook: '星占いに書かれた自分に、違和感はありませんか？', truth: '人と違う見方をし、新しい形を求める心', scene: '周りに合わせると、窮屈になる' },
-  Pisces: { hook: '星占いの性格が、しっくりこないと感じていませんか？', truth: '感受性が豊かで、人に寄り添う心', scene: '人の悲しみに、すぐ心が痛む' },
+/** What sun-sign horoscopes usually say about each sign; the viewer enters through their sun sign. */
+const JA_SUN_TRAIT: Record<Sign, string> = {
+  Aries: '情熱的で行動的',
+  Taurus: 'のんびりしてマイペース',
+  Gemini: '器用で社交的',
+  Cancer: '家庭的で情が深い',
+  Leo: '華やかでリーダー向き',
+  Virgo: '几帳面で完璧主義',
+  Libra: '社交的でおしゃれ',
+  Scorpio: '一途で秘密主義',
+  Sagittarius: '自由で楽観的',
+  Capricorn: '真面目で努力家',
+  Aquarius: '個性的で独創的',
+  Pisces: '優しくて夢見がち',
 };
 
-function siderealJa(moon: Sign): EvergreenTemplate {
-  const line = JA_SIDEREAL[moon];
+/** The one series keyed by the viewer's sun sign: it leads them to look up their Moon sign. */
+function siderealJa(sun: Sign): EvergreenTemplate {
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
-    body: `インド占星術では、性格を太陽ではなく心を表す月で読み、星座も実際の星の位置で決めます。あなたの月が示すのは、${line.truth}です。${line.scene}のは、そのためです。`,
+    hook: `${JA_SIGN[sun]}のあなた、星占いで「${JA_SUN_TRAIT[sun]}」と言われても、ピンときていませんか？`,
+    body: 'インド占星術では、性格を太陽ではなく心を表す月で読み、星座も実際の星の位置で決めます。太陽星座と月星座が違う人は多く、いつも占いが当たらない気がするのは、そのためかもしれません。',
   };
 }
 
