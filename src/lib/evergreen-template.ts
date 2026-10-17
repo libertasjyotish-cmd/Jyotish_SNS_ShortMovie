@@ -11,7 +11,7 @@ export interface EvergreenTemplate {
   body: string;
 }
 
-const RULER: Record<Sign, string> = {
+export const RULER: Record<Sign, string> = {
   Aries: 'Mars',
   Taurus: 'Venus',
   Gemini: 'Mercury',
