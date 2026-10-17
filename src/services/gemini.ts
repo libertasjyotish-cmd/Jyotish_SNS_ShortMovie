@@ -12,7 +12,7 @@ const DEFAULT_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 const DEFAULT_REVIEW_MODELS = ['gemini-3.1-pro-preview', 'gemini-flash-latest'];
 const MAX_ATTEMPTS = 3;
 const BASE_BACKOFF_MS = 2_000;
-const ATTEMPT_TIMEOUT_MS = 25_000;
+const ATTEMPT_TIMEOUT_MS = 120_000;
 /** Proofreading runs on the reasoning model, which needs far longer than a generation call. */
 const REVIEW_TIMEOUT_MS = 180_000;
 
