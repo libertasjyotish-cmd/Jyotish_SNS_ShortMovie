@@ -157,6 +157,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export interface PlacementOption {
+  planet: string;
+  sentence: string;
+  /** What the house governs and worries that belong to it, in the output language. */
+  field?: string;
+  worries?: string[];
+}
+
 export interface GenerationRequest {
   week_id: string;
   lang_code: Language;
@@ -165,6 +173,11 @@ export interface GenerationRequest {
   transit_reference: string;
   /** Lint issues from a rejected attempt, fed back so the retry fixes them. */
   lint_feedback?: string;
+  /**
+   * Placement sentences written by code for the 30s body. When given, the model only picks
+   * one of them and writes the two sentences that follow it.
+   */
+  placement_options?: PlacementOption[];
 }
 
 export interface GeneratedScript {
@@ -180,7 +193,8 @@ export interface GeneratedContent {
   zodiac_sign?: string;
   transit_reference: string;
   script_30s: GeneratedScript;
-  script_65s: GeneratedScript;
+  /** Paused with the TikTok queue (docs/TIKTOK-MANUAL.md); no longer generated. */
+  script_65s?: GeneratedScript;
   hashtags: string;
 }
 
@@ -281,17 +295,9 @@ const RESPONSE_SCHEMA = {
       },
       required: ['hook_text', 'body_script'],
     },
-    script_65s: {
-      type: Type.OBJECT,
-      properties: {
-        hook_text: { type: Type.STRING },
-        body_script: { type: Type.STRING },
-      },
-      required: ['hook_text', 'body_script'],
-    },
     hashtags: { type: Type.STRING },
   },
-  required: ['viewer_concern', 'script_30s', 'script_65s', 'hashtags'],
+  required: ['viewer_concern', 'script_30s', 'hashtags'],
 } as const;
 
 /**
@@ -530,6 +536,61 @@ function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language)
     .join('\n');
 }
 
+function structured30s(
+  options: PlacementOption[],
+  budget: { min: number; max: number; unit: string },
+): string {
+  const lengths = options.map((option) => option.sentence.replace(/\s/g, '').length);
+  const min = Math.max(0, budget.min - Math.min(...lengths));
+  const max = budget.max - Math.max(...lengths);
+  return [
+    '- script_30s: the app writes the first sentence of body_script itself, word for word, from the placement you choose, and that sentence already says the dates, the tradition, the Moon sign, the house, the sign and the planet, so rules 8, 15, 16, 18 and 18b are met by it. Never repeat any of that in your own sentences.',
+    '  Fill "placement" with one value of its list: the planet, and when the planet lists worries, the one worry of its house this video is about. That worry is the worry of rule 0, the hook asks about it and reason_sentence names it. The placements:',
+    ...options.map((option) =>
+      [
+        `  - ${option.planet}: ${option.sentence}`,
+        option.field ? `    field of this house: ${option.field}` : '',
+        option.worries?.length ? `    worries that belong to this field: ${option.worries.join(' / ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    ),
+    '  When a placement lists worries, the video is about one of them, in your own words but never outside that field: the hook asks the viewer whether they carry it, as a feeling they live with now, never as something that happened. Do not invent another story for the house.',
+    '  Then write the two sentences that follow it. "reason_sentence" names the feeling or state this placement strengthens in the viewer\'s ordinary life — the worry of rule 0 — and says that this placement is why; do not describe the planet\'s movement again, the opening sentence already did. Write both sentences the way a person talks about their own life, not the way a horoscope column describes a planet. "use_sentence" says what this period is good for in that field, as rules 13c and 13d ask. Each is one complete sentence a person would say out loud, with its subject, object and particles; there is room for that, so never compress a sentence.',
+    `  hook_text + reason_sentence + use_sentence together ${min}-${max} ${budget.unit}.`,
+  ].join('\n');
+}
+
+const CHOICE_SEP = ' | ';
+
+/** `Venus | お金の不安が消えない` style values: the model must commit to one worry of the house. */
+function placementChoices(options: PlacementOption[]): string[] {
+  return options.flatMap((option) =>
+    option.worries?.length
+      ? option.worries.map((worry) => `${option.planet}${CHOICE_SEP}${worry}`)
+      : [option.planet],
+  );
+}
+
+function structuredSchema(planets: string[]) {
+  return {
+    ...RESPONSE_SCHEMA,
+    properties: {
+      ...RESPONSE_SCHEMA.properties,
+      script_30s: {
+        type: Type.OBJECT,
+        properties: {
+          placement: { type: Type.STRING, enum: planets },
+          hook_text: { type: Type.STRING },
+          reason_sentence: { type: Type.STRING },
+          use_sentence: { type: Type.STRING },
+        },
+        required: ['placement', 'hook_text', 'reason_sentence', 'use_sentence'],
+      },
+    },
+  };
+}
+
 function buildPrompt(request: GenerationRequest): string {
   const profile = LANGUAGE_PROFILES[request.lang_code];
   const audience =
@@ -550,7 +611,7 @@ function buildPrompt(request: GenerationRequest): string {
       ? hookAssignment(request.week_id, request.zodiac_sign)
       : undefined;
   const budget30 = narrationBudget(request.lang_code, '30s', spokenPeriod);
-  const budget65 = narrationBudget(request.lang_code, '65s', spokenPeriod);
+  const options = request.placement_options?.length ? request.placement_options : undefined;
 
   return [
     'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
@@ -600,7 +661,6 @@ function buildPrompt(request: GenerationRequest): string {
     '18c. A house is a field of life, so read it as what the viewer faces, feels or decides in that field — the fourth house is home life, family, roots and the ground a person stands on. Never turn it into a physical chore or object: rearranging furniture, tidying a desk, clearing clutter, checking a receipt or buying something are not readings, and a viewer told she will move the furniture has been told nothing about herself.',
     '18d. The subject of the reading must be the field of life itself — what the viewer comes across as, what sustains them, the people close to them, home and family, judgement, obligation, the other person, upheaval, conviction, position, hopes, letting go. Never make an object, a task or an errand the subject: if the sentence could name a thing the viewer handles instead of something they face, feel or decide, it is not a reading and must be rewritten.',
     '18e. The narration speaks to a customer, so it is written throughout in the polite register of the language (for Japanese, です・ます). A question to the viewer is asked politely — 「〜ていませんか？」「〜ではありませんか？」 — never in plain form or as a tag question (「〜ない？」「〜だよね」「〜でしょ？」), which reads as over-familiar and does not belong to this brand.',
-    '19. script_65s must stop short of the personal answer: it explains what is happening in the sky and what it means in general, then says that which house it falls in — and therefore what it means for the individual — depends on the birth chart, which the site works out. Never let the viewer feel the video already covered their own case.',
     '',
     `Write the narration in ${profile.name}. Output every text field in ${profile.name}.`,
     profile.note ?? '',
@@ -609,9 +669,10 @@ function buildPrompt(request: GenerationRequest): string {
     `Audience: ${audience}`,
     `Transit reference (the only allowed factual source):\n${request.transit_reference}`,
     '',
-    'Produce two narration scripts for the same content:',
-    `- script_30s: hook_text + body_script together ${budget30.min}-${budget30.max} ${budget30.unit}, which is what is left of the 30 seconds once the fixed closing is added. Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence that opens on ${spokenPeriod ? 'the dates, then names' : 'naming'} Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them and saying in the same breath what the period is good for in that field, so it does not end on the difficulty alone. Do not add a fourth body sentence: the total would break the limit.`,
-    `- script_65s: hook_text + body_script together ${budget65.min}-${budget65.max} ${budget65.unit}, again without the fixed closing. This one is long: body_script needs five or six sentences. Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution.`,
+    'Produce one narration script:',
+    options
+      ? structured30s(options, budget30)
+      : `- script_30s: hook_text + body_script together ${budget30.min}-${budget30.max} ${budget30.unit}, which is what is left of the 30 seconds once the fixed closing is added. Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence that opens on ${spokenPeriod ? 'the dates, then names' : 'naming'} Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them and saying in the same breath what the period is good for in that field, so it does not end on the difficulty alone. Do not add a fourth body sentence: the total would break the limit.`,
     '',
     '',
     'Worked example of the structure (English, different topic; copy the shape, not the words):',
@@ -646,7 +707,22 @@ export class GeminiService {
   }
 
   async generateScript(request: GenerationRequest): Promise<GeneratedContent> {
-    const raw = await this.generate<RawGeneration>(buildPrompt(request), RESPONSE_SCHEMA);
+    const options = request.placement_options?.length ? request.placement_options : undefined;
+    const raw = await this.generate<RawGeneration>(
+      buildPrompt(request),
+      options ? structuredSchema(placementChoices(options)) : RESPONSE_SCHEMA,
+    );
+    if (options) {
+      const chosen = raw.script_30s as Record<string, string> | undefined;
+      const opening = options.find((option) => option.planet === chosen?.placement?.split(CHOICE_SEP)[0])?.sentence;
+      raw.script_30s = {
+        hook_text: chosen?.hook_text,
+        body_script:
+          opening && chosen?.reason_sentence && chosen.use_sentence
+            ? `${opening}${request.lang_code === 'ja' ? '' : ' '}${chosen.reason_sentence.trim()}${request.lang_code === 'ja' ? '' : ' '}${chosen.use_sentence.trim()}`
+            : undefined,
+      };
+    }
     return {
       week_id: request.week_id,
       lang_code: request.lang_code,
@@ -654,7 +730,6 @@ export class GeminiService {
       zodiac_sign: request.zodiac_sign,
       transit_reference: request.transit_reference,
       script_30s: assertScript(raw.script_30s, 'script_30s', request.lang_code),
-      script_65s: assertScript(raw.script_65s, 'script_65s', request.lang_code),
       hashtags: (raw.hashtags || '').trim(),
     };
   }

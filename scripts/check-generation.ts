@@ -33,7 +33,6 @@ async function main() {
       const first = (
         [
           ['30s', generated.script_30s],
-          ['65s', generated.script_65s],
         ] as const
       ).flatMap(([pattern, script]) => lintScript(script, lang, pattern));
       let content = generated;
@@ -53,7 +52,6 @@ async function main() {
 
       for (const [pattern, script] of [
         ['30s', content.script_30s],
-        ['65s', content.script_65s],
       ] as const) {
         const issues = lintScript(script, lang, pattern);
         failures += issues.length > 0 ? 1 : 0;

@@ -78,7 +78,7 @@ export interface PlanetTransit {
 
 const LINE = /^([A-Z][a-z]+):\s*([A-Z][a-z]+)\s+[\d.]+deg\s*->\s*([A-Z][a-z]+)\s+[\d.]+deg(.*)$/;
 
-function asSign(value: string): Sign | null {
+export function asSign(value: string): Sign | null {
   return (SIGNS as readonly string[]).includes(value) ? (value as Sign) : null;
 }
 
@@ -164,4 +164,114 @@ export function buildPlacementBrief(reference: string, moonSign: string): string
     'Write the reading from one of these placements: this planet acting in this sign, in that field of life. ' +
       'A house is a field of life, never a room, a building or an object, and never a household chore.',
   ].join('\n');
+}
+
+export interface Placement {
+  planet: string;
+  sign: Sign;
+  house: number;
+  retrograde: boolean;
+  /** The first sign change of the week, when there is one. */
+  ingress?: { sign: Sign; house: number; day: string };
+}
+
+/** The week's placements from `moonSign`, the Moon left out as in `buildPlacementBrief()`. */
+export function placementsFor(reference: string, moonSign: string): Placement[] {
+  const target = asSign(moonSign);
+  if (!target) return [];
+  return parseTransitReference(reference)
+    .filter((transit) => transit.planet !== 'Moon')
+    .map((transit) => {
+      const note = /^enters ([A-Z][a-z]+) on (.+)$/.exec(transit.ingress[0] ?? '');
+      const next = note ? asSign(note[1]) : null;
+      return {
+        planet: transit.planet,
+        sign: transit.startSign,
+        house: houseFrom(target, transit.startSign),
+        retrograde: transit.retrograde,
+        ingress: next && note ? { sign: next, house: houseFrom(target, next), day: note[2] } : undefined,
+      };
+    });
+}
+
+export const JA_PLANET: Record<string, string> = {
+  Sun: '太陽',
+  Mars: '火星',
+  Mercury: '水星',
+  Jupiter: '木星',
+  Venus: '金星',
+  Saturn: '土星',
+  Rahu: 'ラーフ',
+  Ketu: 'ケートゥ',
+};
+
+export const JA_SIGN: Record<Sign, string> = {
+  Aries: '牡羊座',
+  Taurus: '牡牛座',
+  Gemini: '双子座',
+  Cancer: '蟹座',
+  Leo: '獅子座',
+  Virgo: '乙女座',
+  Libra: '天秤座',
+  Scorpio: '蠍座',
+  Sagittarius: '射手座',
+  Capricorn: '山羊座',
+  Aquarius: '水瓶座',
+  Pisces: '魚座',
+};
+
+const MONTH_INDEX = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export function jaDay(day: string): string | null {
+  const match = /^([A-Z][a-z]{2})\s+(\d+)$/.exec(day.trim());
+  const month = match ? MONTH_INDEX.indexOf(match[1]) : -1;
+  return match && month >= 0 ? `${month + 1}月${match[2]}日` : null;
+}
+
+/**
+ * The placement sentence of a weekly reading, written by code from the computed sky so the
+ * model never has to squeeze dates, house, sign and planet into its own sentence. Returns
+ * null for a language without a template; that language keeps writing the whole body.
+ */
+export function placementSentence(
+  lang: string,
+  spokenPeriod: string,
+  moonSign: string,
+  placement: Placement,
+): string | null {
+  const moon = asSign(moonSign);
+  const planet = JA_PLANET[placement.planet];
+  if (lang !== 'ja' || !moon || !planet) return null;
+
+  const base = `${spokenPeriod}のインド占星術では、月星座の${JA_SIGN[moon]}から${placement.house}ハウス目の${JA_SIGN[placement.sign]}`;
+  const node = placement.planet === 'Rahu' || placement.planet === 'Ketu';
+  const day = placement.ingress ? jaDay(placement.ingress.day) : null;
+  if (placement.ingress && day) {
+    return `${base}にある${planet}が、${day}に${placement.ingress.house}ハウス目の${JA_SIGN[placement.ingress.sign]}へ移ります。`;
+  }
+  if (placement.retrograde && !node) return `${base}で${planet}が逆行しています。`;
+  return `${base}に${planet}があります。`;
+}
+
+/**
+ * What each house governs, in Japanese, with worries a viewer can carry without anything
+ * having happened to them. The model picks one of these instead of inventing the story.
+ */
+const JA_HOUSE_GUIDE: Record<number, { field: string; worries: string[] }> = {
+  1: { field: '自分自身・体調・物事の始め方', worries: ['自分に自信が持てない', '何から始めればよいか決められない', '疲れが抜けにくい'] },
+  2: { field: '収入・話し方・生まれ育った家族・手放せないもの', worries: ['お金の不安が消えない', '言いたいことをうまく言葉にできない', '今あるものを失うのが怖い'] },
+  3: { field: '自分から動く勇気・兄弟や同僚・日々のやり取り', worries: ['自分から動く勇気が出ない', '思っていることを周りにうまく伝えられない', '頑張っても前に進んでいる気がしない'] },
+  4: { field: '家庭・家族・心の安らぎ', worries: ['家にいても気が休まらない', '家族に本音を言えない', '心から安心できる場所がない'] },
+  5: { field: '恋愛・子ども・楽しみ・才能', worries: ['好きなことを心から楽しめない', '恋愛に踏み出せない', '自分の才能に自信が持てない'] },
+  6: { field: '日々の務め・健康・競争や対立', worries: ['義務を一人で抱え込んで疲れている', '職場の人間関係ですり減っている', '休むことに罪悪感がある'] },
+  7: { field: 'パートナー・向き合う相手との関係', worries: ['相手の本当の気持ちが分からない', '人との関係で譲りすぎてしまう', 'この人でよいのか迷っている'] },
+  8: { field: '思いどおりにならない変化・人から預かるお金・深い不安', worries: ['先の見えない不安が消えない', '人に頼ることが怖い', '変わっていくことを受け入れられない'] },
+  9: { field: '信念・学び・師・生き方の指針', worries: ['今の道で正しいのか迷っている', '信じてきたものが揺らいでいる', '何のために頑張っているのか分からなくなる'] },
+  10: { field: '仕事・社会での立場や評価', worries: ['仕事で正当に評価されていない気がする', 'この先の仕事の方向に迷っている', '責任ばかり増えて報われない'] },
+  11: { field: '収入の伸び・仲間・叶えたい願い', worries: ['頑張りが収入に結びつかない', '仲間の中で居場所がないと感じる', '願いが叶う気がしない'] },
+  12: { field: '手放すこと・休息・一人の時間・出ていくもの', worries: ['眠っても疲れが取れない', '一人になりたいのに罪悪感がある', '手放したいのに手放せないものがある'] },
+};
+
+export function jaHouseGuide(house: number): { field: string; worries: string[] } | null {
+  return JA_HOUSE_GUIDE[house] ?? null;
 }

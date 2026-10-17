@@ -7,6 +7,7 @@ const RENDER_NOW_WINDOW_MS = 36 * 60 * 60 * 1000;
 import { evergreenClosing } from '@/lib/evergreen-cta';
 import { fixedCta } from '@/lib/fixed-cta';
 import { buildPlacementBrief } from '@/lib/placements';
+import { buildWeeklyTemplateJa } from '@/lib/weekly-template';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
 import { REUSED_PREFIX } from '@/lib/script-audit';
@@ -18,15 +19,14 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
- * Theme and promotion tasks reuse a hand-written script from `Evergreen_Scripts`, so
- * only the 65s version is generated: it is an expansion of the fixed text, never new
- * astrology.
+ * Theme and promotion tasks reuse a hand-written script from `Evergreen_Scripts` as is.
+ * The 65s expansion is paused with the TikTok queue (docs/TIKTOK-MANUAL.md).
  */
 async function generateThemeScript(
   sheets: GoogleSheetsService,
   gemini: GeminiService,
   task: ContentQueue,
-): Promise<{ script_30s: GeneratedScript; script_65s: GeneratedScript; hashtags: string }> {
+): Promise<{ script_30s: GeneratedScript; script_65s?: GeneratedScript; hashtags: string }> {
   if (!task.theme_id) {
     throw new Error(`Theme task ${task.task_id} has no theme_id`);
   }
@@ -43,7 +43,6 @@ async function generateThemeScript(
   };
   return {
     script_30s,
-    script_65s: await gemini.expandThemeScript(script_30s, task.lang_code),
     hashtags: source.hashtags,
   };
 }
@@ -81,12 +80,36 @@ export async function GET(request: Request) {
           let transitReference = '';
           let scriptData: {
             script_30s: GeneratedScript;
-            script_65s: GeneratedScript;
+            script_65s?: GeneratedScript;
             hashtags: string;
           };
 
+          // Japanese weekly readings are assembled from fixed sentences and promos are approved
+          // texts reused as they are: neither is written or rewritten by Gemini, only linted.
+          const codeOnly =
+            task.target_type === 'Promo' ||
+            (task.target_type === 'Zodiac_Sign' && task.lang_code === 'ja');
           if (task.target_type === 'Theme' || task.target_type === 'Promo') {
             scriptData = await generateThemeScript(sheetsService, geminiService, task);
+          } else if (codeOnly) {
+            const transit = await sheetsService.getWeeklyTransits(task.week_id);
+            if (!transit) {
+              throw new Error(`No transit data for week_id "${task.week_id}"`);
+            }
+            transitReference = transit.transit_data;
+            const built = buildWeeklyTemplateJa(
+              transitReference,
+              task.zodiac_sign ?? '',
+              weekPeriodSpoken(task.week_id, 'ja') ?? '',
+              Number(/W(\d+)/.exec(task.week_id)?.[1] ?? 0),
+            );
+            if (!built) {
+              throw new Error(`No template placement for ${task.zodiac_sign} in ${task.week_id}`);
+            }
+            scriptData = {
+              script_30s: { hook_text: built.hook_text, body_script: built.body_script, cta_text: '' },
+              hashtags: `#インド占星術 #月星座 #${zodiacName(task.zodiac_sign, 'ja') ?? ''}`.trim(),
+            };
           } else {
             if (!transitCache.has(task.week_id)) {
               transitCache.set(task.week_id, sheetsService.getWeeklyTransits(task.week_id));
@@ -122,15 +145,8 @@ export async function GET(request: Request) {
           const signName = zodiacName(task.zodiac_sign, task.lang_code);
 
           const lint = (data: typeof scriptData) =>
-            (
-              [
-                ['30s', data.script_30s],
-                ['65s', data.script_65s],
-              ] as const
-            ).flatMap(([pattern, script]) =>
-              lintScript(script, task.lang_code, pattern, spokenPeriod, signName).map(
-                (issue) => `(${pattern}) ${describeIssues([issue])}`,
-              ),
+            lintScript(data.script_30s, task.lang_code, '30s', spokenPeriod, signName).map(
+              (issue) => `(30s) ${describeIssues([issue])}`,
             );
 
           // The closing is owned by the app: a product promotion keeps the closing of its own
@@ -179,15 +195,10 @@ export async function GET(request: Request) {
               cta_text: closingFor(candidate.script_30s, fixed),
             });
             let data = { ...candidate, script_30s: withClosing(candidate.script_30s) };
-            // Only the 30s script is published; the 65s expansion exists for the manual TikTok
-            // queue. Its problems are recorded, never a reason to drop the row that ships.
-            const allIssues = lint(data);
-            lintWarnings.push(
-              ...allIssues
-                .filter((issue) => issue.startsWith('(65s)'))
-                .map((issue) => `${task.task_id} ${issue}`),
-            );
-            let issues = allIssues.filter((issue) => issue.startsWith('(30s)'));
+            let issues = lint(data);
+            if (codeOnly) {
+              return issues.length ? { data, failure: issues.join('; ') } : { data };
+            }
             let verdict = await proofread(data.script_30s);
 
             for (let pass = 1; issues.length > 0 || verdict?.verdict !== 'ok'; pass += 1) {
@@ -215,7 +226,7 @@ export async function GET(request: Request) {
                 requirements,
               );
               data = { ...data, script_30s: withClosing(repaired) };
-              issues = lint(data).filter((issue) => issue.startsWith('(30s)'));
+              issues = lint(data);
               verdict = await proofread(data.script_30s);
             }
             return { data };
@@ -231,7 +242,7 @@ export async function GET(request: Request) {
             (settled.data.script_30s.hook_text !== scriptData.script_30s.hook_text ||
               settled.data.script_30s.body_script !== scriptData.script_30s.body_script);
 
-          if (settled.failure) {
+          if (settled.failure && !codeOnly) {
             // Nothing in the rewritten text passed, so the slot stops depending on this source:
             // the writer is given the week's own reference and asked for a fresh script. A weekly
             // reading cannot be borrowed from another week, so this is its real second chance.
@@ -279,7 +290,6 @@ export async function GET(request: Request) {
               reusedFrom: reuse.task_id,
               data: {
                 script_30s: JSON.parse(reuse.script_30s_json) as GeneratedScript,
-                script_65s: JSON.parse(reuse.script_65s_json) as GeneratedScript,
                 hashtags: reuse.hashtags,
               },
             };
@@ -309,7 +319,7 @@ export async function GET(request: Request) {
             zodiac_sign: task.zodiac_sign,
             transit_reference: savedReference,
             script_30s_json: JSON.stringify(scriptData.script_30s),
-            script_65s_json: JSON.stringify(scriptData.script_65s),
+            script_65s_json: scriptData.script_65s ? JSON.stringify(scriptData.script_65s) : '',
             hashtags: scriptData.hashtags,
             created_at: new Date().toISOString(),
           });
