@@ -165,6 +165,11 @@ export interface GenerationRequest {
   transit_reference: string;
   /** Lint issues from a rejected attempt, fed back so the retry fixes them. */
   lint_feedback?: string;
+  /**
+   * Placement sentences written by code for the 30s body. When given, the model only picks
+   * one of them and writes the two sentences that follow it.
+   */
+  placement_options?: { planet: string; sentence: string }[];
 }
 
 export interface GeneratedScript {
@@ -530,6 +535,41 @@ function buildThemeExpansionPrompt(script: GeneratedScript, lang_code: Language)
     .join('\n');
 }
 
+function structured30s(
+  options: { planet: string; sentence: string }[],
+  budget: { min: number; max: number; unit: string },
+): string {
+  const lengths = options.map((option) => option.sentence.replace(/\s/g, '').length);
+  const min = Math.max(0, budget.min - Math.min(...lengths));
+  const max = budget.max - Math.max(...lengths);
+  return [
+    '- script_30s: the app writes the first sentence of body_script itself, word for word, from the placement you choose, and that sentence already says the dates, the tradition, the Moon sign, the house, the sign and the planet, so rules 8, 15, 16, 18 and 18b are met by it. Never repeat any of that in your own sentences.',
+    '  Fill "placement" with the planet whose sentence below answers the worry of rule 0 best:',
+    ...options.map((option) => `  - ${option.planet}: ${option.sentence}`),
+    '  Then write the two sentences that follow it. "reason_sentence" names the feeling or state this placement strengthens in the viewer\'s ordinary life — the worry of rule 0 — and says that this placement is why. "use_sentence" says what this period is good for in that field, as rules 13c and 13d ask. Each is one complete sentence a person would say out loud, with its subject, object and particles; there is room for that, so never compress a sentence.',
+    `  hook_text + reason_sentence + use_sentence together ${min}-${max} ${budget.unit}.`,
+  ].join('\n');
+}
+
+function structuredSchema(planets: string[]) {
+  return {
+    ...RESPONSE_SCHEMA,
+    properties: {
+      ...RESPONSE_SCHEMA.properties,
+      script_30s: {
+        type: Type.OBJECT,
+        properties: {
+          placement: { type: Type.STRING, enum: planets },
+          hook_text: { type: Type.STRING },
+          reason_sentence: { type: Type.STRING },
+          use_sentence: { type: Type.STRING },
+        },
+        required: ['placement', 'hook_text', 'reason_sentence', 'use_sentence'],
+      },
+    },
+  };
+}
+
 function buildPrompt(request: GenerationRequest): string {
   const profile = LANGUAGE_PROFILES[request.lang_code];
   const audience =
@@ -551,6 +591,7 @@ function buildPrompt(request: GenerationRequest): string {
       : undefined;
   const budget30 = narrationBudget(request.lang_code, '30s', spokenPeriod);
   const budget65 = narrationBudget(request.lang_code, '65s', spokenPeriod);
+  const options = request.placement_options?.length ? request.placement_options : undefined;
 
   return [
     'You are a Vedic (Jyotish) astrology scriptwriter for Libertas Jyotish short videos.',
@@ -610,7 +651,9 @@ function buildPrompt(request: GenerationRequest): string {
     `Transit reference (the only allowed factual source):\n${request.transit_reference}`,
     '',
     'Produce two narration scripts for the same content:',
-    `- script_30s: hook_text + body_script together ${budget30.min}-${budget30.max} ${budget30.unit}, which is what is left of the 30 seconds once the fixed closing is added. Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence that opens on ${spokenPeriod ? 'the dates, then names' : 'naming'} Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them and saying in the same breath what the period is good for in that field, so it does not end on the difficulty alone. Do not add a fourth body sentence: the total would break the limit.`,
+    options
+      ? structured30s(options, budget30)
+      : `- script_30s: hook_text + body_script together ${budget30.min}-${budget30.max} ${budget30.unit}, which is what is left of the 30 seconds once the fixed closing is added. Structure, in this order: (a) hook that names what the viewer lives with or contradicts what they believe; (b) one sentence that opens on ${spokenPeriod ? 'the dates, then names' : 'naming'} Jyotish and how it reads this movement, through the house it falls in for that Moon sign; (c) one sentence on what that looks like in ordinary life, worded so the viewer can tell whether it is reaching them and saying in the same breath what the period is good for in that field, so it does not end on the difficulty alone. Do not add a fourth body sentence: the total would break the limit.`,
     `- script_65s: hook_text + body_script together ${budget65.min}-${budget65.max} ${budget65.unit}, again without the fixed closing. This one is long: body_script needs five or six sentences. Structure: hook, why the sidereal Moon sign matters, the transit and its house, detailed outlook and a caution.`,
     '',
     '',
@@ -646,7 +689,22 @@ export class GeminiService {
   }
 
   async generateScript(request: GenerationRequest): Promise<GeneratedContent> {
-    const raw = await this.generate<RawGeneration>(buildPrompt(request), RESPONSE_SCHEMA);
+    const options = request.placement_options?.length ? request.placement_options : undefined;
+    const raw = await this.generate<RawGeneration>(
+      buildPrompt(request),
+      options ? structuredSchema(options.map((option) => option.planet)) : RESPONSE_SCHEMA,
+    );
+    if (options) {
+      const chosen = raw.script_30s as Record<string, string> | undefined;
+      const opening = options.find((option) => option.planet === chosen?.placement)?.sentence;
+      raw.script_30s = {
+        hook_text: chosen?.hook_text,
+        body_script:
+          opening && chosen?.reason_sentence && chosen.use_sentence
+            ? `${opening}${request.lang_code === 'ja' ? '' : ' '}${chosen.reason_sentence.trim()}${request.lang_code === 'ja' ? '' : ' '}${chosen.use_sentence.trim()}`
+            : undefined,
+      };
+    }
     return {
       week_id: request.week_id,
       lang_code: request.lang_code,

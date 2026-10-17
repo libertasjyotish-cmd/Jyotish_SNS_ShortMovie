@@ -165,3 +165,90 @@ export function buildPlacementBrief(reference: string, moonSign: string): string
       'A house is a field of life, never a room, a building or an object, and never a household chore.',
   ].join('\n');
 }
+
+export interface Placement {
+  planet: string;
+  sign: Sign;
+  house: number;
+  retrograde: boolean;
+  /** The first sign change of the week, when there is one. */
+  ingress?: { sign: Sign; house: number; day: string };
+}
+
+/** The week's placements from `moonSign`, the Moon left out as in `buildPlacementBrief()`. */
+export function placementsFor(reference: string, moonSign: string): Placement[] {
+  const target = asSign(moonSign);
+  if (!target) return [];
+  return parseTransitReference(reference)
+    .filter((transit) => transit.planet !== 'Moon')
+    .map((transit) => {
+      const note = /^enters ([A-Z][a-z]+) on (.+)$/.exec(transit.ingress[0] ?? '');
+      const next = note ? asSign(note[1]) : null;
+      return {
+        planet: transit.planet,
+        sign: transit.startSign,
+        house: houseFrom(target, transit.startSign),
+        retrograde: transit.retrograde,
+        ingress: next && note ? { sign: next, house: houseFrom(target, next), day: note[2] } : undefined,
+      };
+    });
+}
+
+const JA_PLANET: Record<string, string> = {
+  Sun: '太陽',
+  Mars: '火星',
+  Mercury: '水星',
+  Jupiter: '木星',
+  Venus: '金星',
+  Saturn: '土星',
+  Rahu: 'ラーフ',
+  Ketu: 'ケートゥ',
+};
+
+const JA_SIGN: Record<Sign, string> = {
+  Aries: '牡羊座',
+  Taurus: '牡牛座',
+  Gemini: '双子座',
+  Cancer: '蟹座',
+  Leo: '獅子座',
+  Virgo: '乙女座',
+  Libra: '天秤座',
+  Scorpio: '蠍座',
+  Sagittarius: '射手座',
+  Capricorn: '山羊座',
+  Aquarius: '水瓶座',
+  Pisces: '魚座',
+};
+
+const MONTH_INDEX = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function jaDay(day: string): string | null {
+  const match = /^([A-Z][a-z]{2})\s+(\d+)$/.exec(day.trim());
+  const month = match ? MONTH_INDEX.indexOf(match[1]) : -1;
+  return match && month >= 0 ? `${month + 1}月${match[2]}日` : null;
+}
+
+/**
+ * The placement sentence of a weekly reading, written by code from the computed sky so the
+ * model never has to squeeze dates, house, sign and planet into its own sentence. Returns
+ * null for a language without a template; that language keeps writing the whole body.
+ */
+export function placementSentence(
+  lang: string,
+  spokenPeriod: string,
+  moonSign: string,
+  placement: Placement,
+): string | null {
+  const moon = asSign(moonSign);
+  const planet = JA_PLANET[placement.planet];
+  if (lang !== 'ja' || !moon || !planet) return null;
+
+  const base = `${spokenPeriod}のインド占星術では、月星座の${JA_SIGN[moon]}から${placement.house}ハウス目の${JA_SIGN[placement.sign]}`;
+  const node = placement.planet === 'Rahu' || placement.planet === 'Ketu';
+  const day = placement.ingress ? jaDay(placement.ingress.day) : null;
+  if (placement.ingress && day) {
+    return `${base}にある${planet}が、${day}に${placement.ingress.house}ハウス目の${JA_SIGN[placement.ingress.sign]}へ移ります。`;
+  }
+  if (placement.retrograde && !node) return `${base}で${planet}が逆行しています。`;
+  return `${base}に${planet}があります。`;
+}
