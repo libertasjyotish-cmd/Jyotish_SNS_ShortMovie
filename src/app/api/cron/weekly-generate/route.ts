@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { numberEnv, runWithinBudget, triggerNextBatch } from '@/lib/batch';
+
+/** Scripts finished this close to their slot are rendered straight away. */
+const RENDER_NOW_WINDOW_MS = 36 * 60 * 60 * 1000;
 import { evergreenClosing } from '@/lib/evergreen-cta';
 import { fixedCta } from '@/lib/fixed-cta';
 import { buildPlacementBrief } from '@/lib/placements';
@@ -66,6 +69,7 @@ export async function GET(request: Request) {
     );
     const transitCache = new Map<string, Promise<WeeklyTransit | null>>();
     let succeeded = 0;
+    const renderSoon: string[] = [];
     let failed = 0;
     let deferred = 0;
     const lintWarnings: string[] = [];
@@ -312,6 +316,9 @@ export async function GET(request: Request) {
 
           await sheetsService.updateScriptStatus(task.task_id, 'Script_Done');
           succeeded += 1;
+          if (Date.parse(task.scheduled_post_time) - Date.now() < RENDER_NOW_WINDOW_MS) {
+            renderSoon.push(task.task_id);
+          }
         } catch (taskError) {
           const message = taskError instanceof Error ? taskError.message : 'Unknown error';
           console.error(`Script generation failed for ${task.task_id}:`, message);
@@ -338,8 +345,19 @@ export async function GET(request: Request) {
         ? await triggerNextBatch('/api/cron/weekly-generate', chain, params)
         : false;
 
+    // A script that lands close to its slot must not wait for the next 3-hourly render cron.
+    const renderTriggered =
+      renderSoon.length > 0
+        ? await triggerNextBatch(
+            '/api/cron/render-batch',
+            0,
+            new URLSearchParams({ tasks: renderSoon.join(',') }),
+          )
+        : false;
+
     return NextResponse.json({
       status: 'Weekly generation completed',
+      render_triggered: renderTriggered ? renderSoon : [],
       processed: pendingTasks.length - remainingTasks.length,
       succeeded,
       failed,
