@@ -321,7 +321,12 @@ export async function GET(request: Request) {
     const catchUpRun = now.getUTCMinutes() % BACKLOG_GAP_MINUTES < DISPATCH_INTERVAL_MINUTES;
     for (const [lang, post] of Array.from(dueByLanguage.entries())) {
       const lateBy = now.getTime() - Date.parse(post.scheduled_post_time);
-      if (lateBy >= DISPATCH_INTERVAL_MINUTES * 60_000 && !catchUpRun) dueByLanguage.delete(lang);
+      // A video already handed to Instagram/Threads is only waiting on their transcode, so it is
+      // published on the very next run instead of holding its channel for another 30 minutes.
+      const handedOver = Object.values(post.container_ids ?? {}).some(Boolean);
+      if (lateBy >= DISPATCH_INTERVAL_MINUTES * 60_000 && !catchUpRun && !handedOver) {
+        dueByLanguage.delete(lang);
+      }
     }
     // However late a channel is, it never publishes more than DAILY_POST_CAP videos in 24 hours:
     // catching a backlog up in one day reads as a bulk upload to the platforms.
