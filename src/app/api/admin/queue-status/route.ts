@@ -106,6 +106,21 @@ export async function GET(request: NextRequest) {
         .filter((t) => t.post_status === 'Error')
         .map((t) => (t.post_error ? `${t.task_id}: ${t.post_error}` : t.task_id)),
       post_given_up: recentlyGivenUp(tasks, new Date(), 7 * 24),
+      // The next 36 hours slot by slot, so "is tomorrow ready?" is answered without the sheet.
+      upcoming: all
+        .filter((t) => ['Pending', 'Error'].includes(t.post_status || 'Pending'))
+        .filter((t) => {
+          const at = Date.parse(t.scheduled_post_time);
+          return at >= Date.now() - 6 * 3_600_000 && at <= Date.now() + 36 * 3_600_000;
+        })
+        .sort((a, b) => a.scheduled_post_time.localeCompare(b.scheduled_post_time))
+        .map((t) => ({
+          task_id: t.task_id,
+          scheduled_post_time: t.scheduled_post_time,
+          script_status: t.script_status,
+          render_status_30s: t.render_status_30s,
+          post_status: t.post_status,
+        })),
       overdue_count: overdue.length,
       overdue: overdue.slice(0, 50),
     });
