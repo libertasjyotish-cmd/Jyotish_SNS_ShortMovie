@@ -277,8 +277,13 @@ export async function GET(request: Request) {
     // channel several videos in the same run publishes them seconds apart, which the platforms
     // read as a bulk upload and which makes the videos of one channel compete with each other.
     const dueByLanguage = new Map<string, ContentQueue>();
-    for (const post of [...dueNow].sort((a, b) =>
-      a.scheduled_post_time.localeCompare(b.scheduled_post_time),
+    // A row whose last attempt failed goes behind the rows that have not been tried yet, so
+    // one post that keeps failing never holds back the rest of its channel.
+    const failedBefore = (post: ContentQueue) => (post.post_status === 'Error' ? 1 : 0);
+    for (const post of [...dueNow].sort(
+      (a, b) =>
+        failedBefore(a) - failedBefore(b) ||
+        a.scheduled_post_time.localeCompare(b.scheduled_post_time),
     )) {
       if (!dueByLanguage.has(post.lang_code)) dueByLanguage.set(post.lang_code, post);
     }

@@ -37,6 +37,7 @@
     "sync:script-status": "tsx scripts/sync-script-status.ts",
     "check:sign-order": "tsx scripts/check-sign-order.ts",
     "check:posting-hours": "tsx scripts/check-posting-hours.ts",
+    "check:pipeline": "tsx scripts/check-pipeline.ts",
     "gen:evergreen": "tsx scripts/gen-evergreen-series.ts",
     "sample:weekly": "tsx scripts/sample-weekly.ts",
     "sample:template": "tsx scripts/sample-template.ts",

@@ -75,11 +75,20 @@ export async function runRenderBatch(
   const errors: string[] = [];
 
   for (const task of pendingRenders) {
-    if (triggered + failed >= effectiveLimit) {
+    // Only renders actually started take renderer capacity: a row that failed to start must not
+    // use up the batch and hold back every row after it.
+    if (triggered >= effectiveLimit) {
       skipped += 1;
       continue;
     }
     const scriptOutput = await sheets.getScriptOutput(task.task_id);
+    if (!scriptOutput) {
+      // Script_Done without a stored script cannot render; the script is written again instead
+      // of failing the render three times and leaving the slot behind.
+      await sheets.requeueScripts([{ taskId: task.task_id, attempts: task.script_attempts }]);
+      errors.push(`${task.task_id}: no script output, script requeued`);
+      continue;
+    }
 
     for (const pattern of patterns) {
       const status =
