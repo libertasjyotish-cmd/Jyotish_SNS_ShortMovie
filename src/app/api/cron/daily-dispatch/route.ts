@@ -5,6 +5,13 @@ import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/li
 import { optionalEnv } from '@/lib/env';
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
 import { weekPeriodLabel, weekPeriodTitleLabel } from '@/lib/period';
+import {
+  hasGivenUp,
+  MAX_PLATFORM_FAILURES,
+  readingWeekOver,
+  retryAllowed,
+  withFailures,
+} from '@/lib/post-retry';
 import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
 import { runWatchdog } from '@/lib/watchdog-run';
@@ -279,8 +286,21 @@ export async function GET(request: Request) {
     // A language that is not dispatched keeps accumulating due tasks forever, and reading their
     // scripts, renders and channels costs the run its whole time budget before it reaches the
     // languages that do publish, so they are dropped before any per-task lookup.
-    const dueNow = pendingPosts.filter(
+    const dueAll = pendingPosts.filter(
       (post) => isDue(post.scheduled_post_time, now) && isDispatchEnabledFor(post.lang_code),
+    );
+    // A weekly reading whose week is over is not posted late; what is still missing is dropped.
+    let givenUp = 0;
+    for (const post of dueAll.filter((task) => readingWeekOver(task, now))) {
+      await sheetsService
+        .givePostUp(post.task_id, post.posted_refs ?? [], 'gave up: the reading\'s week is over', post.post_retry, now)
+        .then(() => (givenUp += 1))
+        .catch(() => undefined);
+    }
+    // A row that just failed waits out its retry gap, so it neither hammers the platform nor takes
+    // its channel's one post of this run from the rows behind it.
+    const dueNow = dueAll.filter(
+      (post) => !readingWeekOver(post, now) && retryAllowed(post.post_retry, now),
     );
     // A backlog posts in the order its windows opened, one video per channel per run: handing a
     // channel several videos in the same run publishes them seconds apart, which the platforms
@@ -577,12 +597,27 @@ export async function GET(request: Request) {
             });
           }
 
+          const abandoned = uploads.filter((upload) => hasGivenUp(post.post_retry, upload.platform));
           const remaining = uploads.filter(
-            (upload) => !done.some((ref) => ref.platform === upload.platform),
+            (upload) =>
+              !done.some((ref) => ref.platform === upload.platform) &&
+              !hasGivenUp(post.post_retry, upload.platform),
           );
 
           if (uploads.length === 0) {
             throw new Error(`No connected platform with a rendered video for ${post.task_id}`);
+          }
+
+          if (remaining.length === 0 && abandoned.length > 0) {
+            await sheetsService.givePostUp(
+              post.task_id,
+              done,
+              `gave up on ${abandoned.map((u) => u.platform).join(', ')} after ${MAX_PLATFORM_FAILURES} failures: ${post.post_error ?? ''}`,
+              post.post_retry,
+              now,
+            );
+            givenUp += 1;
+            continue;
           }
 
           if (remaining.length === 0) {
@@ -599,6 +634,7 @@ export async function GET(request: Request) {
           let errored = false;
           let waiting = false;
           const errorNotes: string[] = [];
+          const failedPlatforms: Platform[] = [];
           for (const upload of remaining) {
             if (limitedPlatforms.has(upload.platform)) {
               // The platform already refused this run for quota or rate; the row waits for a later
@@ -619,20 +655,38 @@ export async function GET(request: Request) {
                 console.warn(`${post.task_id} ${upload.platform} limited, retrying later: ${message}`);
               } else {
                 errored = true;
+                failedPlatforms.push(upload.platform);
                 errorNotes.push(`${upload.platform}: ${message}`);
                 console.error(`${post.task_id} ${upload.platform} failed:`, message);
               }
               continue;
             }
-            const complete = refs.length === uploads.length;
+            const complete = refs.length + abandoned.length === uploads.length;
             await sheetsService.markPosted(post.task_id, refs, complete ? 'Posted' : 'Error');
           }
 
           // Waiting on a transcode is not a failure: the row stays Pending so the next run, minutes
           // later, publishes the container it already handed over.
           if (errored || waiting) {
+            const retry = withFailures(post.post_retry, failedPlatforms, now);
+            const settled = uploads.every(
+              (upload) =>
+                refs.some((ref) => ref.platform === upload.platform) || hasGivenUp(retry, upload.platform),
+            );
+            if (errored && settled) {
+              // The platforms still failing have used up their tries; the slot ends with what went live.
+              await sheetsService.givePostUp(
+                post.task_id,
+                refs,
+                `gave up after ${MAX_PLATFORM_FAILURES} failures: ${errorNotes.join(' | ')}`,
+                retry,
+                now,
+              );
+              givenUp += 1;
+              continue;
+            }
             await sheetsService.markPosted(post.task_id, refs, errored ? 'Error' : 'Pending');
-            if (errored) await sheetsService.recordPostError(post.task_id, errorNotes.join(' | '));
+            if (errored) await sheetsService.recordPostError(post.task_id, errorNotes.join(' | '), retry);
             if (errored) failed += 1;
             else skipped += 1;
             continue;
@@ -659,6 +713,7 @@ export async function GET(request: Request) {
       failed,
       skipped,
       deferred,
+      given_up: givenUp,
       held: held.length,
       watchdog,
     });

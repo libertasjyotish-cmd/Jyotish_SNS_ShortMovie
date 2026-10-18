@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { recentlyGivenUp } from '@/lib/post-retry';
 import { isAdminAuthorized } from '@/lib/admin-auth';
 import { isCronAuthorized } from '@/lib/auth';
 import { dispatchLanguages, isDispatchEnabled } from '@/lib/dispatch-gate';
@@ -104,6 +105,7 @@ export async function GET(request: NextRequest) {
       post_errors: tasks
         .filter((t) => t.post_status === 'Error')
         .map((t) => (t.post_error ? `${t.task_id}: ${t.post_error}` : t.task_id)),
+      post_given_up: recentlyGivenUp(tasks, new Date(), 7 * 24),
       overdue_count: overdue.length,
       overdue: overdue.slice(0, 50),
     });
