@@ -95,6 +95,7 @@ export interface ExpirablePost {
 const POSTED_REFS_COLUMN = 'posted_refs';
 const POSTED_AT_COLUMN = 'posted_at';
 const POST_ERROR_COLUMN = 'post_error';
+const POST_CLAIM_COLUMN = 'post_claim';
 const BACKGROUND_URL_COLUMN = 'background_url';
 const COVER_URL_COLUMN = 'cover_url';
 const COVER_WIDE_URL_COLUMN = 'cover_wide_url';
@@ -1094,6 +1095,28 @@ export class GoogleSheetsService {
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
       [POST_ERROR_COLUMN]: message.slice(0, 500),
     });
+  }
+
+  /**
+   * Reserves a row for one dispatch run. Two runs overlapping (the cron and a manual call, or a
+   * run that outlived its window) both saw the row as due and uploaded it twice; the claim is
+   * written, read back after a pause, and only the run whose token survived posts. Returns the
+   * row as it is now, so the posted_refs another run wrote meanwhile are not posted again.
+   */
+  async claimPost(taskId: string, ttlMs: number): Promise<ContentQueue | null> {
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [POST_CLAIM_COLUMN]);
+    const current = await this.findQueueRow(taskId);
+    const [, claimedAt] = (current.values[POST_CLAIM_COLUMN] || '').split('@');
+    if (claimedAt && Date.now() - Date.parse(claimedAt) < ttlMs) return null;
+    const token = `${Math.random().toString(36).slice(2)}@${new Date().toISOString()}`;
+    await this.patchRow(SHEET_NAMES.contentQueue, current.rowNumber, {
+      [POST_CLAIM_COLUMN]: token,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    const row = await this.findQueueRow(taskId);
+    if (row.values[POST_CLAIM_COLUMN] !== token) return null;
+    if (!['Pending', 'Error'].includes(row.values.post_status || 'Pending')) return null;
+    return GoogleSheetsService.toContentQueue(row.values);
   }
 
   /** Pass an empty id once the container has been published or has to be recreated. */
