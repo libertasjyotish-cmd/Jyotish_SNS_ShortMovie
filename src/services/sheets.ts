@@ -70,6 +70,8 @@ export interface ContentQueue {
   scheduled_post_time: string;
   /** Platforms this task already went live on; a retry skips them. */
   posted_refs?: PostedRef[];
+  /** When the task went live on every platform; counts toward the channel's daily cap. */
+  posted_at?: string;
   /** Containers still transcoding; a later run publishes them instead of re-uploading. */
   container_ids?: Partial<Record<Platform, string>>;
 }
@@ -89,6 +91,7 @@ export interface ExpirablePost {
 }
 
 const POSTED_REFS_COLUMN = 'posted_refs';
+const POSTED_AT_COLUMN = 'posted_at';
 const BACKGROUND_URL_COLUMN = 'background_url';
 const COVER_URL_COLUMN = 'cover_url';
 const COVER_WIDE_URL_COLUMN = 'cover_wide_url';
@@ -473,6 +476,7 @@ export class GoogleSheetsService {
       post_status: (values.post_status || 'Pending') as PostStatus,
       scheduled_post_time: values.scheduled_post_time,
       posted_refs: parsePostedRefs(values[POSTED_REFS_COLUMN]),
+      posted_at: values[POSTED_AT_COLUMN] || undefined,
       container_ids: {
         Instagram: values[CONTAINER_COLUMNS.Instagram] || undefined,
         Threads: values[CONTAINER_COLUMNS.Threads] || undefined,
@@ -1047,11 +1051,18 @@ export class GoogleSheetsService {
    * retry instead of publishing them twice.
    */
   async markPosted(taskId: string, refs: PostedRef[], status: PostStatus = 'Posted'): Promise<void> {
-    await this.ensureColumns(SHEET_NAMES.contentQueue, [POSTED_REFS_COLUMN, EXPIRED_AT_COLUMN]);
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [
+      POSTED_REFS_COLUMN,
+      EXPIRED_AT_COLUMN,
+      POSTED_AT_COLUMN,
+    ]);
     const row = await this.findQueueRow(taskId);
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
       post_status: status,
       [POSTED_REFS_COLUMN]: JSON.stringify(refs),
+      ...(status === 'Posted' && !row.values[POSTED_AT_COLUMN]
+        ? { [POSTED_AT_COLUMN]: new Date().toISOString() }
+        : {}),
     });
   }
 
