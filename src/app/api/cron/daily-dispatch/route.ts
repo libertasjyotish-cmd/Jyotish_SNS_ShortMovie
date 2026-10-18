@@ -399,6 +399,14 @@ export async function GET(request: Request) {
             uploads.push({
               platform: 'YouTube',
               run: async () => {
+                // An upload can succeed on YouTube while the call still fails (a retried request
+                // answers "Requested entity already exists"), leaving no ref; the retry would
+                // publish it a second time, so a same-titled recent upload is adopted instead.
+                const existing = await youtubeService
+                  .listRecentUploads(youtubeChannel)
+                  .then((videos) => videos.find((video) => video.title === youtubeTitle))
+                  .catch(() => undefined);
+                if (existing) return existing.id;
                 const subscribeChannelId = await youtubeService
                   .channelId(youtubeChannel)
                   .catch(() => undefined);

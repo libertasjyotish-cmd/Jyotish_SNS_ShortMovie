@@ -9,7 +9,8 @@ export const maxDuration = 60;
 /**
  * Deletes extra YouTube uploads of a task: every video on the channel with the same title as the
  * one recorded in posted_refs (or, with none recorded, the oldest of them) except that one.
- * Dry-run unless `apply=1`. `GET ?tasks=<task_id,…>[&apply=1]`.
+ * With no ref recorded, `title_prefix` picks the videos by title instead.
+ * Dry-run unless `apply=1`. `GET ?tasks=<task_id,…>[&title_prefix=…][&apply=1]`.
  */
 export async function GET(req: NextRequest) {
   if (!isCronAuthorized(req)) {
@@ -17,6 +18,7 @@ export async function GET(req: NextRequest) {
   }
   const taskIds = (req.nextUrl.searchParams.get('tasks') ?? '').split(',').filter(Boolean);
   const apply = req.nextUrl.searchParams.get('apply') === '1';
+  const titlePrefix = req.nextUrl.searchParams.get('title_prefix') ?? '';
   if (taskIds.length === 0) {
     return NextResponse.json({ error: 'tasks is required' }, { status: 400 });
   }
@@ -40,7 +42,11 @@ export async function GET(req: NextRequest) {
       const recorded = task.posted_refs?.find((ref) => ref.platform === 'YouTube')?.post_id;
       const keepVideo = uploads.find((video) => video.id === recorded);
       const title = keepVideo?.title;
-      const sameTitle = title ? uploads.filter((video) => video.title === title) : [];
+      const sameTitle = title
+        ? uploads.filter((video) => video.title === title)
+        : titlePrefix
+          ? uploads.filter((video) => video.title.startsWith(titlePrefix))
+          : [];
       const keep =
         keepVideo?.id ??
         sameTitle.slice().sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))[0]?.id;
@@ -52,7 +58,10 @@ export async function GET(req: NextRequest) {
         task_id: taskId,
         recorded,
         keep,
-        title,
+        title: title ?? sameTitle[0]?.title,
+        post_status: task.post_status,
+        posted_refs: task.posted_refs,
+        post_error: task.post_error,
         deleted: apply ? extras.map((video) => video.id) : [],
         would_delete: apply ? [] : extras.map((video) => `${video.id} ${video.publishedAt}`),
       });
