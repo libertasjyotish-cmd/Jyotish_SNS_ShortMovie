@@ -101,7 +101,9 @@ export async function GET(request: NextRequest) {
       render_errors: tasks
         .filter((t) => renderStatuses(t).some((s) => s === 'Error'))
         .map((t) => t.task_id),
-      post_errors: tasks.filter((t) => t.post_status === 'Error').map((t) => t.task_id),
+      post_errors: tasks
+        .filter((t) => t.post_status === 'Error')
+        .map((t) => (t.post_error ? `${t.task_id}: ${t.post_error}` : t.task_id)),
       overdue_count: overdue.length,
       overdue: overdue.slice(0, 50),
     });

@@ -72,6 +72,8 @@ export interface ContentQueue {
   posted_refs?: PostedRef[];
   /** When the task went live on every platform; counts toward the channel's daily cap. */
   posted_at?: string;
+  /** Platform and message of the last failed post, so a stuck row explains itself. */
+  post_error?: string;
   /** Containers still transcoding; a later run publishes them instead of re-uploading. */
   container_ids?: Partial<Record<Platform, string>>;
 }
@@ -92,6 +94,7 @@ export interface ExpirablePost {
 
 const POSTED_REFS_COLUMN = 'posted_refs';
 const POSTED_AT_COLUMN = 'posted_at';
+const POST_ERROR_COLUMN = 'post_error';
 const BACKGROUND_URL_COLUMN = 'background_url';
 const COVER_URL_COLUMN = 'cover_url';
 const COVER_WIDE_URL_COLUMN = 'cover_wide_url';
@@ -477,6 +480,7 @@ export class GoogleSheetsService {
       scheduled_post_time: values.scheduled_post_time,
       posted_refs: parsePostedRefs(values[POSTED_REFS_COLUMN]),
       posted_at: values[POSTED_AT_COLUMN] || undefined,
+      post_error: values[POST_ERROR_COLUMN] || undefined,
       container_ids: {
         Instagram: values[CONTAINER_COLUMNS.Instagram] || undefined,
         Threads: values[CONTAINER_COLUMNS.Threads] || undefined,
@@ -1081,6 +1085,14 @@ export class GoogleSheetsService {
       [CONTAINER_COLUMNS.Instagram]: '',
       [CONTAINER_COLUMNS.Threads]: '',
       [CONTAINER_COLUMNS.Facebook]: '',
+    });
+  }
+
+  async recordPostError(taskId: string, message: string): Promise<void> {
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [POST_ERROR_COLUMN]);
+    const row = await this.findQueueRow(taskId);
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      [POST_ERROR_COLUMN]: message.slice(0, 500),
     });
   }
 
