@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { sendAlert } from '@/lib/alert';
 import { isCronAuthorized } from '@/lib/auth';
 import { ChannelStatus, collectChannelStatuses } from '@/lib/channel-status';
-import { probeGemini } from '@/services/gemini';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -24,7 +23,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [statuses, gemini] = await Promise.all([collectChannelStatuses(), probeGemini()]);
+    // The SNS pipeline no longer calls Gemini, so the check does not spend a call on it either.
+    const statuses = await collectChannelStatuses();
     // Rows without a credential are unfinished setup (e.g. Threads outside pt), not an outage.
     const disconnected = statuses.filter((status) => !status.connected && status.configured);
     const unconfigured = statuses.filter((status) => !status.configured);
@@ -35,23 +35,9 @@ export async function GET(request: Request) {
         status.expires_in_days <= EXPIRY_WARNING_DAYS,
     );
 
-    if (disconnected.length > 0 || expiring.length > 0 || !gemini.ok || gemini.warnings.length > 0) {
+    if (disconnected.length > 0 || expiring.length > 0) {
       await sendAlert([
-        !gemini.ok
-          ? 'Gemini APIが使えません（原稿生成・サイトの鑑定文が止まります）'
-          : gemini.warnings.length > 0
-            ? 'Gemini の注意（まだ止まってはいません）'
-            : `Jyotish SNS channel health: ${statuses.filter((s) => s.connected).length}/${statuses.length - unconfigured.length} connected`,
-        ...(gemini.ok
-          ? []
-          : [
-              `詳細: ${gemini.detail}`,
-              '前払い残高切れの場合は https://aistudio.google.com/usage で入金してください（プロジェクト libertas-jyotish-prod）。',
-            ]),
-        ...gemini.warnings,
-        ...(gemini.warnings.length > 0 || !gemini.ok
-          ? [`Gemini: ${gemini.model_version ?? gemini.detail}, 試験生成 ${Math.round((gemini.latency_ms ?? 0) / 1000)}秒`]
-          : []),
+        `Jyotish SNS channel health: ${statuses.filter((s) => s.connected).length}/${statuses.length - unconfigured.length} connected`,
         ...disconnected.map((status) => `NG ${label(status)}: ${status.error ?? 'not connected'}`),
         ...expiring.map(
           (status) => `期限間近 ${label(status)}: あと${status.expires_in_days}日でトークン失効`,
@@ -66,7 +52,6 @@ export async function GET(request: Request) {
       disconnected: disconnected.map(label),
       unconfigured: unconfigured.map(label),
       expiring: expiring.map(label),
-      gemini,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
