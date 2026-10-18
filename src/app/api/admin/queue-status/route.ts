@@ -120,7 +120,17 @@ export async function GET(request: NextRequest) {
           script_status: t.script_status,
           render_status_30s: t.render_status_30s,
           post_status: t.post_status,
+          posted_platforms: (t.posted_refs ?? []).map((ref) => ref.platform),
+          post_error: t.post_error,
+          post_retry: t.post_retry,
         })),
+      // What the 24-hour cap in daily-dispatch counts per channel.
+      posted_24h: all.reduce<Record<string, number>>((acc, t) => {
+        if (t.post_status === 'Posted' && t.posted_at && Date.parse(t.posted_at) > Date.now() - 86_400_000) {
+          acc[t.lang_code] = (acc[t.lang_code] ?? 0) + 1;
+        }
+        return acc;
+      }, {}),
       overdue_count: overdue.length,
       overdue: overdue.slice(0, 50),
     });
