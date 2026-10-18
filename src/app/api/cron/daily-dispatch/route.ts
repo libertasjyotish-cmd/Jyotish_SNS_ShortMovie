@@ -35,8 +35,15 @@ export const maxDuration = 300;
 
 /** How long new tasks may still be started, leaving the rest of `maxDuration` to finish one. */
 const DISPATCH_BUDGET_MS = 200_000;
+/** A quota or rate refusal from a platform, which clears by itself and is not the task's fault. */
+function isPlatformLimit(message: string): boolean {
+  return /quota|rate.?limit|too many|429|spam|limit reached|action is blocked/i.test(message);
+}
+
 /** Minutes between two cron runs of this route (vercel.json). */
 const DISPATCH_INTERVAL_MINUTES = 15;
+/** Videos one channel publishes in any 24 hours; a backlog beyond it waits for the window. */
+const DAILY_POST_CAP = 6;
 /** Minutes between two late videos of the same channel. */
 const BACKLOG_GAP_MINUTES = 30;
 
@@ -294,6 +301,18 @@ export async function GET(request: Request) {
       const lateBy = now.getTime() - Date.parse(post.scheduled_post_time);
       if (lateBy >= DISPATCH_INTERVAL_MINUTES * 60_000 && !catchUpRun) dueByLanguage.delete(lang);
     }
+    // However late a channel is, it never publishes more than DAILY_POST_CAP videos in 24 hours:
+    // catching a backlog up in one day reads as a bulk upload to the platforms.
+    const dayAgo = now.getTime() - 24 * 60 * 60 * 1000;
+    const postedToday = new Map<string, number>();
+    for (const task of await sheetsService.getAllQueueTasks()) {
+      if (task.post_status !== 'Posted' || !task.posted_at) continue;
+      if (Date.parse(task.posted_at) < dayAgo) continue;
+      postedToday.set(task.lang_code, (postedToday.get(task.lang_code) ?? 0) + 1);
+    }
+    for (const lang of Array.from(dueByLanguage.keys())) {
+      if ((postedToday.get(lang) ?? 0) >= DAILY_POST_CAP) dueByLanguage.delete(lang);
+    }
     const duePosts = Array.from(dueByLanguage.values());
     const deferred = dueNow.length - duePosts.length;
     let posted = 0;
@@ -304,6 +323,7 @@ export async function GET(request: Request) {
     // stops handing out new tasks while there is still time to finish the one in flight; the
     // tasks it did not reach stay Pending for the next window.
     const deadline = now.getTime() + DISPATCH_BUDGET_MS;
+    const limitedPlatforms = new Set<string>();
     const queue = [...duePosts];
 
     /**
@@ -563,6 +583,12 @@ export async function GET(request: Request) {
           let errored = false;
           let waiting = false;
           for (const upload of remaining) {
+            if (limitedPlatforms.has(upload.platform)) {
+              // The platform already refused this run for quota or rate; the row waits for a later
+              // run instead of hammering it again and counting a failure.
+              waiting = true;
+              continue;
+            }
             try {
               refs.push({ platform: upload.platform, post_id: await upload.run() });
             } catch (uploadError) {
@@ -570,6 +596,10 @@ export async function GET(request: Request) {
               if (uploadError instanceof PendingTranscodeError) {
                 waiting = true;
                 console.log(`${post.task_id} ${upload.platform}: ${message}`);
+              } else if (isPlatformLimit(message)) {
+                limitedPlatforms.add(upload.platform);
+                waiting = true;
+                console.warn(`${post.task_id} ${upload.platform} limited, retrying later: ${message}`);
               } else {
                 errored = true;
                 console.error(`${post.task_id} ${upload.platform} failed:`, message);
