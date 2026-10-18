@@ -582,6 +582,7 @@ export async function GET(request: Request) {
           const refs: PostedRef[] = [...done];
           let errored = false;
           let waiting = false;
+          const errorNotes: string[] = [];
           for (const upload of remaining) {
             if (limitedPlatforms.has(upload.platform)) {
               // The platform already refused this run for quota or rate; the row waits for a later
@@ -602,6 +603,7 @@ export async function GET(request: Request) {
                 console.warn(`${post.task_id} ${upload.platform} limited, retrying later: ${message}`);
               } else {
                 errored = true;
+                errorNotes.push(`${upload.platform}: ${message}`);
                 console.error(`${post.task_id} ${upload.platform} failed:`, message);
               }
               continue;
@@ -614,6 +616,7 @@ export async function GET(request: Request) {
           // later, publishes the container it already handed over.
           if (errored || waiting) {
             await sheetsService.markPosted(post.task_id, refs, errored ? 'Error' : 'Pending');
+            if (errored) await sheetsService.recordPostError(post.task_id, errorNotes.join(' | '));
             if (errored) failed += 1;
             else skipped += 1;
             continue;
@@ -624,6 +627,7 @@ export async function GET(request: Request) {
           const message = taskError instanceof Error ? taskError.message : 'Unknown error';
           console.error(`Failed to post task ${post.task_id}:`, message);
           await sheetsService.updatePostStatus(post.task_id, 'Error');
+          await sheetsService.recordPostError(post.task_id, message).catch(() => undefined);
         }
       }
     };
