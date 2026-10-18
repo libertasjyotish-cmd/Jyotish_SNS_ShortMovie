@@ -2,7 +2,10 @@ import { sendAlert } from '@/lib/alert';
 import { triggerNextBatch } from '@/lib/batch';
 import { isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { plannedLanguages } from '@/lib/plan-languages';
+import { ensureCover } from '@/lib/cover';
 import { runRenderBatch } from '@/lib/render-batch';
+import { parseSignThemeId } from '@/lib/sign-themes';
+import type { GeneratedScript } from '@/services/gemini';
 import { REUSED_PREFIX, auditStoredScripts, storedScriptsOf } from '@/lib/script-audit';
 import { isoWeekId, nextWeekStart } from '@/lib/schedule';
 import {
@@ -10,7 +13,9 @@ import {
   MAX_SCRIPT_ATTEMPTS,
   POST_OVERDUE_MINUTES,
   findBlockedTasks,
+  findRendersToStart,
   findSlotsToFill,
+  RENDER_LEAD_MINUTES,
   justCrossed,
   findIncompletePlan,
   planRenderRecovery,
@@ -19,8 +24,8 @@ import {
 import { CreatomateService } from '@/services/creatomate';
 import { ContentQueue, GoogleSheetsService } from '@/services/sheets';
 
-/** How long before its slot a ready script must already be rendering. */
-const RENDER_AHEAD_MS = 6 * 60 * 60 * 1000;
+/** Covers are drawn one renderer call each, so a run draws only the nearest few. */
+const MAX_COVERS_PER_RUN = 3;
 
 export interface WatchdogResult {
   requeued: number;
@@ -33,6 +38,7 @@ export interface WatchdogResult {
   requeuedScripts: number;
   auditedScripts: number;
   filledSlots: string[];
+  coversDrawn: string[];
   generationResumed: boolean;
   replanTriggered: boolean;
   alerts: string[];
@@ -104,8 +110,13 @@ export async function runWatchdog(
   const urgent: string[] = [];
   const weeklyToWrite: ContentQueue[] = [];
   for (const task of findSlotsToFill(tasks, now)) {
-    if (task.target_type !== 'Theme' && task.target_type !== 'Promo') {
-      // A weekly reading cannot be borrowed from another week: it is regenerated first.
+    if (
+      (task.target_type !== 'Theme' && task.target_type !== 'Promo') ||
+      parseSignThemeId(task.theme_id ?? '')
+    ) {
+      // A weekly reading cannot be borrowed from another week, and a per-sign evergreen is built
+      // from its template in seconds: both are regenerated first (weekly-generate borrows itself
+      // if the template fails).
       weeklyToWrite.push(task);
       continue;
     }
@@ -134,22 +145,37 @@ export async function runWatchdog(
     filledSlots.push(task.task_id);
     console.warn(`${task.task_id}: script still missing near its slot, filled from ${reuse.task_id}`);
   }
-  // A script that is ready but whose render never started (the 3-hourly render cron had no
-  // room, or a lost trigger) is started here as its slot approaches, earliest slot first.
-  const renderDue = tasks
-    .filter(
-      (task) =>
-        task.script_status === 'Script_Done' &&
-        (task.render_status_30s || 'Pending') === 'Pending' &&
-        ['Pending', 'Error'].includes(task.post_status || 'Pending') &&
-        Date.parse(task.scheduled_post_time) - now.getTime() < RENDER_AHEAD_MS,
-    )
-    .map((task) => task.task_id);
+  // A script that is ready but whose render never started is started here as its slot
+  // approaches, earliest slot first.
+  const renderDue = findRendersToStart(tasks, now).map((task) => task.task_id);
   const startDue = [...filledSlots, ...renderDue];
   const dueBatch =
     startDue.length > 0
       ? await runRenderBatch(sheets, new CreatomateService(), { taskIds: startDue })
       : undefined;
+
+  // A cover the render webhook failed to draw would otherwise be drawn inside the posting
+  // request, which cannot wait for a cold renderer; it is drawn here before the slot instead.
+  const coversDrawn: string[] = [];
+  const rendered = tasks
+    .filter(
+      (task) =>
+        ['Pending', 'Error'].includes(task.post_status || 'Pending') &&
+        task.render_status_30s === 'Rendered' &&
+        Date.parse(task.scheduled_post_time) - now.getTime() < RENDER_LEAD_MINUTES * 60_000,
+    )
+    .sort((a, b) => Date.parse(a.scheduled_post_time) - Date.parse(b.scheduled_post_time));
+  for (const task of rendered) {
+    if (coversDrawn.length >= MAX_COVERS_PER_RUN) break;
+    const renderOutput = await sheets.getRenderOutput(task.task_id);
+    if (renderOutput?.cover_url && renderOutput.cover_wide_url) continue;
+    const scriptOutput = await sheets.getScriptOutput(task.task_id);
+    if (!scriptOutput) continue;
+    const script = JSON.parse(scriptOutput.script_30s_json) as GeneratedScript;
+    const cover = await ensureCover({ sheets, task, hook: script.hook_text, renderOutput });
+    if (cover) coversDrawn.push(task.task_id);
+    else alerts.push(`${task.task_id}: cover could not be drawn before its slot`);
+  }
 
   const blocked = findBlockedTasks(tasks, now, { isDispatchEnabledFor });
   alerts.push(...blocked);
@@ -213,6 +239,7 @@ export async function runWatchdog(
     requeuedScripts: requeuedScripts.length,
     auditedScripts: requeuedAudit.length,
     filledSlots,
+    coversDrawn,
     generationResumed,
     replanTriggered,
     alerts,

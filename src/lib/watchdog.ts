@@ -15,7 +15,10 @@ export const MAX_SCRIPT_ATTEMPTS = 3;
 /** A post is only reported as missed once it is this far past its scheduled time. */
 export const POST_OVERDUE_MINUTES = 90;
 /** How long before its slot a row without a finished script stops waiting for the generator. */
-export const SCRIPT_FILL_LEAD_MINUTES = 120;
+/** How long before its slot a ready script must already be rendering. */
+export const RENDER_LEAD_MINUTES = 360;
+/** A slot still without a script this close to airing is filled or regenerated right away. */
+export const SCRIPT_FILL_LEAD_MINUTES = RENDER_LEAD_MINUTES;
 /** Dispatch runs every 15 minutes, so a 15-minute window makes a stateless alert fire once. */
 const ALERT_WINDOW_MINUTES = 15;
 
@@ -57,6 +60,16 @@ function elapsedMinutes(since: string | undefined, now: Date): number | undefine
   return (now.getTime() - started) / 60_000;
 }
 
+function isUnposted(task: ContentQueue): boolean {
+  return ['Pending', 'Error'].includes(task.post_status || 'Pending');
+}
+
+/** True once the slot is less than `minutes` away, or already past. */
+function nearSlot(task: ContentQueue, minutes: number, now: Date): boolean {
+  const elapsed = elapsedMinutes(task.scheduled_post_time, now);
+  return elapsed !== undefined && elapsed >= -minutes;
+}
+
 function renderState(task: ContentQueue, pattern: Pattern) {
   return pattern === '30s'
     ? {
@@ -96,7 +109,12 @@ export function planRenderRecovery(tasks: ContentQueue[], now: Date): RenderReco
         pattern,
         reason: stale ? 'stale' : 'error',
         attempts,
-        action: attempts >= MAX_RENDER_ATTEMPTS ? 'Error' : 'Pending',
+        // Past the retry limit a render is still retried once its slot is close: giving up
+        // there costs the post, and a retry costs only one render.
+        action:
+          attempts < MAX_RENDER_ATTEMPTS || nearSlot(task, RENDER_LEAD_MINUTES, now)
+            ? 'Pending'
+            : 'Error',
       });
     }
   }
@@ -176,4 +194,51 @@ export function findSlotsToFill(tasks: ContentQueue[], now: Date): ContentQueue[
 export function justCrossed(since: string | undefined, minutes: number, now: Date): boolean {
   const elapsed = elapsedMinutes(since, now);
   return elapsed !== undefined && elapsed >= minutes && elapsed < minutes + ALERT_WINDOW_MINUTES;
+}
+
+/**
+ * Unposted rows whose script is ready but whose render was never started, once the slot is
+ * `RENDER_LEAD_MINUTES` away: the 3-hourly render cron may not have reached them yet.
+ */
+export function findRendersToStart(tasks: ContentQueue[], now: Date): ContentQueue[] {
+  return tasks.filter(
+    (task) =>
+      isUnposted(task) &&
+      task.script_status === 'Script_Done' &&
+      (task.render_status_30s || 'Pending') === 'Pending' &&
+      nearSlot(task, RENDER_LEAD_MINUTES, now),
+  );
+}
+
+export type PipelineAction =
+  | 'done'
+  | 'generate'
+  | 'requeue_script'
+  | 'fill_script'
+  | 'start_render'
+  | 'retry_render'
+  | 'rendering'
+  | 'post'
+  | 'wait';
+
+/**
+ * What the watchdog and dispatch do next for one row, composed from the same planners the
+ * watchdog runs. `wait` is only correct while the slot is still far away;
+ * `npm run check:pipeline` asserts no state close to its slot ends up there.
+ */
+export function nextPipelineAction(task: ContentQueue, now: Date): PipelineAction {
+  if (!isUnposted(task)) return 'done';
+  if (findSlotsToFill([task], now).length > 0) return 'fill_script';
+  if (task.script_status === 'Error') {
+    return planScriptRecovery([task])[0]?.action === 'Pending' ? 'requeue_script' : 'wait';
+  }
+  if (task.script_status !== 'Script_Done') return 'generate';
+  const recovery = planRenderRecovery([task], now)[0];
+  if (recovery) return recovery.action === 'Pending' ? 'retry_render' : 'wait';
+  if (task.render_status_30s === 'Rendering') return 'rendering';
+  if (findRendersToStart([task], now).length > 0) return 'start_render';
+  if (task.render_status_30s === 'Rendered') {
+    return nearSlot(task, 0, now) ? 'post' : 'wait';
+  }
+  return 'wait';
 }
