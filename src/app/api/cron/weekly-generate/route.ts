@@ -20,9 +20,6 @@ import { describeIssues, lintScript } from '@/lib/script-lint';
 import type { GeneratedScript } from '@/services/gemini';
 import { ContentQueue, GoogleSheetsService, Language } from '@/services/sheets';
 
-/** Scripts finished this close to their slot are rendered straight away. */
-const RENDER_NOW_WINDOW_MS = 36 * 60 * 60 * 1000;
-
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
@@ -232,9 +229,7 @@ export async function GET(request: Request) {
 
           await sheetsService.updateScriptStatus(task.task_id, 'Script_Done');
           succeeded += 1;
-          if (Date.parse(task.scheduled_post_time) - Date.now() < RENDER_NOW_WINDOW_MS) {
-            renderSoon.push(task.task_id);
-          }
+          renderSoon.push(task.task_id);
         } catch (taskError) {
           const message = taskError instanceof Error ? taskError.message : 'Unknown error';
           console.error(`Script generation failed for ${task.task_id}:`, message);
@@ -256,15 +251,10 @@ export async function GET(request: Request) {
         ? await triggerNextBatch('/api/cron/weekly-generate', chain, params)
         : false;
 
-    // A script that lands close to its slot must not wait for the next 3-hourly render cron.
+    // Rendering starts as soon as scripts exist, days before the slots; each finished render
+    // starts the next one, earliest post first, so the whole week is rendered in one run.
     const renderTriggered =
-      renderSoon.length > 0
-        ? await triggerNextBatch(
-            '/api/cron/render-batch',
-            0,
-            new URLSearchParams({ tasks: renderSoon.join(',') }),
-          )
-        : false;
+      renderSoon.length > 0 ? await triggerNextBatch('/api/cron/render-batch', 0) : false;
 
     return NextResponse.json({
       status: 'Weekly generation completed',
