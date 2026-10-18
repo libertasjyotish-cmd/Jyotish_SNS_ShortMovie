@@ -1,4 +1,5 @@
 import { sendAlert } from '@/lib/alert';
+import { recentlyGivenUp } from '@/lib/post-retry';
 import { triggerNextBatch } from '@/lib/batch';
 import { isDispatchEnabledFor } from '@/lib/dispatch-gate';
 import { plannedLanguages } from '@/lib/plan-languages';
@@ -181,6 +182,7 @@ export async function runWatchdog(
 
   const blocked = findBlockedTasks(tasks, now, { isDispatchEnabledFor });
   alerts.push(...blocked);
+  alerts.push(...recentlyGivenUp(tasks, now));
   urgent.push(
     ...tasks
       .filter((task) => justCrossed(task.scheduled_post_time, POST_OVERDUE_MINUTES, now))

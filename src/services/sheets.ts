@@ -2,6 +2,7 @@ import { google, sheets_v4 } from 'googleapis';
 import { requireEnv } from '@/lib/env';
 import { getGoogleCredentials } from '@/lib/google-credentials';
 import { Language } from '@/lib/languages';
+import { parsePostRetry, PostRetryState } from '@/lib/post-retry';
 
 export { LANGUAGES } from '@/lib/languages';
 export type { Language } from '@/lib/languages';
@@ -74,6 +75,8 @@ export interface ContentQueue {
   posted_at?: string;
   /** Platform and message of the last failed post, so a stuck row explains itself. */
   post_error?: string;
+  /** Per-platform failure counts; a platform is given up on after a few failures. */
+  post_retry?: PostRetryState;
   /** Containers still transcoding; a later run publishes them instead of re-uploading. */
   container_ids?: Partial<Record<Platform, string>>;
 }
@@ -96,6 +99,7 @@ const POSTED_REFS_COLUMN = 'posted_refs';
 const POSTED_AT_COLUMN = 'posted_at';
 const POST_ERROR_COLUMN = 'post_error';
 const POST_CLAIM_COLUMN = 'post_claim';
+const POST_RETRY_COLUMN = 'post_retry';
 const BACKGROUND_URL_COLUMN = 'background_url';
 const COVER_URL_COLUMN = 'cover_url';
 const COVER_WIDE_URL_COLUMN = 'cover_wide_url';
@@ -482,6 +486,7 @@ export class GoogleSheetsService {
       posted_refs: parsePostedRefs(values[POSTED_REFS_COLUMN]),
       posted_at: values[POSTED_AT_COLUMN] || undefined,
       post_error: values[POST_ERROR_COLUMN] || undefined,
+      post_retry: parsePostRetry(values[POST_RETRY_COLUMN]),
       container_ids: {
         Instagram: values[CONTAINER_COLUMNS.Instagram] || undefined,
         Threads: values[CONTAINER_COLUMNS.Threads] || undefined,
@@ -1089,11 +1094,40 @@ export class GoogleSheetsService {
     });
   }
 
-  async recordPostError(taskId: string, message: string): Promise<void> {
-    await this.ensureColumns(SHEET_NAMES.contentQueue, [POST_ERROR_COLUMN]);
+  async recordPostError(taskId: string, message: string, retry?: PostRetryState): Promise<void> {
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [POST_ERROR_COLUMN, POST_RETRY_COLUMN]);
     const row = await this.findQueueRow(taskId);
     await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
       [POST_ERROR_COLUMN]: message.slice(0, 500),
+      ...(retry ? { [POST_RETRY_COLUMN]: JSON.stringify(retry) } : {}),
+    });
+  }
+
+  /**
+   * Stops retrying a row: `Posted` when some platforms went live, `Hold` when none did. No
+   * `posted_at` is written, since nothing was published by this call.
+   */
+  async givePostUp(
+    taskId: string,
+    refs: PostedRef[],
+    reason: string,
+    retry: PostRetryState | undefined,
+    now: Date,
+  ): Promise<void> {
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [
+      POSTED_REFS_COLUMN,
+      POST_ERROR_COLUMN,
+      POST_RETRY_COLUMN,
+    ]);
+    const row = await this.findQueueRow(taskId);
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      post_status: refs.length > 0 ? 'Posted' : 'Hold',
+      [POSTED_REFS_COLUMN]: JSON.stringify(refs),
+      [POST_ERROR_COLUMN]: reason.slice(0, 500),
+      [POST_RETRY_COLUMN]: JSON.stringify({
+        failures: retry?.failures ?? {},
+        gave_up_at: now.toISOString(),
+      }),
     });
   }
 

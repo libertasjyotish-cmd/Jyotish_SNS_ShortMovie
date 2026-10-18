@@ -10,6 +10,7 @@ import {
   RENDER_STALE_MINUTES,
   nextPipelineAction,
 } from '../src/lib/watchdog';
+import { hasGivenUp, MAX_PLATFORM_FAILURES, retryAllowed } from '../src/lib/post-retry';
 import type { ContentQueue, PostStatus, RenderStatus, ScriptStatus, TargetType } from '../src/services/sheets';
 
 const now = new Date('2026-10-19T12:00:00Z');
@@ -21,6 +22,20 @@ const posts: PostStatus[] = ['Pending', 'Error', 'Posted', 'Hold'];
 const targets: TargetType[] = ['Zodiac_Sign', 'Theme', 'Promo'];
 const slotOffsets = [-1440, -120, -30, 0, 30, 119, 121, 300, 359, 361, 1440, 4320];
 const failures: string[] = [];
+
+// A failing platform is retried after a gap and dropped after MAX_PLATFORM_FAILURES.
+{
+  const at = (m: number) => new Date(now.getTime() - m * 60_000).toISOString();
+  const once = { failures: { YouTube: { count: 1, at: at(10) } } };
+  const twice = { failures: { YouTube: { count: 2, at: at(60) } } };
+  const thrice = { failures: { YouTube: { count: MAX_PLATFORM_FAILURES, at: at(1) } } };
+  if (retryAllowed(once, now)) failures.push('retry 10m after the 1st failure');
+  if (!retryAllowed({ failures: { YouTube: { count: 1, at: at(31) } } }, now))
+    failures.push('no retry 31m after the 1st failure');
+  if (retryAllowed(twice, now)) failures.push('retry 60m after the 2nd failure');
+  if (!retryAllowed(thrice, now) || !hasGivenUp(thrice, 'YouTube'))
+    failures.push('a platform failed 3 times must be dropped, not block the row');
+}
 
 for (const target of targets)
   for (const script_status of scripts)
