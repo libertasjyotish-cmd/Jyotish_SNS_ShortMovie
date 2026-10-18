@@ -226,6 +226,27 @@ export class YouTubeService {
     });
   }
 
+  /** The channel's latest uploads, newest first, including private ones (2 quota units). */
+  async listRecentUploads(
+    channel: Channel,
+  ): Promise<{ id: string; title: string; publishedAt: string }[]> {
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    const channels = await youtube.channels.list({ part: ['contentDetails'], mine: true });
+    const uploads = channels.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+    if (!uploads) throw new Error('YouTube returned no uploads playlist for these credentials');
+    const items = await youtube.playlistItems.list({
+      part: ['snippet'],
+      playlistId: uploads,
+      maxResults: 50,
+    });
+    return (items.data.items ?? []).flatMap((item) => {
+      const id = item.snippet?.resourceId?.videoId;
+      return id
+        ? [{ id, title: item.snippet?.title ?? '', publishedAt: item.snippet?.publishedAt ?? '' }]
+        : [];
+    });
+  }
+
   /** Removes a video for good, for a reading that was published from a superseded script. */
   async deleteVideo(channel: Channel, videoId: string): Promise<void> {
     const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });

@@ -35,6 +35,8 @@ export const maxDuration = 300;
 
 /** How long new tasks may still be started, leaving the rest of `maxDuration` to finish one. */
 const DISPATCH_BUDGET_MS = 200_000;
+/** Longer than a whole run (`maxDuration`), so a claim never expires while its run still posts. */
+const POST_CLAIM_TTL_MS = 6 * 60 * 1000;
 /** A quota or rate refusal from a platform, which clears by itself and is not the task's fault. */
 function isPlatformLimit(message: string): boolean {
   return /quota|rate.?limit|too many|429|spam|limit reached|action is blocked/i.test(message);
@@ -332,11 +334,17 @@ export async function GET(request: Request) {
      * languages never fit in a single run, which pushes them into the next one indefinitely.
      */
     const worker = async (): Promise<void> => {
-      for (let post = queue.shift(); post; post = queue.shift()) {
+      for (let due = queue.shift(); due; due = queue.shift()) {
         if (Date.now() > deadline) {
           skipped += queue.length + 1;
           queue.length = 0;
           return;
+        }
+        const post = await sheetsService.claimPost(due.task_id, POST_CLAIM_TTL_MS).catch(() => null);
+        if (!post) {
+          // Another run holds it (or already finished it); posting it here would upload it twice.
+          skipped += 1;
+          continue;
         }
         try {
           const [scriptOutput, renderOutput] = await Promise.all([
