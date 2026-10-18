@@ -165,7 +165,9 @@ export async function runWatchdog(
         Date.parse(task.scheduled_post_time) - now.getTime() < RENDER_LEAD_MINUTES * 60_000,
     )
     .sort((a, b) => Date.parse(a.scheduled_post_time) - Date.parse(b.scheduled_post_time));
-  for (const task of rendered) {
+  // Drawing a cover can take minutes on a cold renderer, so it never runs inside a dispatch
+  // (notify=false): there it ate the posting budget and no video went out at all.
+  for (const task of notify ? rendered : []) {
     if (coversDrawn.length >= MAX_COVERS_PER_RUN) break;
     const renderOutput = await sheets.getRenderOutput(task.task_id);
     if (renderOutput?.cover_url && renderOutput.cover_wide_url) continue;
