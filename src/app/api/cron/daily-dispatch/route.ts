@@ -35,6 +35,11 @@ export const maxDuration = 300;
 
 /** How long new tasks may still be started, leaving the rest of `maxDuration` to finish one. */
 const DISPATCH_BUDGET_MS = 200_000;
+/** Minutes between two cron runs of this route (vercel.json). */
+const DISPATCH_INTERVAL_MINUTES = 15;
+/** Minutes between two late videos of the same channel. */
+const BACKLOG_GAP_MINUTES = 30;
+
 /** Tasks posted at once. A slot holds one task per language, so a run has to clear all of them. */
 const DISPATCH_CONCURRENCY = 3;
 /** A posting window that has been over for this long is never going to be published. */
@@ -276,6 +281,13 @@ export async function GET(request: Request) {
       a.scheduled_post_time.localeCompare(b.scheduled_post_time),
     )) {
       if (!dueByLanguage.has(post.lang_code)) dueByLanguage.set(post.lang_code, post);
+    }
+    // A late slot is caught up every other run only, so a channel's backlog goes out 30 minutes
+    // apart instead of one video every 15 minutes.
+    const catchUpRun = now.getUTCMinutes() % BACKLOG_GAP_MINUTES < DISPATCH_INTERVAL_MINUTES;
+    for (const [lang, post] of Array.from(dueByLanguage.entries())) {
+      const lateBy = now.getTime() - Date.parse(post.scheduled_post_time);
+      if (lateBy >= DISPATCH_INTERVAL_MINUTES * 60_000 && !catchUpRun) dueByLanguage.delete(lang);
     }
     const duePosts = Array.from(dueByLanguage.values());
     const deferred = dueNow.length - duePosts.length;
