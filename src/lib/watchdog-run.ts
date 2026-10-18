@@ -19,6 +19,9 @@ import {
 import { CreatomateService } from '@/services/creatomate';
 import { ContentQueue, GoogleSheetsService } from '@/services/sheets';
 
+/** How long before its slot a ready script must already be rendering. */
+const RENDER_AHEAD_MS = 6 * 60 * 60 * 1000;
+
 export interface WatchdogResult {
   requeued: number;
   gaveUp: number;
@@ -131,7 +134,22 @@ export async function runWatchdog(
     filledSlots.push(task.task_id);
     console.warn(`${task.task_id}: script still missing near its slot, filled from ${reuse.task_id}`);
   }
-  if (filledSlots.length > 0) await runRenderBatch(sheets, new CreatomateService());
+  // A script that is ready but whose render never started (the 3-hourly render cron had no
+  // room, or a lost trigger) is started here as its slot approaches, earliest slot first.
+  const renderDue = tasks
+    .filter(
+      (task) =>
+        task.script_status === 'Script_Done' &&
+        (task.render_status_30s || 'Pending') === 'Pending' &&
+        ['Pending', 'Error'].includes(task.post_status || 'Pending') &&
+        Date.parse(task.scheduled_post_time) - now.getTime() < RENDER_AHEAD_MS,
+    )
+    .map((task) => task.task_id);
+  const startDue = [...filledSlots, ...renderDue];
+  const dueBatch =
+    startDue.length > 0
+      ? await runRenderBatch(sheets, new CreatomateService(), { taskIds: startDue })
+      : undefined;
 
   const blocked = findBlockedTasks(tasks, now, { isDispatchEnabledFor });
   alerts.push(...blocked);
@@ -187,7 +205,7 @@ export async function runWatchdog(
   return {
     requeued,
     gaveUp: recoveries.length - requeued,
-    retriggered: batch?.triggered ?? 0,
+    retriggered: (batch?.triggered ?? 0) + (dueBatch?.triggered ?? 0),
     stillPending: batch?.remaining ?? 0,
     renderFailed: batch?.failed ?? 0,
     renderErrors: batch?.errors ?? [],
