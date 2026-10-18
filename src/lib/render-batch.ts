@@ -59,9 +59,11 @@ export async function runRenderBatch(
   }: RenderBatchOptions = {},
 ): Promise<RenderBatchResult> {
   const all = await sheets.getPendingRenders(patterns);
-  const pendingRenders = taskIds
-    ? all.filter((task) => taskIds.includes(task.task_id))
-    : all;
+  // Renders go in the order their posts are due, never in sheet order: a week is appended as
+  // one block, so its weekend slots used to wait behind every Mon–Thu row of the week after.
+  const pendingRenders = (taskIds ? all.filter((task) => taskIds.includes(task.task_id)) : all)
+    .slice()
+    .sort((a, b) => Date.parse(a.scheduled_post_time) - Date.parse(b.scheduled_post_time));
   const running = await sheets.countRunningRenders();
   const effectiveLimit = Math.max(
     0,
