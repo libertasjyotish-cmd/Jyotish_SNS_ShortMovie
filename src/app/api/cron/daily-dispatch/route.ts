@@ -11,6 +11,7 @@ import {
   readingWeekOver,
   retryAllowed,
   withFailures,
+  TRANSCODE_CHECKS,
 } from '@/lib/post-retry';
 import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
@@ -261,6 +262,9 @@ async function postViaContainer(args: {
   return postId;
 }
 
+const handedOver = (post: ContentQueue): boolean =>
+  Object.values(post.container_ids ?? {}).some(Boolean);
+
 export async function GET(request: Request) {
   // Scenario 3: Multi-platform post scheduler
   if (!isCronAuthorized(request)) {
@@ -276,7 +280,10 @@ export async function GET(request: Request) {
     const now = new Date();
     // Recovery rides along with the dispatch that needs the videos, so a stuck render gets
     // one more chance before each posting window.
-    const watchdog = await runWatchdog(sheetsService, now, { notify: false });
+    // The follow-up runs between the posting windows only publish videos already handed to
+    // Instagram/Threads; they never upload anything new.
+    const followUp = new URL(request.url).searchParams.get('containers') === '1';
+    const watchdog = followUp ? null : await runWatchdog(sheetsService, now, { notify: false });
     // Nothing else lets go of a task that was never posted, so its window closing is what ends it;
     // left Pending it makes every later run read it again.
     const held = await sheetsService.holdStalePosts(
@@ -287,7 +294,12 @@ export async function GET(request: Request) {
     // scripts, renders and channels costs the run its whole time budget before it reaches the
     // languages that do publish, so they are dropped before any per-task lookup.
     const dueAll = pendingPosts.filter(
-      (post) => isDue(post.scheduled_post_time, now) && isDispatchEnabledFor(post.lang_code),
+      (post) =>
+        isDue(post.scheduled_post_time, now) &&
+        isDispatchEnabledFor(post.lang_code) &&
+        // A row waiting on a transcode belongs to the follow-up runs, so it never takes its
+        // channel's slot from the next video in a posting window.
+        handedOver(post) === followUp,
     );
     // A weekly reading whose week is over is not posted late; what is still missing is dropped.
     let givenUp = 0;
@@ -323,8 +335,7 @@ export async function GET(request: Request) {
       const lateBy = now.getTime() - Date.parse(post.scheduled_post_time);
       // A video already handed to Instagram/Threads is only waiting on their transcode, so it is
       // published on the very next run instead of holding its channel for another 30 minutes.
-      const handedOver = Object.values(post.container_ids ?? {}).some(Boolean);
-      if (lateBy >= DISPATCH_INTERVAL_MINUTES * 60_000 && !catchUpRun && !handedOver) {
+      if (lateBy >= DISPATCH_INTERVAL_MINUTES * 60_000 && !catchUpRun && !followUp) {
         dueByLanguage.delete(lang);
       }
     }
@@ -338,7 +349,7 @@ export async function GET(request: Request) {
       postedToday.set(task.lang_code, (postedToday.get(task.lang_code) ?? 0) + 1);
     }
     for (const lang of Array.from(dueByLanguage.keys())) {
-      if ((postedToday.get(lang) ?? 0) >= DAILY_POST_CAP) dueByLanguage.delete(lang);
+      if ((postedToday.get(lang) ?? 0) >= DAILY_POST_CAP && !followUp) dueByLanguage.delete(lang);
     }
     const duePosts = Array.from(dueByLanguage.values());
     const deferred = dueNow.length - duePosts.length;
@@ -606,7 +617,8 @@ export async function GET(request: Request) {
           const remaining = uploads.filter(
             (upload) =>
               !done.some((ref) => ref.platform === upload.platform) &&
-              !hasGivenUp(post.post_retry, upload.platform),
+              !hasGivenUp(post.post_retry, upload.platform) &&
+              (!followUp || Boolean(post.container_ids?.[upload.platform as ContainerPlatform])),
           );
 
           if (uploads.length === 0) {
@@ -640,6 +652,7 @@ export async function GET(request: Request) {
           let waiting = false;
           const errorNotes: string[] = [];
           const failedPlatforms: Platform[] = [];
+          const transcoding: Platform[] = [];
           for (const upload of remaining) {
             if (limitedPlatforms.has(upload.platform)) {
               // The platform already refused this run for quota or rate; the row waits for a later
@@ -653,6 +666,7 @@ export async function GET(request: Request) {
               const message = uploadError instanceof Error ? uploadError.message : 'Unknown error';
               if (uploadError instanceof PendingTranscodeError) {
                 waiting = true;
+                transcoding.push(upload.platform);
                 console.log(`${post.task_id} ${upload.platform}: ${message}`);
               } else if (isPlatformLimit(message)) {
                 limitedPlatforms.add(upload.platform);
@@ -672,8 +686,24 @@ export async function GET(request: Request) {
 
           // Waiting on a transcode is not a failure: the row stays Pending so the next run, minutes
           // later, publishes the container it already handed over.
+          let retryState = post.post_retry;
+          if (followUp && transcoding.length > 0) {
+            const checks = { ...(retryState?.transcode_checks ?? {}) };
+            const failures = { ...(retryState?.failures ?? {}) };
+            for (const platform of transcoding) {
+              checks[platform] = (checks[platform] ?? 0) + 1;
+              errorNotes.push(`${platform}: still transcoding (check ${checks[platform]}/${TRANSCODE_CHECKS})`);
+              if (checks[platform]! < TRANSCODE_CHECKS) continue;
+              // Two checks ten minutes apart are all a transcode gets: the slot loses this platform
+              // rather than holding the channel into its next video.
+              await sheetsService.setPlatformContainer(post.task_id, platform as ContainerPlatform, '');
+              failures[platform] = { count: MAX_PLATFORM_FAILURES, at: now.toISOString() };
+              errored = true;
+            }
+            retryState = { ...retryState, failures, transcode_checks: checks };
+          }
           if (errored || waiting) {
-            const retry = withFailures(post.post_retry, failedPlatforms, now);
+            const retry = withFailures(retryState, failedPlatforms, now);
             const settled = uploads.every(
               (upload) =>
                 refs.some((ref) => ref.platform === upload.platform) || hasGivenUp(retry, upload.platform),
@@ -691,7 +721,9 @@ export async function GET(request: Request) {
               continue;
             }
             await sheetsService.markPosted(post.task_id, refs, errored ? 'Error' : 'Pending');
-            if (errored) await sheetsService.recordPostError(post.task_id, errorNotes.join(' | '), retry);
+            if (errored || retryState !== post.post_retry) {
+              await sheetsService.recordPostError(post.task_id, errorNotes.join(' | '), retry);
+            }
             if (errored) failed += 1;
             else skipped += 1;
             continue;

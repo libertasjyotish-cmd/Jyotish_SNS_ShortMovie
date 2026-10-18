@@ -8,11 +8,18 @@ import type { ContentQueue, Platform } from '@/services/sheets';
 
 /** A platform that failed this many times is skipped for good; the others still post. */
 export const MAX_PLATFORM_FAILURES = 3;
+/**
+ * A video handed to Instagram/Threads that is still transcoding is checked this many times, ten
+ * minutes apart, by the follow-up runs between the posting windows; then that platform is dropped.
+ */
+export const TRANSCODE_CHECKS = 2;
 /** Minutes to wait after the n-th failure before the row is tried again. */
 const RETRY_GAP_MINUTES = [0, 30, 120];
 
 export interface PostRetryState {
   failures: Partial<Record<Platform, { count: number; at: string }>>;
+  /** Follow-up checks of a container still transcoding, per platform. */
+  transcode_checks?: Partial<Record<Platform, number>>;
   /** Set once the row stopped being retried, so the daily check can list it. */
   gave_up_at?: string;
 }
