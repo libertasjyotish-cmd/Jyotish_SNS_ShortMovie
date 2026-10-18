@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isRendererCallbackAuthorized } from '@/lib/auth';
+import { triggerNextBatch } from '@/lib/batch';
 import { ensureCover } from '@/lib/cover';
 import { GeneratedScript } from '@/services/gemini';
 import { COVER_AHEAD_TIMEOUT_MS } from '@/services/renderer';
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
   if (!payload.url) {
     console.error(`Render failed for ${taskId} (${pattern}):`, payload.error);
     await sheets.updateRenderStatus(taskId, pattern, 'Error');
+    await startNextRender();
     return NextResponse.json({ status: 'Render failure recorded', task_id: taskId });
   }
 
@@ -47,9 +49,18 @@ export async function POST(req: NextRequest) {
   }
   await sheets.saveRenderOutput(output);
   await sheets.updateRenderStatus(taskId, pattern, 'Rendered');
+  await startNextRender();
   if (pattern === '30s') await drawCover(sheets, taskId);
 
   return NextResponse.json({ status: 'Render recorded', task_id: taskId, pattern });
+}
+
+/**
+ * Every finished render frees a renderer slot, so the next pending render (earliest post first)
+ * starts at once: a planned week renders back to back instead of 8 rows per 3-hourly cron.
+ */
+async function startNextRender(): Promise<void> {
+  await triggerNextBatch('/api/cron/render-batch', 0);
 }
 
 /**
