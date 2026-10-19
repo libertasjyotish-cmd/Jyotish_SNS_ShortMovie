@@ -12,6 +12,7 @@ import { isoWeekId, nextWeekStart } from '@/lib/schedule';
 import {
   MAX_RENDER_ATTEMPTS,
   MAX_SCRIPT_ATTEMPTS,
+  SCRIPT_HARD_CAP,
   POST_OVERDUE_MINUTES,
   findBlockedTasks,
   findRendersToStart,
@@ -171,16 +172,24 @@ export async function runWatchdog(
     requeuedAudit.length;
   // Weekly readings close to their slot are retried even past MAX_SCRIPT_ATTEMPTS and are
   // generated alone, ahead of the rest of the backlog.
-  const weeklyErrors = weeklyToWrite.filter((task) => task.script_status === 'Error');
+  const weeklyErrors = weeklyToWrite.filter(
+    (task) => task.script_status === 'Error' && task.script_attempts < SCRIPT_HARD_CAP,
+  );
+  for (const task of weeklyToWrite) {
+    if (task.script_status === 'Error' && task.script_attempts >= SCRIPT_HARD_CAP) {
+      alerts.push(`${task.task_id}: script failed ${task.script_attempts} times, slot skipped`);
+    }
+  }
   await sheets.requeueScripts(
     weeklyErrors.map((task) => ({ taskId: task.task_id, attempts: task.script_attempts + 1 })),
   );
+  const toWrite = weeklyToWrite.filter((task) => task.script_attempts < SCRIPT_HARD_CAP);
   const urgentParams =
-    weeklyToWrite.length > 0
-      ? new URLSearchParams({ tasks: weeklyToWrite.map((task) => task.task_id).join(',') })
+    toWrite.length > 0
+      ? new URLSearchParams({ tasks: toWrite.map((task) => task.task_id).join(',') })
       : undefined;
   const generationResumed =
-    pendingScripts + weeklyToWrite.length > 0
+    pendingScripts + toWrite.length > 0
       ? await triggerNextBatch('/api/cron/weekly-generate', 0, urgentParams)
       : false;
 
