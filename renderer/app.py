@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+import time
 import urllib.error
 import urllib.request
 
@@ -52,11 +53,15 @@ def _notify(callback_url: str, payload: dict) -> None:
             "X-Cron-Secret": os.environ.get("CRON_SECRET", ""),
         },
     )
-    try:
-        with urllib.request.urlopen(notification, timeout=30):
-            pass
-    except (urllib.error.URLError, TimeoutError):
-        app.logger.exception("Callback to %s failed", callback_url)
+    # A lost callback leaves the row "Rendering" until the watchdog renders it again, so a
+    # finished video is reported a few times before it is given up on.
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(notification, timeout=60):
+                return
+        except (urllib.error.URLError, TimeoutError):
+            app.logger.exception("Callback to %s failed (attempt %d)", callback_url, attempt + 1)
+            time.sleep(20 * (attempt + 1))
 
 
 def _render_and_notify(build: RenderRequest, callback_url: str, meta: dict) -> None:

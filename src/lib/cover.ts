@@ -15,6 +15,9 @@ import { ContentQueue, GoogleSheetsService, RenderOutput } from '@/services/shee
  * A cover is decoration: when it cannot be drawn the post goes out with whatever frame the
  * platform picks for itself.
  */
+/** A cover that failed this often is left to the platform; each try costs renderer time. */
+export const MAX_COVER_ATTEMPTS = 3;
+
 export async function ensureCover(args: {
   sheets: GoogleSheetsService;
   task: ContentQueue;
@@ -27,6 +30,9 @@ export async function ensureCover(args: {
   const stored = storedCover(renderOutput);
   if (stored) return stored;
   if (!isRendererConfigured()) return undefined;
+  const attempts = renderOutput?.cover_attempts ?? 0;
+  if (attempts >= MAX_COVER_ATTEMPTS) return undefined;
+  await sheets.saveRenderOutput({ task_id: task.task_id, cover_attempts: attempts + 1 });
 
   try {
     const backgroundUrl =

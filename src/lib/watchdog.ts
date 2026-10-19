@@ -17,6 +17,8 @@ export const MAX_RENDER_ATTEMPTS = 3;
 export const RENDER_HARD_CAP = 6;
 /** Script generations retried this many times are left as `Error` for a human to look at. */
 export const MAX_SCRIPT_ATTEMPTS = 3;
+/** Even a weekly reading close to its slot is written at most this often; then it is dropped. */
+export const SCRIPT_HARD_CAP = 6;
 /** A post is only reported as missed once it is this far past its scheduled time. */
 export const POST_OVERDUE_MINUTES = 90;
 /** How long before its slot a row without a finished script stops waiting for the generator. */

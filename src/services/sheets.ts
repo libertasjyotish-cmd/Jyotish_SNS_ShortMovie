@@ -108,6 +108,7 @@ const POST_RETRY_COLUMN = 'post_retry';
 const BACKGROUND_URL_COLUMN = 'background_url';
 const COVER_URL_COLUMN = 'cover_url';
 const COVER_WIDE_URL_COLUMN = 'cover_wide_url';
+const COVER_ATTEMPTS_COLUMN = 'cover_attempts';
 const SCRIPT_ATTEMPTS_COLUMN = 'script_attempts';
 const EXPIRED_AT_COLUMN = 'expired_at';
 /** Platforms that take the video asynchronously, and where their pending container is kept. */
@@ -163,6 +164,8 @@ export interface RenderOutput {
   cover_url?: string;
   /** 16:9 shape of the same cover, for YouTube. */
   cover_wide_url?: string;
+  /** Cover drawings started, so a cover that keeps failing stops costing renderer time. */
+  cover_attempts?: number;
 }
 
 export interface BackgroundAsset {
@@ -917,11 +920,15 @@ export class GoogleSheetsService {
     if (output.cover_wide_url !== undefined) {
       patch[COVER_WIDE_URL_COLUMN] = output.cover_wide_url;
     }
+    if (output.cover_attempts !== undefined) {
+      patch[COVER_ATTEMPTS_COLUMN] = String(output.cover_attempts);
+    }
 
     await this.ensureColumns(SHEET_NAMES.renderOutputs, [
       BACKGROUND_URL_COLUMN,
       COVER_URL_COLUMN,
       COVER_WIDE_URL_COLUMN,
+      COVER_ATTEMPTS_COLUMN,
     ]);
     await this.upsertByTaskId(SHEET_NAMES.renderOutputs, output.task_id, patch);
   }
@@ -957,6 +964,7 @@ export class GoogleSheetsService {
       background_url: row.values[BACKGROUND_URL_COLUMN] || undefined,
       cover_url: row.values[COVER_URL_COLUMN] || undefined,
       cover_wide_url: row.values[COVER_WIDE_URL_COLUMN] || undefined,
+      cover_attempts: toNumber(row.values[COVER_ATTEMPTS_COLUMN]),
     };
   }
 

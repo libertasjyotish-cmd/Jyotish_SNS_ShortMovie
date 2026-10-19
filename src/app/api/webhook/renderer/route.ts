@@ -49,8 +49,14 @@ export async function POST(req: NextRequest) {
   }
   await sheets.saveRenderOutput(output);
   await sheets.updateRenderStatus(taskId, pattern, 'Rendered');
-  await startNextRender();
-  if (pattern === '30s') await drawCover(sheets, taskId);
+  // The video is recorded by now. A failure below must not answer 500: the renderer would
+  // report again and the row could end up rendered a second time.
+  try {
+    await startNextRender();
+    if (pattern === '30s') await drawCover(sheets, taskId);
+  } catch (error) {
+    console.error(`After-render step failed for ${taskId}:`, error);
+  }
 
   return NextResponse.json({ status: 'Render recorded', task_id: taskId, pattern });
 }
