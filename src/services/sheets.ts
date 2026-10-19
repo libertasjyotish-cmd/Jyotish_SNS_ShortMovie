@@ -13,6 +13,11 @@ export type RenderStatus = 'Pending' | 'Rendering' | 'Rendered' | 'Error';
 export type PostStatus = 'Pending' | 'Posted' | 'Error' | 'Hold';
 export type Pattern = '30s' | '65s';
 
+/** Rows still waiting to be posted; Hold and Posted rows never need a render again. */
+export function isOpenPost(status: string | undefined): boolean {
+  return ['Pending', 'Error'].includes(status || 'Pending');
+}
+
 export interface Channel {
   channel_id: string;
   platform: Platform;
@@ -819,6 +824,9 @@ export class GoogleSheetsService {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows
       .filter((row) => row.values.task_id && row.values.script_status === 'Script_Done')
+      // A Hold or Posted row needs no video. Its retired duplicate shares the task_id, so the
+      // callback writes `Rendered` to the live row and the retired one was rendered for ever.
+      .filter((row) => isOpenPost(row.values.post_status))
       .filter((row) =>
         patterns.some(
           (pattern) => (row.values[RENDER_COLUMNS[pattern].status] || 'Pending') === 'Pending',
@@ -830,7 +838,7 @@ export class GoogleSheetsService {
   /** How many renders the renderer is believed to be working on right now. */
   async countRunningRenders(): Promise<number> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
-    return rows.reduce(
+    return rows.filter((row) => isOpenPost(row.values.post_status)).reduce(
       (total, row) =>
         total +
         (row.values.render_status_30s === 'Rendering' ? 1 : 0) +

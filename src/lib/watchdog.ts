@@ -94,7 +94,7 @@ export function planRenderRecovery(tasks: ContentQueue[], now: Date): RenderReco
   const recoveries: RenderRecovery[] = [];
 
   for (const task of tasks) {
-    if (task.script_status !== 'Script_Done') continue;
+    if (task.script_status !== 'Script_Done' || !isUnposted(task)) continue;
 
     for (const pattern of SCHEDULED_PATTERNS) {
       const { status, startedAt, attempts } = renderState(task, pattern);
