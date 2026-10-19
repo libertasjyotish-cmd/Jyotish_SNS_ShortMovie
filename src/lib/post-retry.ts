@@ -13,6 +13,8 @@ export const MAX_PLATFORM_FAILURES = 3;
  * minutes apart, by the follow-up runs between the posting windows; then that platform is dropped.
  */
 export const TRANSCODE_CHECKS = 2;
+/** A platform that refused a row for quota or rate this many times is dropped for that row. */
+export const MAX_LIMIT_WAITS = 6;
 /** Minutes to wait after the n-th failure before the row is tried again. */
 const RETRY_GAP_MINUTES = [0, 30, 120];
 
@@ -20,6 +22,8 @@ export interface PostRetryState {
   failures: Partial<Record<Platform, { count: number; at: string }>>;
   /** Follow-up checks of a container still transcoding, per platform. */
   transcode_checks?: Partial<Record<Platform, number>>;
+  /** Quota or rate refusals per platform, which are not failures but are not endless either. */
+  limit_waits?: Partial<Record<Platform, number>>;
   /** Set once the row stopped being retried, so the daily check can list it. */
   gave_up_at?: string;
 }

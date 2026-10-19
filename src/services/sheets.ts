@@ -723,6 +723,8 @@ export class GoogleSheetsService {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows
       .filter((row) => row.values.task_id && (row.values.script_status || 'Pending') === 'Pending')
+      // Hold and Posted rows are never aired again; writing them only restarted the chain.
+      .filter((row) => isOpenPost(row.values.post_status))
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
 
@@ -892,6 +894,16 @@ export class GoogleSheetsService {
       [columns.attempts]: String(attempts),
     });
     return attempts;
+  }
+
+  /** Counts a render that could not be started, leaving the row `Pending`. */
+  async countRenderAttempt(taskId: string, pattern: Pattern): Promise<void> {
+    const columns = RENDER_COLUMNS[pattern];
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [columns.attempts]);
+    const row = await this.findQueueRow(taskId);
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      [columns.attempts]: String((toNumber(row.values[columns.attempts]) ?? 0) + 1),
+    });
   }
 
   /** Every queue row, for the watchdog to audit statuses regardless of week. */

@@ -24,7 +24,7 @@ import {
   planScriptRecovery,
 } from '@/lib/watchdog';
 import { CreatomateService } from '@/services/creatomate';
-import { ContentQueue, GoogleSheetsService } from '@/services/sheets';
+import { ContentQueue, GoogleSheetsService, isOpenPost } from '@/services/sheets';
 
 /** Covers are drawn one renderer call each, so a run draws only the nearest few. */
 const MAX_COVERS_PER_RUN = 3;
@@ -158,8 +158,14 @@ export async function runWatchdog(
   const languages = plannedLanguages();
   const nextWeekId = isoWeekId(nextWeekStart(now));
   const planGaps = findIncompletePlan(tasks, nextWeekId, languages);
+  // Retried only in the first hours after the Monday plan cron, not every 15 minutes all week.
+  const planAt = nextWeekStart(now).getTime() - 7 * 86_400_000 + 17 * 3_600_000;
+  const inPlanWindow = now.getTime() >= planAt && now.getTime() < planAt + 2 * 3_600_000;
   const replanTriggered =
-    planGaps.length > 0 ? await triggerNextBatch('/api/cron/weekly-plan', 0) : false;
+    planGaps.length > 0 && inPlanWindow
+      ? await triggerNextBatch('/api/cron/weekly-plan', 0)
+      : false;
+  if (planGaps.length > 0 && !inPlanWindow) alerts.push(...planGaps);
   // The current week can no longer be filled by planning, so what is missing there is reported.
   alerts.push(...findIncompletePlan(tasks, isoWeekId(now), languages));
 
@@ -167,7 +173,8 @@ export async function runWatchdog(
   // invocation leaves the week half written until the next weekly cron. Restarting it here
   // picks the backlog up the same day.
   const pendingScripts =
-    tasks.filter((task) => task.script_status === 'Pending').length +
+    tasks.filter((task) => task.script_status === 'Pending' && isOpenPost(task.post_status))
+      .length +
     requeuedScripts.length +
     requeuedAudit.length;
   // Weekly readings close to their slot are retried even past MAX_SCRIPT_ATTEMPTS and are

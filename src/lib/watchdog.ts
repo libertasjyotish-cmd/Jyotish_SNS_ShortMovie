@@ -52,7 +52,7 @@ export interface ScriptRecovery {
  */
 export function planScriptRecovery(tasks: ContentQueue[]): ScriptRecovery[] {
   return tasks
-    .filter((task) => task.script_status === 'Error')
+    .filter((task) => task.script_status === 'Error' && isUnposted(task))
     .map((task) => ({
       taskId: task.task_id,
       attempts: task.script_attempts + 1,
