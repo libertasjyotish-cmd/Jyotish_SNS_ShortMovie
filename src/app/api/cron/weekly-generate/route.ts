@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { isCronAuthorized } from '@/lib/auth';
 import { numberEnv, runWithinBudget, triggerNextBatch } from '@/lib/batch';
 import { evergreenClosing } from '@/lib/evergreen-cta';
+import { buildEventScript, eventFromScriptId } from '@/lib/event-calendar';
 import { buildEvergreenTemplateJa, EvergreenTemplate } from '@/lib/evergreen-template';
 import { buildEvergreenTemplateEn } from '@/lib/evergreen-template-en';
 import { buildEvergreenTemplateEs } from '@/lib/evergreen-template-es';
@@ -71,6 +72,20 @@ async function buildScript(
   }
 
   if (!task.theme_id) throw new Error(`Theme task ${task.task_id} has no theme_id`);
+  const skyEvent = eventFromScriptId(task.theme_id);
+  if (skyEvent) {
+    const script = buildEventScript(task.lang_code, skyEvent);
+    if (!script) throw new Error(`No event wording for ${task.theme_id} in ${task.lang_code}`);
+    const tags = WEEKLY_TEMPLATE_HASHTAGS[task.lang_code];
+    return {
+      template: true,
+      transitReference: '',
+      data: {
+        script_30s: { hook_text: script.hook, body_script: script.body, cta_text: '' },
+        hashtags: tags ? tags('').replace(/\s*#$/, '') : '',
+      },
+    };
+  }
   const rows = await sheets.getEvergreenScripts(task.lang_code);
   const source = rows.find((row) => row.script_id === task.theme_id);
   const signTheme = parseSignThemeId(task.theme_id);

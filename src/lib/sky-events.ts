@@ -10,6 +10,10 @@ const BODIES: [string, Body][] = [
 const EXALT: Record<string, string> = { Mars: 'Capricorn', Mercury: 'Virgo', Jupiter: 'Cancer', Venus: 'Pisces', Saturn: 'Libra' };
 const DEBIL: Record<string, string> = { Mars: 'Cancer', Mercury: 'Pisces', Jupiter: 'Capricorn', Venus: 'Virgo', Saturn: 'Aries' };
 export const DAY = 86_400_000;
+/** Pairs of slow bodies whose meeting (within 1°) is an event; Rahu and Ketu never meet each other. */
+export const CONJUNCTION_PAIRS: [string, string][] = [
+  ['Jupiter', 'Saturn'], ['Jupiter', 'Rahu'], ['Jupiter', 'Ketu'], ['Saturn', 'Rahu'], ['Saturn', 'Ketu'],
+];
 const diff = (a: number, b: number) => ((a - b + 540) % 360) - 180;
 
 export function scanSkyEvents(start: Date, end: Date): SkyEvent[] {
@@ -38,9 +42,14 @@ export function scanSkyEvents(start: Date, end: Date): SkyEvent[] {
     const rahu = siderealNode(d);
     if (prevNode >= 0 && signOf(rahu) !== signOf(prevNode)) out.push({ date: d, type: 'ingress', planet: 'Rahu', sign: signOf(rahu) });
     prevNode = rahu;
-    const js = Math.abs(diff(lons.Jupiter, lons.Saturn));
-    if (prev.__js && prev.__js.lon > 1 && js <= 1) out.push({ date: d, type: 'conjunction', planet: 'Jupiter-Saturn', sign: signOf(lons.Jupiter) });
-    prev.__js = { lon: js, dir: 0 };
+    lons.Rahu = rahu;
+    lons.Ketu = (rahu + 180) % 360;
+    for (const [a, b] of CONJUNCTION_PAIRS) {
+      const key = `__${a}-${b}`;
+      const gap = Math.abs(diff(lons[a], lons[b]));
+      if (prev[key] && prev[key].lon > 1 && gap <= 1) out.push({ date: d, type: 'conjunction', planet: `${a}-${b}`, sign: signOf(lons[a]) });
+      prev[key] = { lon: gap, dir: 0 };
+    }
   }
   for (let e = SearchLunarEclipse(start); e.peak.date < end; e = NextLunarEclipse(e.peak)) {
     if (e.kind !== 'penumbral') out.push({ date: e.peak.date, type: `lunar-eclipse-${e.kind}`, planet: 'Moon', sign: signOf(siderealLongitude(Body.Moon, e.peak.date)) });
@@ -59,11 +68,13 @@ function siderealNode(d: Date): number {
 }
 
 
-const stayGap = (planet: string) => (planet === 'Saturn' ? 3 : /Jupiter|Rahu/.test(planet) ? 1.5 : 0) * 365.25 * DAY;
+/** How long one stay can last, so a retrograde loop back over the same point counts once. */
+const stayGap = (planet: string) =>
+  (planet.includes('-') ? 1 : planet === 'Saturn' ? 3 : /Jupiter|Rahu/.test(planet) ? 1.5 : 0.5) * 365.25 * DAY;
 
 /** A slow planet stepping back into a sign it already entered during the same stay (after a retrograde loop). */
 export function isReentry(event: SkyEvent, pool: SkyEvent[]): boolean {
-  if (!['ingress', 'exalted', 'debilitated'].includes(event.type)) return false;
+  if (!['ingress', 'exalted', 'debilitated', 'conjunction'].includes(event.type)) return false;
   const t = event.date.getTime();
   return pool.some(
     (w) => w.type === event.type && w.planet === event.planet && w.sign === event.sign && w.date.getTime() < t && w.date.getTime() >= t - stayGap(event.planet),

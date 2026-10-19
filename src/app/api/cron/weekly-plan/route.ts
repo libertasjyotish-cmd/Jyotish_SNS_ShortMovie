@@ -3,9 +3,9 @@ import { isCronAuthorized } from '@/lib/auth';
 import { optionalEnv } from '@/lib/env';
 import { buildTransitReference } from '@/lib/ephemeris';
 import { plannedLanguages } from '@/lib/plan-languages';
+import { eventScriptId, eventsForWeek } from '@/lib/event-calendar';
 import {
   DayOfWeek,
-  isEventScriptId,
   isoWeekId,
   isPromoScriptId,
   nextWeekStart,
@@ -74,24 +74,20 @@ function pickSignTheme(
 }
 
 /**
- * The scripts for `PROMO_DAY`: the event of the week, when the language has one, plus product
- * copy for the remaining slots. A language without an event script for the week runs products
- * in both slots, which is how the festival scripts stay English-only.
+ * The scripts for `PROMO_DAY`: the sky events of the calendar that fall from this Thursday to the
+ * next (`eventsForWeek`), then product copy for the remaining slots.
  */
 function pickPromoScripts(
   scripts: EvergreenScript[],
-  weekId: string,
+  weekStart: Date,
   taken: Set<string>,
-): EvergreenScript[] {
-  const event = scripts.find(
-    (script) => isEventScriptId(script.script_id) && script.week_id === weekId,
-  );
-  const picked = event ? [event] : [];
+): { script_id: string; event: boolean }[] {
+  const picked = eventsForWeek(weekStart).map((e) => ({ script_id: eventScriptId(e), event: true }));
   while (picked.length < PROMO_SLOTS) {
     const product = pickScript(scripts, PROMO_DAY, taken, true);
     if (!product) break;
     taken.add(product.script_id);
-    picked.push(product);
+    picked.push({ script_id: product.script_id, event: false });
   }
   return picked;
 }
@@ -210,7 +206,7 @@ export async function GET(request: Request) {
 
       if (promoEnabled()) {
         const planned = promoCounts.get(lang) ?? 0;
-        const promos = pickPromoScripts(themes, weekId, taken).slice(planned);
+        const promos = pickPromoScripts(themes, weekStart, taken).slice(planned);
         if (planned + promos.length < PROMO_SLOTS) skippedDays.push(`${lang}/${PROMO_DAY}`);
 
         promos.forEach((promo, index) => {
@@ -225,7 +221,7 @@ export async function GET(request: Request) {
           if (existing.has(task.task_id)) return;
 
           pending.push(task);
-          themeUses.push({ scriptId: promo.script_id, lang_code: lang, weekId });
+          if (!promo.event) themeUses.push({ scriptId: promo.script_id, lang_code: lang, weekId });
         });
       }
 
