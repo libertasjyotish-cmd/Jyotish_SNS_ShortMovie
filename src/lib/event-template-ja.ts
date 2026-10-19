@@ -7,7 +7,7 @@ import type { EvergreenTemplate } from '@/lib/evergreen-template';
 import { zodiacName } from '@/lib/zodiac-names';
 
 const PLANET: Record<string, string> = {
-  Mercury: '水星', Venus: '金星', Mars: '火星', Jupiter: '木星', Saturn: '土星', Rahu: 'ラーフ',
+  Mercury: '水星', Venus: '金星', Mars: '火星', Jupiter: '木星', Saturn: '土星', Rahu: 'ラーフ', Ketu: 'ケートゥ',
 };
 const AREA: Record<string, string> = {
   Mercury: '言葉や連絡、考えごと',
@@ -16,6 +16,7 @@ const AREA: Record<string, string> = {
   Jupiter: '成長や学び、幸運',
   Saturn: '責任や努力、時間をかけて築くもの',
   Rahu: '強い望みや新しい挑戦',
+  Ketu: '手放すことや心の探究',
 };
 const RETRO_Q: Record<string, string> = {
   Mercury: '大事な連絡を、送る前に読み返していますか？',
@@ -35,6 +36,21 @@ const INGRESS_Q: Record<string, string> = {
   Jupiter: '新しく伸ばしたいことが、見えてきていませんか？',
   Saturn: '腰を据えて取り組みたいことが、ありませんか？',
   Rahu: '急に惹かれ始めたものが、ありませんか？',
+};
+const FAST_EXALT_Q: Record<string, string> = {
+  Mercury: '考えが、すっきりまとまっていませんか？',
+  Venus: '人やお金との縁を、心地よく感じていませんか？',
+  Mars: 'やる気が、まっすぐ形になっていませんか？',
+};
+const FAST_DEBIL_Q: Record<string, string> = {
+  Mercury: '考えがまとまらず、迷っていませんか？',
+  Venus: '人やお金のことで、物足りなさを感じていませんか？',
+  Mars: 'やる気が、空回りしていませんか？',
+};
+const FAST_DEBIL_DO: Record<string, string> = {
+  Mercury: '結論を急がず確かめ直す',
+  Venus: '本当に心が満たされるものを選び直す',
+  Mars: '勢いより段取りを整える',
 };
 const STAY: Record<string, string> = { Jupiter: '約1年', Saturn: '約2年半', Rahu: '約1年半' };
 const ECLIPSE_KIND: Record<string, string> = { total: '皆既', annular: '金環', partial: '部分' };
@@ -74,6 +90,15 @@ export function buildEventTemplateJa(event: SkyEvent, around: EventNeighbours): 
       body: `インド占星術では、食は${solar ? '太陽' : '月'}が影の星ラーフ・ケートゥと重なる時です。${solar ? '目標や生き方' : '気持ちや人との関係'}に区切りがつき、古いやり方を手放す節目になります。${line}`,
     };
   }
+  const pair = event.type === 'conjunction' ? event.planet.split('-') : [];
+  if (pair.length === 2) {
+    const [a, b] = pair;
+    if (!PLANET[a] || !PLANET[b]) return null;
+    return {
+      hook: `${label}、${since}${PLANET[a]}と${PLANET[b]}が${s}で重なります。大きな流れが変わる気配を、感じていませんか？`,
+      body: `${PLANET[a]}は${AREA[a]}、${PLANET[b]}は${AREA[b]}の星です。二つが同じ星座で重なる時は、その分野の流れが切り替わる節目になります。${line}`,
+    };
+  }
   if (!p) return null;
   switch (event.type) {
     case 'retrograde':
@@ -95,6 +120,12 @@ export function buildEventTemplateJa(event: SkyEvent, around: EventNeighbours): 
         body: `${p}は${AREA[event.planet]}の星で、ここから${STAY[event.planet]}${s}にとどまります。月星座から数えたハウスによって、効く分野が変わります。${line}`,
       };
     case 'exalted':
+      if (FAST_EXALT_Q[event.planet]) {
+        return {
+          hook: `${label}、${since}${p}が、最も力を発揮する${s}に入ります。${FAST_EXALT_Q[event.planet]}`,
+          body: `インド占星術では、${s}は${p}が高揚する星座です。${AREA[event.planet]}の星が、この星座にいる間、いちばん素直に力を届けます。${line}`,
+        };
+      }
       if (!['Jupiter', 'Saturn'].includes(event.planet)) return null;
       return {
         hook: `${label}、${since}${p}が、最も力を発揮する${s}に入ります。${INGRESS_Q[event.planet]}`,
@@ -111,6 +142,12 @@ export function buildEventTemplateJa(event: SkyEvent, around: EventNeighbours): 
         return {
           hook: `${label}、${since}木星が、力を出しにくい${s}に入ります。伸び悩みを感じていませんか？`,
           body: `インド占星術では、${s}は木星が減衰する星座です。大きく広げるより、地道な積み重ねを選び直すと、確かな成長につながる時期になります。${line}`,
+        };
+      }
+      if (FAST_DEBIL_Q[event.planet]) {
+        return {
+          hook: `${label}、${since}${p}が、力を出しにくい${s}に入ります。${FAST_DEBIL_Q[event.planet]}`,
+          body: `インド占星術では、${s}は${p}が減衰する星座です。この間は、${FAST_DEBIL_DO[event.planet]}再強化期間です。${line}`,
         };
       }
       return null;
