@@ -16,11 +16,11 @@ import { Language } from '@/services/sheets';
 function weekIndex(weekId: string): number | undefined {
   const [year, week] = weekId.split('-W').map(Number);
   if (!Number.isFinite(year) || !Number.isFinite(week)) return undefined;
-  return year * 53 + week + 4;
+  return year * 53 + week + 3;
 }
 
-/** 2026-W42 carried the first series of the first pass. */
-const FIRST_PASS_START = 2026 * 53 + 42 + 4;
+/** 2026-W43 carried the first series of the first pass. */
+const FIRST_PASS_START = 2026 * 53 + 43 + 3;
 
 /** Weeks since the first pass started. */
 function rotationIndex(weekId: string): number | undefined {
