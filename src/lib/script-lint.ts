@@ -138,19 +138,19 @@ const CHARACTER_COUNTED: Language[] = ['ja'];
  */
 /**
  * Caps for the code-assembled weekly readings, set from measured narration speed so every
- * language runs the same seconds as ja's 213 characters (≈37 s): units per second measured
+ * language runs the same seconds as ja's 230 characters (≈40 s): units per second measured
  * on rendered W41–W43 videos with `npm run measure:narration`. Gemini-written scripts keep
  * LENGTH_BOUNDS until their language moves to the template, so stored rows are not re-failed.
  */
 const TEMPLATE_BOUNDS: Record<Language, { min: number; max: number }> = {
-  ja: { min: 150, max: 213 },
-  en: { min: 67, max: 95 },
-  es: { min: 63, max: 90 },
-  pt: { min: 64, max: 91 },
-  id: { min: 59, max: 83 },
-  ar: { min: 57, max: 81 },
-  fr: { min: 76, max: 108 },
-  de: { min: 68, max: 96 },
+  ja: { min: 150, max: 230 },
+  en: { min: 67, max: 103 },
+  es: { min: 63, max: 97 },
+  pt: { min: 64, max: 98 },
+  id: { min: 59, max: 90 },
+  ar: { min: 57, max: 88 },
+  fr: { min: 76, max: 117 },
+  de: { min: 68, max: 104 },
 };
 
 /** Room for the fixed "月星座が〇〇座のあなた、" opening the template puts before every hook. */
