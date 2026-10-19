@@ -158,8 +158,14 @@ export async function runWatchdog(
   const languages = plannedLanguages();
   const nextWeekId = isoWeekId(nextWeekStart(now));
   const planGaps = findIncompletePlan(tasks, nextWeekId, languages);
+  // Retried only in the first hours after the Monday plan cron, not every 15 minutes all week.
+  const planAt = nextWeekStart(now).getTime() - 7 * 86_400_000 + 17 * 3_600_000;
+  const inPlanWindow = now.getTime() >= planAt && now.getTime() < planAt + 2 * 3_600_000;
   const replanTriggered =
-    planGaps.length > 0 ? await triggerNextBatch('/api/cron/weekly-plan', 0) : false;
+    planGaps.length > 0 && inPlanWindow
+      ? await triggerNextBatch('/api/cron/weekly-plan', 0)
+      : false;
+  if (planGaps.length > 0 && !inPlanWindow) alerts.push(...planGaps);
   // The current week can no longer be filled by planning, so what is missing there is reported.
   alerts.push(...findIncompletePlan(tasks, isoWeekId(now), languages));
 

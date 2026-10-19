@@ -894,6 +894,16 @@ export class GoogleSheetsService {
     return attempts;
   }
 
+  /** Counts a render that could not be started, leaving the row `Pending`. */
+  async countRenderAttempt(taskId: string, pattern: Pattern): Promise<void> {
+    const columns = RENDER_COLUMNS[pattern];
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [columns.attempts]);
+    const row = await this.findQueueRow(taskId);
+    await this.patchRow(SHEET_NAMES.contentQueue, row.rowNumber, {
+      [columns.attempts]: String((toNumber(row.values[columns.attempts]) ?? 0) + 1),
+    });
+  }
+
   /** Every queue row, for the watchdog to audit statuses regardless of week. */
   async getAllQueueTasks(): Promise<ContentQueue[]> {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);

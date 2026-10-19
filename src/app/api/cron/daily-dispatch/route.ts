@@ -12,6 +12,7 @@ import {
   retryAllowed,
   withFailures,
   TRANSCODE_CHECKS,
+  MAX_LIMIT_WAITS,
 } from '@/lib/post-retry';
 import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
@@ -653,8 +654,10 @@ export async function GET(request: Request) {
           const errorNotes: string[] = [];
           const failedPlatforms: Platform[] = [];
           const transcoding: Platform[] = [];
+          const limitedHere: Platform[] = [];
           for (const upload of remaining) {
             if (limitedPlatforms.has(upload.platform)) {
+              limitedHere.push(upload.platform);
               // The platform already refused this run for quota or rate; the row waits for a later
               // run instead of hammering it again and counting a failure.
               waiting = true;
@@ -670,6 +673,7 @@ export async function GET(request: Request) {
                 console.log(`${post.task_id} ${upload.platform}: ${message}`);
               } else if (isPlatformLimit(message)) {
                 limitedPlatforms.add(upload.platform);
+                limitedHere.push(upload.platform);
                 waiting = true;
                 console.warn(`${post.task_id} ${upload.platform} limited, retrying later: ${message}`);
               } else {
@@ -701,6 +705,18 @@ export async function GET(request: Request) {
               errored = true;
             }
             retryState = { ...retryState, failures, transcode_checks: checks };
+          }
+          if (limitedHere.length > 0) {
+            const waits = { ...(retryState?.limit_waits ?? {}) };
+            const failures = { ...(retryState?.failures ?? {}) };
+            for (const platform of limitedHere) {
+              waits[platform] = (waits[platform] ?? 0) + 1;
+              if (waits[platform]! < MAX_LIMIT_WAITS) continue;
+              errorNotes.push(`${platform}: refused for quota/rate ${waits[platform]} times`);
+              failures[platform] = { count: MAX_PLATFORM_FAILURES, at: now.toISOString() };
+              errored = true;
+            }
+            retryState = { ...retryState, failures, limit_waits: waits };
           }
           if (errored || waiting) {
             const retry = withFailures(retryState, failedPlatforms, now);

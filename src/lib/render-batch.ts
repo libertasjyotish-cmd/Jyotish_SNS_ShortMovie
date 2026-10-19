@@ -143,6 +143,9 @@ export async function runRenderBatch(
         errors.push(`${task.task_id} (${pattern}): ${message}`);
         if (!isTransient(message)) {
           await sheets.updateRenderStatus(task.task_id, pattern, "Error");
+        } else {
+          // A refusal is not the task's fault, but it is still counted so it cannot repeat forever.
+          await sheets.countRenderAttempt(task.task_id, pattern);
         }
       }
     }
