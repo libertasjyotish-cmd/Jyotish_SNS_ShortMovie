@@ -15,7 +15,6 @@ import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { WEEKLY_TEMPLATE_HASHTAGS, buildWeeklyFromTemplate } from '@/lib/weekly-templates';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
-import { REUSED_PREFIX } from '@/lib/script-audit';
 import { describeIssues, lintScript } from '@/lib/script-lint';
 import type { GeneratedScript } from '@/services/gemini';
 import { ContentQueue, GoogleSheetsService, Language } from '@/services/sheets';
@@ -172,55 +171,27 @@ export async function GET(request: Request) {
             ...built.data,
             script_30s: { ...built.data.script_30s, cta_text: closing },
           };
-          const issues = lintScript(
-            candidate.script_30s,
-            task.lang_code,
-            '30s',
-            spokenPeriod,
-            signName,
-            { template: built.template },
-          ).map((issue) => `(30s) ${describeIssues([issue])}`);
-
-          let settled: { data: ScriptData; failure?: string; reusedFrom?: string } = issues.length
-            ? { data: candidate, failure: issues.join('; ') }
-            : { data: candidate };
-
-          if (settled.failure && !isFixedScript) {
-            // A weekly reading is written from this week's sky, so no other text can stand in.
-            throw new Error(settled.failure);
+          // Mon–Thu rows are fixed approved texts and are used as they are; only a weekly reading,
+          // written from this week's sky, is checked.
+          if (!isFixedScript) {
+            const issues = lintScript(
+              candidate.script_30s,
+              task.lang_code,
+              '30s',
+              spokenPeriod,
+              signName,
+              { template: built.template },
+            ).map((issue) => `(30s) ${describeIssues([issue])}`);
+            if (issues.length) throw new Error(issues.join('; '));
           }
-          if (settled.failure) {
-            // Last resort for a fixed script: the same evergreen row as it passed in another week.
-            const reuse = await sheetsService.findApprovedScript({
-              lang_code: task.lang_code,
-              zodiac_sign: task.zodiac_sign,
-              taskIdContains: task.theme_id ?? 'sign-',
-              excludeWeekId: task.week_id,
-            });
-            if (!reuse) {
-              throw new Error(`${settled.failure}; no passed script to reuse for this slot`);
-            }
-            console.warn(`${task.task_id}: reusing ${reuse.task_id} to keep the slot`);
-            settled = {
-              reusedFrom: reuse.task_id,
-              data: {
-                script_30s: JSON.parse(reuse.script_30s_json) as GeneratedScript,
-                hashtags: reuse.hashtags,
-              },
-            };
-          }
-          const transitReference = built.transitReference;
-          const scriptData = settled.data;
-          const savedReference = settled.reusedFrom
-            ? `${REUSED_PREFIX}${settled.reusedFrom}`
-            : transitReference;
+          const scriptData = candidate;
 
           await sheetsService.saveScriptOutput({
             task_id: task.task_id,
             week_id: task.week_id,
             lang_code: task.lang_code,
             zodiac_sign: task.zodiac_sign,
-            transit_reference: savedReference,
+            transit_reference: built.transitReference,
             script_30s_json: JSON.stringify(scriptData.script_30s),
             script_65s_json: scriptData.script_65s ? JSON.stringify(scriptData.script_65s) : '',
             hashtags: scriptData.hashtags,

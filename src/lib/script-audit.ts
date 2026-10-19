@@ -4,9 +4,6 @@ import { MAX_SCRIPT_ATTEMPTS } from '@/lib/watchdog';
 import { zodiacName } from '@/lib/zodiac-names';
 import type { ContentQueue, GoogleSheetsService, ScriptOutput } from '@/services/sheets';
 
-/** Marks a stored script that was borrowed from another week's evergreen to keep the slot. */
-export const REUSED_PREFIX = 'reused:';
-
 export interface AuditedScript {
   taskId: string;
   attempts: number;
@@ -30,6 +27,8 @@ export function auditStoredScripts(
     // A published video cannot be replaced, and a row still being written is the generator's.
     if (task.post_status === 'Posted' || task.post_status === 'Hold') continue;
     if (task.script_status !== 'Script_Done') continue;
+    // Mon–Thu rows are fixed approved texts; only a weekly reading is re-checked.
+    if (task.target_type !== 'Zodiac_Sign') continue;
     const output = byTask.get(task.task_id);
     if (!output?.script_30s_json) continue;
 
@@ -40,12 +39,7 @@ export function auditStoredScripts(
       continue;
     }
 
-    // A borrowed evergreen is week-independent by design, so it never names this week.
-    const reused = output.transit_reference?.startsWith(REUSED_PREFIX);
-    const spokenPeriod =
-      task.target_type === 'Zodiac_Sign' && !reused
-        ? weekPeriodSpoken(task.week_id, task.lang_code)
-        : undefined;
+    const spokenPeriod = weekPeriodSpoken(task.week_id, task.lang_code);
     const issues = lintScript(
       script,
       task.lang_code,
