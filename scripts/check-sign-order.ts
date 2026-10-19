@@ -54,15 +54,15 @@ if (new Set(weeks).size !== SIGN_THEME_SERIES.length) {
   failures.push(`${weeks.length} weeks run ${weeks.join(', ')} instead of every series once`);
 }
 
-if (seriesForWeek('2026-W43') !== 'nature') {
-  failures.push(`2026-W43 runs ${seriesForWeek('2026-W43')}, want nature`);
+if (seriesForWeek('2026-W43') !== 'compat') {
+  failures.push(`2026-W43 runs ${seriesForWeek('2026-W43')}, want compat`);
 }
 
 // The first pass keeps the default narrator; only a repeat changes voice, and only to a male one.
-for (const week of ['2026-W42', '2026-W43', '2026-W53']) {
+for (const week of ['2026-W43', '2026-W53', '2027-W01']) {
   if (reuseCycle(week) !== 0) failures.push(`${week} is cycle ${reuseCycle(week)}, want 0`);
 }
-if (reuseCycle('2027-W01') !== 1) failures.push(`2027-W01 is cycle ${reuseCycle('2027-W01')}, want 1`);
+if (reuseCycle('2027-W03') !== 1) failures.push(`2027-W03 is cycle ${reuseCycle('2027-W03')}, want 1`);
 if (voiceForTask('2026-W43-ja-libra', 'ja') !== undefined) {
   failures.push('2026-W43 ja is read by a rotated voice instead of the default');
 }
