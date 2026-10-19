@@ -7,7 +7,7 @@ import { ensureCover } from '@/lib/cover';
 import { runRenderBatch } from '@/lib/render-batch';
 import { parseSignThemeId } from '@/lib/sign-themes';
 import type { GeneratedScript } from '@/services/gemini';
-import { REUSED_PREFIX, auditStoredScripts, storedScriptsOf } from '@/lib/script-audit';
+import { auditStoredScripts, storedScriptsOf } from '@/lib/script-audit';
 import { isoWeekId, nextWeekStart } from '@/lib/schedule';
 import {
   MAX_RENDER_ATTEMPTS,
@@ -38,7 +38,6 @@ export interface WatchdogResult {
   pendingScripts: number;
   requeuedScripts: number;
   auditedScripts: number;
-  filledSlots: string[];
   coversDrawn: string[];
   generationResumed: boolean;
   replanTriggered: boolean;
@@ -105,51 +104,14 @@ export async function runWatchdog(
     }
   }
 
-  // A slot whose script is still missing shortly before it airs borrows a passed script for the
-  // same sign and language, so a generator outage never costs a post.
-  const filledSlots: string[] = [];
+  // A slot whose script is still missing shortly before it airs is written first: every row is
+  // built from its template or its approved fixed text, so nothing is borrowed from another slot.
+  const weeklyToWrite: ContentQueue[] = findSlotsToFill(tasks, now);
   const urgent: string[] = [];
-  const weeklyToWrite: ContentQueue[] = [];
-  for (const task of findSlotsToFill(tasks, now)) {
-    if (
-      (task.target_type !== 'Theme' && task.target_type !== 'Promo') ||
-      parseSignThemeId(task.theme_id ?? '')
-    ) {
-      // A weekly reading cannot be borrowed from another week, and a per-sign evergreen is built
-      // from its template in seconds: both are regenerated first (weekly-generate borrows itself
-      // if the template fails).
-      weeklyToWrite.push(task);
-      continue;
-    }
-    const reuse = await sheets.findApprovedScript({
-      lang_code: task.lang_code,
-      zodiac_sign: task.zodiac_sign,
-      taskIdContains: task.theme_id ?? 'sign-',
-      excludeWeekId: task.week_id,
-    });
-    if (!reuse) {
-      const line = `${task.task_id}: no script and nothing passed to borrow for the ${task.scheduled_post_time} slot`;
-      alerts.push(line);
-      urgent.push(line);
-      continue;
-    }
-    await sheets.saveScriptOutput({
-      ...reuse,
-      task_id: task.task_id,
-      week_id: task.week_id,
-      lang_code: task.lang_code,
-      zodiac_sign: task.zodiac_sign,
-      transit_reference: `${REUSED_PREFIX}${reuse.task_id}`,
-      created_at: now.toISOString(),
-    });
-    await sheets.updateScriptStatus(task.task_id, 'Script_Done');
-    filledSlots.push(task.task_id);
-    console.warn(`${task.task_id}: script still missing near its slot, filled from ${reuse.task_id}`);
-  }
   // A script that is ready but whose render never started is started here as its slot
   // approaches, earliest slot first.
   const renderDue = findRendersToStart(tasks, now).map((task) => task.task_id);
-  const startDue = [...filledSlots, ...renderDue];
+  const startDue = renderDue;
   const dueBatch =
     startDue.length > 0
       ? await runRenderBatch(sheets, new CreatomateService(), { taskIds: startDue })
@@ -242,7 +204,6 @@ export async function runWatchdog(
     pendingScripts,
     requeuedScripts: requeuedScripts.length,
     auditedScripts: requeuedAudit.length,
-    filledSlots,
     coversDrawn,
     generationResumed,
     replanTriggered,
