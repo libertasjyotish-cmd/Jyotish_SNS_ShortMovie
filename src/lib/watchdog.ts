@@ -10,6 +10,11 @@ export const SLOTS_PER_LANGUAGE =
 export const RENDER_STALE_MINUTES = 30;
 /** Renders retried this many times are left as `Error` for a human to look at. */
 export const MAX_RENDER_ATTEMPTS = 3;
+/**
+ * No row is ever rendered more often than this, not even close to its slot: every render is
+ * paid for, and a row that keeps coming back is a loop, not bad luck.
+ */
+export const RENDER_HARD_CAP = 6;
 /** Script generations retried this many times are left as `Error` for a human to look at. */
 export const MAX_SCRIPT_ATTEMPTS = 3;
 /** A post is only reported as missed once it is this far past its scheduled time. */
@@ -112,7 +117,8 @@ export function planRenderRecovery(tasks: ContentQueue[], now: Date): RenderReco
         // Past the retry limit a render is still retried once its slot is close: giving up
         // there costs the post, and a retry costs only one render.
         action:
-          attempts < MAX_RENDER_ATTEMPTS || nearSlot(task, RENDER_LEAD_MINUTES, now)
+          attempts < MAX_RENDER_ATTEMPTS ||
+          (attempts < RENDER_HARD_CAP && nearSlot(task, RENDER_LEAD_MINUTES, now))
             ? 'Pending'
             : 'Error',
       });

@@ -2,6 +2,7 @@ import { SCHEDULED_PATTERNS } from "@/lib/patterns";
 import { weekPeriodLabel } from "@/lib/period";
 import { zodiacName } from "@/lib/zodiac-names";
 import { startRender } from "@/lib/render";
+import { RENDER_HARD_CAP } from "@/lib/watchdog";
 import { CreatomateService } from "@/services/creatomate";
 import { GoogleSheetsService, Pattern } from "@/services/sheets";
 
@@ -94,6 +95,15 @@ export async function runRenderBatch(
       const status =
         pattern === "30s" ? task.render_status_30s : task.render_status_65s;
       if (status !== "Pending") continue;
+      const attempts =
+        pattern === "30s" ? task.render_attempts_30s : task.render_attempts_65s;
+      if (attempts >= RENDER_HARD_CAP) {
+        await sheets.updateRenderStatus(task.task_id, pattern, "Error");
+        errors.push(
+          `${task.task_id} (${pattern}): rendered ${attempts} times already, not started again`,
+        );
+        continue;
+      }
 
       try {
         if (!scriptOutput) {
