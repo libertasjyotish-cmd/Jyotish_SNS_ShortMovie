@@ -723,6 +723,8 @@ export class GoogleSheetsService {
     const { rows } = await this.loadTable(SHEET_NAMES.contentQueue);
     return rows
       .filter((row) => row.values.task_id && (row.values.script_status || 'Pending') === 'Pending')
+      // Hold and Posted rows are never aired again; writing them only restarted the chain.
+      .filter((row) => isOpenPost(row.values.post_status))
       .map((row) => GoogleSheetsService.toContentQueue(row.values));
   }
 

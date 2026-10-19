@@ -24,7 +24,7 @@ import {
   planScriptRecovery,
 } from '@/lib/watchdog';
 import { CreatomateService } from '@/services/creatomate';
-import { ContentQueue, GoogleSheetsService } from '@/services/sheets';
+import { ContentQueue, GoogleSheetsService, isOpenPost } from '@/services/sheets';
 
 /** Covers are drawn one renderer call each, so a run draws only the nearest few. */
 const MAX_COVERS_PER_RUN = 3;
@@ -173,7 +173,8 @@ export async function runWatchdog(
   // invocation leaves the week half written until the next weekly cron. Restarting it here
   // picks the backlog up the same day.
   const pendingScripts =
-    tasks.filter((task) => task.script_status === 'Pending').length +
+    tasks.filter((task) => task.script_status === 'Pending' && isOpenPost(task.post_status))
+      .length +
     requeuedScripts.length +
     requeuedAudit.length;
   // Weekly readings close to their slot are retried even past MAX_SCRIPT_ATTEMPTS and are
