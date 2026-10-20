@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { sendAlert } from '@/lib/alert';
 import { isCronAuthorized } from '@/lib/auth';
 import { buildDescription, followUpLink, playlistDescription, youtubeComment } from '@/lib/cta';
 import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
@@ -304,10 +305,15 @@ export async function GET(request: Request) {
     );
     // A weekly reading whose week is over is not posted late; what is still missing is dropped.
     let givenUp = 0;
+    // Each slot is given up on exactly once, so this mail arrives once per slot, not every run.
+    const givenUpNotes: string[] = [];
     for (const post of dueAll.filter((task) => readingWeekOver(task, now))) {
       await sheetsService
         .givePostUp(post.task_id, post.posted_refs ?? [], 'gave up: the reading\'s week is over', post.post_retry, now)
-        .then(() => (givenUp += 1))
+        .then(() => {
+          givenUp += 1;
+          givenUpNotes.push(`${post.task_id}: the reading's week is over`);
+        })
         .catch(() => undefined);
     }
     // A row that just failed waits out its retry gap, so it neither hammers the platform nor takes
@@ -635,6 +641,9 @@ export async function GET(request: Request) {
               now,
             );
             givenUp += 1;
+            givenUpNotes.push(
+              `${post.task_id}: ${abandoned.map((u) => u.platform).join(', ')} skipped after ${MAX_PLATFORM_FAILURES} failures (${post.post_error ?? 'no reason recorded'})`,
+            );
             continue;
           }
 
@@ -734,6 +743,9 @@ export async function GET(request: Request) {
                 now,
               );
               givenUp += 1;
+              givenUpNotes.push(
+                `${post.task_id}: skipped after ${MAX_PLATFORM_FAILURES} failures (${errorNotes.join(' | ')})`,
+              );
               continue;
             }
             await sheetsService.markPosted(post.task_id, refs, errored ? 'Error' : 'Pending');
@@ -756,6 +768,11 @@ export async function GET(request: Request) {
     };
 
     await Promise.all(Array.from({ length: DISPATCH_CONCURRENCY }, () => worker()));
+    if (givenUpNotes.length > 0) {
+      await sendAlert(['Jyotish SNS skipped these posts (no further retries):', ...givenUpNotes]).catch(
+        () => false,
+      );
+    }
 
     return NextResponse.json({
       status: 'Dispatch completed',
