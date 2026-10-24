@@ -415,6 +415,25 @@ export function lintRequirements(
   ];
 }
 
+/**
+ * Length is advisory: the renderer fits the narration to the pattern's seconds by speaking rate,
+ * so a few characters or words off never justify rewriting, failing or alerting on a script.
+ */
+const LENGTH_CODES: ReadonlySet<ScriptIssue['code']> = new Set<ScriptIssue['code']>([
+  'hook_too_long',
+  'too_short',
+  'too_long',
+]);
+
+export function isLengthIssue(issue: ScriptIssue): boolean {
+  return LENGTH_CODES.has(issue.code);
+}
+
+/** Issues that keep a script from being used; length issues are only reported. */
+export function blockingIssues(issues: ScriptIssue[]): ScriptIssue[] {
+  return issues.filter((issue) => !isLengthIssue(issue));
+}
+
 export function describeIssues(issues: ScriptIssue[]): string {
   return issues.map((issue) => `${issue.field}/${issue.code}: ${issue.detail}`).join('; ');
 }
