@@ -16,7 +16,7 @@ import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { WEEKLY_TEMPLATE_HASHTAGS, buildWeeklyFromTemplate } from '@/lib/weekly-templates';
 import { weekPeriodSpoken } from '@/lib/period';
 import { zodiacName } from '@/lib/zodiac-names';
-import { describeIssues, lintScript } from '@/lib/script-lint';
+import { blockingIssues, describeIssues, isLengthIssue, lintScript } from '@/lib/script-lint';
 import type { GeneratedScript } from '@/services/gemini';
 import { ContentQueue, GoogleSheetsService, Language } from '@/services/sheets';
 
@@ -196,8 +196,13 @@ export async function GET(request: Request) {
               spokenPeriod,
               signName,
               { template: built.template },
-            ).map((issue) => `(30s) ${describeIssues([issue])}`);
-            if (issues.length) throw new Error(issues.join('; '));
+            );
+            const describe = (list: typeof issues) =>
+              list.map((issue) => `(30s) ${describeIssues([issue])}`);
+            const blocking = blockingIssues(issues);
+            if (blocking.length) throw new Error(describe(blocking).join('; '));
+            const advisory = describe(issues.filter(isLengthIssue));
+            if (advisory.length) lintWarnings.push(`${task.task_id}: ${advisory.join('; ')}`);
           }
           const scriptData = candidate;
 

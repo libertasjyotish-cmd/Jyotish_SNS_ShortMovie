@@ -1,5 +1,5 @@
 import { weekPeriodSpoken } from '@/lib/period';
-import { describeIssues, lintScript } from '@/lib/script-lint';
+import { blockingIssues, describeIssues, lintScript } from '@/lib/script-lint';
 import { MAX_SCRIPT_ATTEMPTS } from '@/lib/watchdog';
 import { zodiacName } from '@/lib/zodiac-names';
 import type { ContentQueue, GoogleSheetsService, ScriptOutput } from '@/services/sheets';
@@ -40,12 +40,18 @@ export function auditStoredScripts(
     }
 
     const spokenPeriod = weekPeriodSpoken(task.week_id, task.lang_code);
-    const issues = lintScript(
-      script,
-      task.lang_code,
-      '30s',
-      spokenPeriod,
-      zodiacName(task.zodiac_sign, task.lang_code),
+    // Judged exactly as the generator judged it (weekly readings are code-assembled templates),
+    // and never on length: rebuilding a template gives the same text, so a length miss could
+    // only loop through rewrites and end in an alert.
+    const issues = blockingIssues(
+      lintScript(
+        script,
+        task.lang_code,
+        '30s',
+        spokenPeriod,
+        zodiacName(task.zodiac_sign, task.lang_code),
+        { template: true },
+      ),
     );
     if (issues.length === 0) continue;
 
