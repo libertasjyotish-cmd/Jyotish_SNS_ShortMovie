@@ -43,6 +43,13 @@ export async function GET(req: NextRequest) {
     // Threads appends "#_" to the redirect, and a fragment never reaches the server,
     // but a proxy that turns it into a query value would break the exchange.
     const tokens = await exchangeThreadsCode(code.replace(/#_$/, ''), threadsRedirectUri());
+    // A browser signed in to another language's profile would otherwise post this language's
+    // readings to the wrong account.
+    if (channel.threads_user_id && tokens.userId !== channel.threads_user_id) {
+      throw new Error(
+        `Consent came from Threads user ${tokens.userId}, not ${channel.channel_id} (${channel.threads_user_id}); nothing was saved`,
+      );
+    }
     await sheets.updateChannelTokens(channel.channel_id, {
       threads_access_token: tokens.accessToken,
       threads_user_id: tokens.userId,
