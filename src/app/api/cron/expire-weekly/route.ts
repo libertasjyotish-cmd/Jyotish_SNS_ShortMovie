@@ -15,6 +15,21 @@ const MS_PER_DAY = 86_400_000;
 /** Threads allows 100 deletions per profile per 24h; one run stays far below it. */
 const MAX_TASKS_PER_RUN = 40;
 
+/**
+ * Posts that failed before go behind untried ones, oldest failure first. Otherwise the same rows
+ * that keep failing would fill every run's cap and nothing after them would ever be taken down.
+ */
+function lastFailure(post: ExpirablePost): string {
+  const failures = post.refs
+    .filter((ref) => !ref.retired && ref.retire_failed_at)
+    .map((ref) => ref.retire_failed_at as string);
+  return failures.length > 0 ? failures.sort()[failures.length - 1] : '';
+}
+
+function retryOrder(posts: ExpirablePost[]): ExpirablePost[] {
+  return [...posts].sort((a, b) => lastFailure(a).localeCompare(lastFailure(b)));
+}
+
 function isRetirable(platform: Platform): boolean {
   return (
     platform === 'YouTube' ||
@@ -66,7 +81,7 @@ export async function GET(request: Request) {
 
   try {
     const expirable = await sheetsService.getExpirablePosts(weekEndedBefore(new Date()));
-    const due = expirable.slice(0, MAX_TASKS_PER_RUN);
+    const due = retryOrder(expirable).slice(0, MAX_TASKS_PER_RUN);
     const failures: string[] = [];
     let retired = 0;
     let pendingInstagram = 0;
@@ -83,10 +98,12 @@ export async function GET(request: Request) {
         try {
           await retire(post, ref);
           ref.retired = true;
+          delete ref.retire_failed_at;
           notes.push(`${ref.platform}:done`);
           retired += 1;
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unknown error';
+          ref.retire_failed_at = new Date().toISOString();
           notes.push(`${ref.platform}:failed`);
           failures.push(`${post.task.task_id} ${ref.platform}: ${message}`);
         }
