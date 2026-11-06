@@ -12,12 +12,17 @@ const STATUS_POLL_ATTEMPTS = 4;
 /**
  * `pages_manage_posts` is what allows publishing a Reel to a page. `pages_manage_engagement` and
  * `pages_manage_metadata` are rejected by this app as `Invalid Scopes`, which makes the whole
- * consent dialog fail, so page profile edits stay manual.
+ * consent dialog fail, so page profile edits stay manual. The Instagram scopes make the same page
+ * token work for the Instagram account linked to the page; `instagram_manage_contents` is what
+ * allows deleting a Reel.
  */
 export const FACEBOOK_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
+  'instagram_basic',
+  'instagram_content_publish',
+  'instagram_manage_contents',
 ];
 
 export interface FacebookUploadParams {
@@ -30,6 +35,8 @@ export interface FacebookPage {
   id: string;
   name: string;
   accessToken: string;
+  /** Instagram account linked to the page; its Graph API calls take the same page token. */
+  instagramUserId?: string;
 }
 
 interface GraphError {
@@ -104,12 +111,22 @@ export async function exchangeFacebookCode(code: string, redirectUri: string): P
  * from its own node instead.
  */
 export async function fetchFacebookPage(pageId: string, userToken: string): Promise<FacebookPage> {
-  const page = await graphRequest<{ id: string; name: string; access_token: string }>(
-    `${GRAPH_BASE}/${pageId}?fields=id,name,access_token&access_token=${encodeURIComponent(
+  const page = await graphRequest<{
+    id: string;
+    name: string;
+    access_token: string;
+    instagram_business_account?: { id: string };
+  }>(
+    `${GRAPH_BASE}/${pageId}?fields=id,name,access_token,instagram_business_account&access_token=${encodeURIComponent(
       userToken,
     )}`,
   );
-  return { id: page.id, name: page.name, accessToken: page.access_token };
+  return {
+    id: page.id,
+    name: page.name,
+    accessToken: page.access_token,
+    instagramUserId: page.instagram_business_account?.id,
+  };
 }
 
 export class FacebookService {

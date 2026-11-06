@@ -1,9 +1,14 @@
 # Instagram の期限切れReels取り下げ
 
 `/api/cron/expire-weekly` は週が終わった星座別投稿を YouTube（非公開化）・Threads（削除）・
-Facebook（削除）から自動で取り下げる。Instagram の Graph API には公開済みReelsを削除・
-アーカイブするエンドポイントが無いため、Instagram だけはアカウントUIでの操作が必要になる。
-これは人の作業ではなく、週1回のDevin Automationが実行する。
+Facebook（削除）・Instagram（削除）から自動で取り下げる。Instagram は Graph API の
+`DELETE /{ig-media-id}` を使い、ページトークンに `instagram_manage_contents` が必要になる。
+アーカイブするAPIは無いため、削除は元に戻せない（インサイトも消える）。
+
+トークンは `/api/admin/facebook/auth` の Facebook 同意1回で、各言語の Facebook 行と
+Instagram 行（ページに紐付いたアカウントの行だけ）にまとめて書き込まれる。
+
+以下は、APIで削除できなかったReelsを手で取り下げるときの手順。
 
 ## 対象の取得
 
@@ -54,5 +59,4 @@ worklistには出てこない。
 
 ## 頻度
 
-週1回（火曜、`expire-weekly` の後）。1回あたりの件数を抑えるため、多い場合は数回に分けて
-処理する。
+`expire-weekly` がAPIで削除できなかったとき（`expire-weekly` のアラートが出たとき）だけ行う。

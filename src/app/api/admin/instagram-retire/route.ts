@@ -35,9 +35,8 @@ interface PendingReel {
 }
 
 /**
- * Worklist of Reels whose week is over. Instagram publishes through the Graph API but offers no
- * way to delete or archive a published Reel, so the retirement job opens these permalinks in the
- * account UI and reports each one back with POST.
+ * Reels whose week is over and that `/api/cron/expire-weekly` has not deleted yet, e.g. because a
+ * token lacks `instagram_manage_contents`. They can be taken down by hand and reported with POST.
  */
 export async function GET(request: NextRequest) {
   if (!authorized(request, request.nextUrl.searchParams.get('token'))) {
