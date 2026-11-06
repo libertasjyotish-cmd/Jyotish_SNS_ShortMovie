@@ -7,7 +7,9 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Facebook redirects here after consent; every page token is written onto the Facebook channel
- * row whose `fb_page_id` matches, so all six languages are connected by one consent.
+ * row whose `fb_page_id` matches, so all six languages are connected by one consent. The same
+ * token is written onto the language's Instagram row when that row's account is the one linked
+ * to the page, since Instagram calls use the page token.
  */
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
@@ -53,6 +55,14 @@ export async function GET(req: NextRequest) {
         fb_page_access_token: page.accessToken,
       });
       connected.push(channel.channel_id);
+
+      const instagram = await sheets.getChannelConfig(lang, 'Instagram');
+      if (instagram?.ig_user_id && instagram.ig_user_id === page.instagramUserId) {
+        await sheets.updateChannelTokens(instagram.channel_id, {
+          ig_access_token: page.accessToken,
+        });
+        connected.push(instagram.channel_id);
+      }
     }
 
     if (storedState && jaChannel) await sheets.setFacebookOauthState(jaChannel.channel_id, '');

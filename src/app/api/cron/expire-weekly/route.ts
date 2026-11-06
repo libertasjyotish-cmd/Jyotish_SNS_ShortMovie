@@ -3,6 +3,7 @@ import { sendAlert } from '@/lib/alert';
 import { isCronAuthorized } from '@/lib/auth';
 import { weekStartFromId } from '@/lib/schedule';
 import { FacebookService } from '@/services/facebook';
+import { InstagramService } from '@/services/instagram';
 import { ExpirablePost, GoogleSheetsService, Platform, PostedRef } from '@/services/sheets';
 import { ThreadsService } from '@/services/threads';
 import { YouTubeService } from '@/services/youtube';
@@ -14,13 +15,13 @@ const MS_PER_DAY = 86_400_000;
 /** Threads allows 100 deletions per profile per 24h; one run stays far below it. */
 const MAX_TASKS_PER_RUN = 40;
 
-/**
- * Instagram's Graph API publishes Reels but cannot delete them, so an Instagram reference stays
- * open here and is archived through the account UI by the weekly Instagram retirement job, which
- * reads its worklist from `/api/admin/instagram-retire`.
- */
 function isRetirable(platform: Platform): boolean {
-  return platform === 'YouTube' || platform === 'Threads' || platform === 'Facebook';
+  return (
+    platform === 'YouTube' ||
+    platform === 'Threads' ||
+    platform === 'Facebook' ||
+    platform === 'Instagram'
+  );
 }
 
 /**
@@ -44,6 +45,7 @@ export async function GET(request: Request) {
   const youtubeService = new YouTubeService();
   const threadsService = new ThreadsService(sheetsService);
   const facebookService = new FacebookService();
+  const instagramService = new InstagramService();
 
   async function retire(post: ExpirablePost, ref: PostedRef): Promise<void> {
     const channel = await sheetsService.getChannelConfig(post.task.lang_code, ref.platform);
@@ -56,6 +58,7 @@ export async function GET(request: Request) {
       case 'Facebook':
         return facebookService.deleteVideo(channel, ref.post_id);
       case 'Instagram':
+        return instagramService.deleteMedia(channel, ref.post_id);
       case 'TikTok':
         throw new Error(`${ref.platform} has no delete API`);
     }

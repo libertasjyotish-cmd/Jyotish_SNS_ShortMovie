@@ -49,6 +49,18 @@ function credentials(channel: Channel): { accessToken: string; igUserId: string 
 }
 
 export class InstagramService {
+  /**
+   * Deletes a Reel whose week has passed. Instagram offers no archive call, so this cannot be
+   * undone; it needs `instagram_manage_contents` on the page token.
+   */
+  async deleteMedia(channel: Channel, mediaId: string): Promise<void> {
+    const { accessToken } = credentials(channel);
+    await graphRequest<{ success?: boolean }>(
+      `${GRAPH_BASE}/${mediaId}?access_token=${encodeURIComponent(accessToken)}`,
+      { method: 'DELETE' },
+    );
+  }
+
   /** Reads the account back, so a stale 60-day token is found before a posting window. */
   async verifyChannel(channel: Channel): Promise<string> {
     const accessToken = channel.ig_access_token;
@@ -63,10 +75,7 @@ export class InstagramService {
     return `@${account.username}`;
   }
 
-  /**
-   * The public URL of a published Reel. Instagram has no delete endpoint, so retiring one is
-   * done on this page in the account UI.
-   */
+  /** The public URL of a published Reel. */
   async permalink(channel: Channel, mediaId: string): Promise<string> {
     const accessToken = channel.ig_access_token;
     if (!accessToken) {
