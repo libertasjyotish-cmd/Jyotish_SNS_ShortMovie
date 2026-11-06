@@ -92,6 +92,8 @@ export interface PostedRef {
   post_id: string;
   /** Set once the post is private or deleted, so a later run skips it. */
   retired?: boolean;
+  /** When the last attempt to take it down failed; such posts wait behind untried ones. */
+  retire_failed_at?: string;
 }
 
 /** A posted sign reading with the references needed to retire it. */
