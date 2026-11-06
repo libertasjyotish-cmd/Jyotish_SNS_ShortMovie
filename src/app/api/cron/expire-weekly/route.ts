@@ -83,6 +83,7 @@ export async function GET(request: Request) {
     const expirable = await sheetsService.getExpirablePosts(weekEndedBefore(new Date()));
     const due = retryOrder(expirable).slice(0, MAX_TASKS_PER_RUN);
     const failures: string[] = [];
+    let failed = 0;
     let retired = 0;
     let pendingInstagram = 0;
 
@@ -95,6 +96,7 @@ export async function GET(request: Request) {
           pendingInstagram += 1;
           continue;
         }
+        const failedBefore = Boolean(ref.retire_failed_at);
         try {
           await retire(post, ref);
           ref.retired = true;
@@ -105,7 +107,10 @@ export async function GET(request: Request) {
           const message = error instanceof Error ? error.message : 'Unknown error';
           ref.retire_failed_at = new Date().toISOString();
           notes.push(`${ref.platform}:failed`);
-          failures.push(`${post.task.task_id} ${ref.platform}: ${message}`);
+          failed += 1;
+          // A post that keeps failing (e.g. a token without the delete permission) is retried
+          // every day; alerting on each retry would repeat the same mail daily.
+          if (!failedBefore) failures.push(`${post.task.task_id} ${ref.platform}: ${message}`);
         }
       }
       // Platforms already taken down are remembered, so the next run only tries what is left.
@@ -125,7 +130,7 @@ export async function GET(request: Request) {
       processed: due.length,
       retired,
       pending_instagram: pendingInstagram,
-      failed: failures.length,
+      failed,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
