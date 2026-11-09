@@ -16,7 +16,16 @@ import {
   seriesForWeek,
   signThemeSlotScriptId,
   parseSignThemeId,
+  themeScriptIdForSlot,
 } from '../src/lib/sign-themes';
+import { buildEvergreenTemplateJa } from '../src/lib/evergreen-template';
+import { buildEvergreenTemplateEn } from '../src/lib/evergreen-template-en';
+import { buildEvergreenTemplateEs } from '../src/lib/evergreen-template-es';
+import { buildEvergreenTemplatePt } from '../src/lib/evergreen-template-pt';
+import { buildEvergreenTemplateId } from '../src/lib/evergreen-template-id';
+import { buildEvergreenTemplateAr } from '../src/lib/evergreen-template-ar';
+import { buildEvergreenTemplateFr } from '../src/lib/evergreen-template-fr';
+import { buildEvergreenTemplateDe } from '../src/lib/evergreen-template-de';
 import { DayOfWeek, THEME_SLOTS } from '../src/lib/schedule';
 import { ZODIAC_SIGNS } from '../src/lib/zodiac-names';
 
@@ -65,6 +74,38 @@ for (const week of ['2026-W43', '2026-W53', '2027-W01']) {
 if (reuseCycle('2027-W03') !== 1) failures.push(`2027-W03 is cycle ${reuseCycle('2027-W03')}, want 1`);
 if (voiceForTask('2026-W43-ja-libra', 'ja') !== undefined) {
   failures.push('2026-W43 ja is read by a rotated voice instead of the default');
+}
+
+// 2026-W46 shipped old general scripts on Monday because the week's series had no sheet rows and
+// the planner fell back to them. A sign-series slot must never take the fallback, and every
+// series must be buildable from the code template in every language so it needs no sheet row.
+for (const week of weeks.map((_, offset) => `2026-W${31 + offset}`)) {
+  for (const day of days) {
+    for (let slot = 0; slot < THEME_SLOTS; slot += 1) {
+      const id = themeScriptIdForSlot(week, day, slot, () => 'B-01');
+      if (!id || parseSignThemeId(id)?.series !== seriesForWeek(week)) {
+        failures.push(`${week} ${day} slot ${slot} takes ${id ?? 'none'} instead of the series`);
+      }
+    }
+  }
+}
+const builders = {
+  ja: buildEvergreenTemplateJa,
+  en: buildEvergreenTemplateEn,
+  es: buildEvergreenTemplateEs,
+  pt: buildEvergreenTemplatePt,
+  id: buildEvergreenTemplateId,
+  ar: buildEvergreenTemplateAr,
+  fr: buildEvergreenTemplateFr,
+  de: buildEvergreenTemplateDe,
+};
+for (const [lang, build] of Object.entries(builders)) {
+  for (const series of SIGN_THEME_SERIES) {
+    for (const sign of ZODIAC_SIGNS) {
+      const moon = sign.charAt(0).toUpperCase() + sign.slice(1);
+      if (!build(series, moon)) failures.push(`${lang} ${series} ${sign} has no template`);
+    }
+  }
 }
 
 if (failures.length) {

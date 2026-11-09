@@ -22,7 +22,7 @@ import {
   compareSignThemePick,
   parseSignThemeId,
   SIGNS_BY_DAY,
-  signThemeSlotScriptId,
+  themeScriptIdForSlot,
 } from '@/lib/sign-themes';
 import {
   ContentQueue,
@@ -56,21 +56,6 @@ function pickScript(
         !taken.has(script.script_id),
     )
     .sort(compareSignThemePick)[0];
-}
-
-/**
- * The sign-series script a slot must carry. The slot decides it, not the order the rows sit in
- * the sheet, so Monday always speaks to aries through cancer and the whole week stays in one
- * series.
- */
-function pickSignTheme(
-  scripts: EvergreenScript[],
-  weekId: string,
-  day: DayOfWeek,
-  slot: number,
-): EvergreenScript | undefined {
-  const scriptId = signThemeSlotScriptId(weekId, day, slot);
-  return scriptId ? scripts.find((script) => script.script_id === scriptId) : undefined;
 }
 
 /**
@@ -179,28 +164,35 @@ export async function GET(request: Request) {
         const slots = SIGNS_BY_DAY[day] ? THEME_SLOTS : 1;
 
         for (let slot = planned; slot < slots; slot += 1) {
-          const theme =
-            pickSignTheme(themes, weekId, day, slot) ?? pickScript(themes, day, taken, false);
-          if (!theme) {
+          const themeId = themeScriptIdForSlot(
+            weekId,
+            day,
+            slot,
+            () => pickScript(themes, day, taken, false)?.script_id,
+          );
+          if (!themeId) {
             skippedDays.push(`${lang}/${day}`);
             break;
           }
-          taken.add(theme.script_id);
+          taken.add(themeId);
 
           // A sign-targeted evergreen carries its sign, so the label on the video, the title and
           // the caption read the same way they do for a weekly reading.
-          const signTheme = parseSignThemeId(theme.script_id);
+          const signTheme = parseSignThemeId(themeId);
           const task: ContentQueue = {
             ...baseTask(weekId, day, weekStart, lang, slot),
-            task_id: `${weekId}-${lang}-${theme.script_id}`,
+            task_id: `${weekId}-${lang}-${themeId}`,
             target_type: 'Theme',
-            theme_id: theme.script_id,
+            theme_id: themeId,
             zodiac_sign: signTheme?.sign,
           };
           if (existing.has(task.task_id)) continue;
 
           pending.push(task);
-          themeUses.push({ scriptId: theme.script_id, lang_code: lang, weekId });
+          // A sign-series script is built from the code template, so it may have no sheet row.
+          if (themes.some((script) => script.script_id === themeId)) {
+            themeUses.push({ scriptId: themeId, lang_code: lang, weekId });
+          }
         }
       }
 
