@@ -65,6 +65,20 @@ export function signThemeSlotScriptId(
   return sign ? signThemeScriptId(seriesForWeek(weekId), sign) : undefined;
 }
 
+/**
+ * The script a theme slot carries. A sign-series day always takes the week's series, which
+ * `weekly-generate` builds from the code template, so a series missing from the sheet never
+ * lets an older general script take the slot; only other days use `fallback`.
+ */
+export function themeScriptIdForSlot(
+  weekId: string,
+  day: DayOfWeek,
+  slot: number,
+  fallback: () => string | undefined,
+): string | undefined {
+  return signThemeSlotScriptId(weekId, day, slot) ?? fallback();
+}
+
 export function signThemeScriptId(series: SignThemeSeries, sign: ZodiacSign): string {
   return `${ID_PREFIX}${series}-${sign}`;
 }
