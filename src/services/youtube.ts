@@ -1,9 +1,9 @@
-import { Readable } from 'stream';
-import { google } from 'googleapis';
-import { optionalEnv, requireEnv } from '@/lib/env';
-import { SignThemeSeries } from '@/lib/sign-themes';
-import { buildVideoTags } from '@/lib/youtube-seo';
-import { Channel, Language } from './sheets';
+import { Readable } from "stream";
+import { google } from "googleapis";
+import { optionalEnv, requireEnv } from "@/lib/env";
+import { SignThemeSeries } from "@/lib/sign-themes";
+import { buildVideoTags } from "@/lib/youtube-seo";
+import { Channel, Language } from "./sheets";
 
 export interface YouTubeUploadParams {
   channel: Channel;
@@ -14,22 +14,26 @@ export interface YouTubeUploadParams {
   /** Sign the video reads, added to the tags viewers search by. */
   zodiacSign?: string;
   series?: SignThemeSeries;
+  /** ISO time YouTube makes the video public; the upload stays private until then. */
+  publishAt?: string;
 }
 
 /** Defaults to `private` so a misconfigured run never publishes to a live channel. */
 function privacyStatus(): string {
-  return optionalEnv('YOUTUBE_PRIVACY_STATUS') ?? 'private';
+  return optionalEnv("YOUTUBE_PRIVACY_STATUS") ?? "private";
 }
 
 /** Each language may use its own Google Cloud project to get a separate upload quota. */
 function authorize(channel: Channel) {
   const refreshToken = channel.youtube_refresh_token;
   if (!refreshToken) {
-    throw new Error(`No youtube_refresh_token for channel "${channel.channel_id}"`);
+    throw new Error(
+      `No youtube_refresh_token for channel "${channel.channel_id}"`,
+    );
   }
   const auth = new google.auth.OAuth2(
-    channel.youtube_client_id ?? requireEnv('YOUTUBE_CLIENT_ID'),
-    channel.youtube_client_secret ?? requireEnv('YOUTUBE_CLIENT_SECRET'),
+    channel.youtube_client_id ?? requireEnv("YOUTUBE_CLIENT_ID"),
+    channel.youtube_client_secret ?? requireEnv("YOUTUBE_CLIENT_SECRET"),
   );
   auth.setCredentials({ refresh_token: refreshToken });
   return auth;
@@ -45,10 +49,11 @@ export class YouTubeService {
     const cached = this.channelIds.get(channel.channel_id);
     if (cached) return cached;
 
-    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
-    const response = await youtube.channels.list({ part: ['id'], mine: true });
+    const youtube = google.youtube({ version: "v3", auth: authorize(channel) });
+    const response = await youtube.channels.list({ part: ["id"], mine: true });
     const id = response.data.items?.[0]?.id;
-    if (!id) throw new Error('YouTube returned no channel for these credentials');
+    if (!id)
+      throw new Error("YouTube returned no channel for these credentials");
 
     this.channelIds.set(channel.channel_id, id);
     return id;
@@ -56,10 +61,14 @@ export class YouTubeService {
 
   /** Exchanges the refresh token and reads the channel back, without uploading anything. */
   async verifyChannel(channel: Channel): Promise<string> {
-    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
-    const response = await youtube.channels.list({ part: ['snippet'], mine: true });
+    const youtube = google.youtube({ version: "v3", auth: authorize(channel) });
+    const response = await youtube.channels.list({
+      part: ["snippet"],
+      mine: true,
+    });
     const found = response.data.items?.[0];
-    if (!found?.id) throw new Error('YouTube returned no channel for these credentials');
+    if (!found?.id)
+      throw new Error("YouTube returned no channel for these credentials");
     return `${found.snippet?.title ?? found.id} (${found.id})`;
   }
 
@@ -68,14 +77,20 @@ export class YouTubeService {
    * verification as long uploads, so `longUploadsStatus` says whether `setThumbnail` can work
    * before a post spends quota on a call the API would reject.
    */
-  async featureStatus(channel: Channel): Promise<{ title: string; longUploadsStatus: string }> {
-    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
-    const response = await youtube.channels.list({ part: ['snippet', 'status'], mine: true });
+  async featureStatus(
+    channel: Channel,
+  ): Promise<{ title: string; longUploadsStatus: string }> {
+    const youtube = google.youtube({ version: "v3", auth: authorize(channel) });
+    const response = await youtube.channels.list({
+      part: ["snippet", "status"],
+      mine: true,
+    });
     const found = response.data.items?.[0];
-    if (!found?.id) throw new Error('YouTube returned no channel for these credentials');
+    if (!found?.id)
+      throw new Error("YouTube returned no channel for these credentials");
     return {
       title: found.snippet?.title ?? found.id,
-      longUploadsStatus: found.status?.longUploadsStatus ?? 'unknown',
+      longUploadsStatus: found.status?.longUploadsStatus ?? "unknown",
     };
   }
 
@@ -87,14 +102,14 @@ export class YouTubeService {
       throw new Error(`Failed to download rendered video (${response.status})`);
     }
 
-    const youtube = google.youtube({ version: 'v3', auth });
+    const youtube = google.youtube({ version: "v3", auth });
     const result = await youtube.videos.insert({
-      part: ['snippet', 'status'],
+      part: ["snippet", "status"],
       requestBody: {
         snippet: {
           title: params.title,
           description: params.description,
-          categoryId: '22',
+          categoryId: "22",
           tags: buildVideoTags({
             lang: params.lang,
             zodiacSign: params.zodiacSign,
@@ -105,31 +120,38 @@ export class YouTubeService {
           defaultAudioLanguage: params.lang,
         },
         status: {
-          privacyStatus: privacyStatus(),
+          privacyStatus: params.publishAt ? "private" : privacyStatus(),
+          ...(params.publishAt ? { publishAt: params.publishAt } : {}),
           selfDeclaredMadeForKids: false,
           embeddable: true,
           publicStatsViewable: true,
-          license: 'youtube',
+          license: "youtube",
         },
       },
       media: {
-        mimeType: 'video/mp4',
-        body: Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]),
+        mimeType: "video/mp4",
+        body: Readable.fromWeb(
+          response.body as Parameters<typeof Readable.fromWeb>[0],
+        ),
       },
     });
 
     const videoId = result.data.id;
-    if (!videoId) throw new Error('YouTube upload returned no video id');
+    if (!videoId) throw new Error("YouTube upload returned no video id");
     return videoId;
   }
 
   /** Playlists are the only in-channel navigation Shorts support, so every upload joins one. */
-  async addToPlaylist(channel: Channel, playlistId: string, videoId: string): Promise<void> {
-    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+  async addToPlaylist(
+    channel: Channel,
+    playlistId: string,
+    videoId: string,
+  ): Promise<void> {
+    const youtube = google.youtube({ version: "v3", auth: authorize(channel) });
     await youtube.playlistItems.insert({
-      part: ['snippet'],
+      part: ["snippet"],
       requestBody: {
-        snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } },
+        snippet: { playlistId, resourceId: { kind: "youtube#video", videoId } },
       },
     });
   }
@@ -140,21 +162,26 @@ export class YouTubeService {
    * The titles are derived from the language and the sign, so the channel needs no configuration
    * per sign, and an existing playlist is reused instead of a duplicate being created.
    */
-  async ensurePlaylist(channel: Channel, title: string, description: string): Promise<string> {
-    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+  async ensurePlaylist(
+    channel: Channel,
+    title: string,
+    description: string,
+  ): Promise<string> {
+    const youtube = google.youtube({ version: "v3", auth: authorize(channel) });
     let known = this.playlists.get(channel.channel_id);
     if (!known) {
       known = new Map();
       let pageToken: string | undefined;
       do {
         const page = await youtube.playlists.list({
-          part: ['snippet'],
+          part: ["snippet"],
           mine: true,
           maxResults: 50,
           pageToken,
         });
         for (const item of page.data.items ?? []) {
-          if (item.snippet?.title && item.id) known.set(item.snippet.title, item.id);
+          if (item.snippet?.title && item.id)
+            known.set(item.snippet.title, item.id);
         }
         pageToken = page.data.nextPageToken ?? undefined;
       } while (pageToken);
@@ -165,10 +192,10 @@ export class YouTubeService {
     if (existing) return existing;
 
     const created = await youtube.playlists.insert({
-      part: ['snippet', 'status'],
+      part: ["snippet", "status"],
       requestBody: {
         snippet: { title, description },
-        status: { privacyStatus: 'public' },
+        status: { privacyStatus: "public" },
       },
     });
     const id = created.data.id;
@@ -182,17 +209,23 @@ export class YouTubeService {
    * the title is cut short. Channels that are not verified cannot carry a custom thumbnail, and
    * the API rejects the call, so the caller treats a failure as cosmetic.
    */
-  async setThumbnail(channel: Channel, videoId: string, imageUrl: string): Promise<void> {
+  async setThumbnail(
+    channel: Channel,
+    videoId: string,
+    imageUrl: string,
+  ): Promise<void> {
     const response = await fetch(imageUrl);
     if (!response.ok || !response.body) {
       throw new Error(`Failed to download thumbnail (${response.status})`);
     }
-    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    const youtube = google.youtube({ version: "v3", auth: authorize(channel) });
     await youtube.thumbnails.set({
       videoId,
       media: {
-        mimeType: response.headers.get('content-type') ?? 'image/jpeg',
-        body: Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]),
+        mimeType: response.headers.get("content-type") ?? "image/jpeg",
+        body: Readable.fromWeb(
+          response.body as Parameters<typeof Readable.fromWeb>[0],
+        ),
       },
     });
   }
@@ -201,16 +234,23 @@ export class YouTubeService {
    * Shorts hide the description, so the site link is repeated as a comment. Pinning it needs
    * YouTube Studio: the API exposes no pin, and the channel owner's comment sorts to the top.
    */
-  async postComment(channel: Channel, videoId: string, text: string): Promise<string> {
-    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+  async postComment(
+    channel: Channel,
+    videoId: string,
+    text: string,
+  ): Promise<string> {
+    const youtube = google.youtube({ version: "v3", auth: authorize(channel) });
     const result = await youtube.commentThreads.insert({
-      part: ['snippet'],
+      part: ["snippet"],
       requestBody: {
-        snippet: { videoId, topLevelComment: { snippet: { textOriginal: text } } },
+        snippet: {
+          videoId,
+          topLevelComment: { snippet: { textOriginal: text } },
+        },
       },
     });
     const commentId = result.data.id;
-    if (!commentId) throw new Error('YouTube comment returned no id');
+    if (!commentId) throw new Error("YouTube comment returned no id");
     return commentId;
   }
 
@@ -219,10 +259,10 @@ export class YouTubeService {
    * the channel keeps its watch history and the file can be brought back if needed.
    */
   async unlistVideo(channel: Channel, videoId: string): Promise<void> {
-    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    const youtube = google.youtube({ version: "v3", auth: authorize(channel) });
     await youtube.videos.update({
-      part: ['status'],
-      requestBody: { id: videoId, status: { privacyStatus: 'private' } },
+      part: ["status"],
+      requestBody: { id: videoId, status: { privacyStatus: "private" } },
     });
   }
 
@@ -230,26 +270,39 @@ export class YouTubeService {
   async listRecentUploads(
     channel: Channel,
   ): Promise<{ id: string; title: string; publishedAt: string }[]> {
-    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
-    const channels = await youtube.channels.list({ part: ['contentDetails'], mine: true });
-    const uploads = channels.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
-    if (!uploads) throw new Error('YouTube returned no uploads playlist for these credentials');
+    const youtube = google.youtube({ version: "v3", auth: authorize(channel) });
+    const channels = await youtube.channels.list({
+      part: ["contentDetails"],
+      mine: true,
+    });
+    const uploads =
+      channels.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+    if (!uploads)
+      throw new Error(
+        "YouTube returned no uploads playlist for these credentials",
+      );
     const items = await youtube.playlistItems.list({
-      part: ['snippet'],
+      part: ["snippet"],
       playlistId: uploads,
       maxResults: 50,
     });
     return (items.data.items ?? []).flatMap((item) => {
       const id = item.snippet?.resourceId?.videoId;
       return id
-        ? [{ id, title: item.snippet?.title ?? '', publishedAt: item.snippet?.publishedAt ?? '' }]
+        ? [
+            {
+              id,
+              title: item.snippet?.title ?? "",
+              publishedAt: item.snippet?.publishedAt ?? "",
+            },
+          ]
         : [];
     });
   }
 
   /** Removes a video for good, for a reading that was published from a superseded script. */
   async deleteVideo(channel: Channel, videoId: string): Promise<void> {
-    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    const youtube = google.youtube({ version: "v3", auth: authorize(channel) });
     await youtube.videos.delete({ id: videoId });
   }
 }
