@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import { sendAlert } from '@/lib/alert';
 import { isCronAuthorized } from '@/lib/auth';
 import { buildDescription, followUpLink, playlistDescription, youtubeComment } from '@/lib/cta';
-import { dispatchLanguages, isDispatchEnabled, isDispatchEnabledFor } from '@/lib/dispatch-gate';
+import {
+  dispatchLanguages,
+  isDispatchEnabled,
+  isDispatchEnabledFor,
+  isPlatformPaused,
+} from '@/lib/dispatch-gate';
 import { optionalEnv } from '@/lib/env';
 import { ContainerFailedError, PendingTranscodeError } from '@/lib/media-container';
 import { weekPeriodLabel, weekPeriodTitleLabel } from '@/lib/period';
@@ -74,7 +79,8 @@ function isDue(scheduledPostTime: string, now: Date): boolean {
 
 /**
  * Platforms are onboarded one at a time, so a channel row without credentials is skipped, and a
- * row held back by `posting_paused_until` keeps its credentials but publishes nothing until then.
+ * row held back by `posting_paused_until` keeps its credentials but publishes nothing until then,
+ * and a platform listed in `PAUSED_PLATFORMS` is skipped in every language.
  *
  * TikTok is never dispatched: the Content Posting API app was rejected because TikTok does not
  * grant production access to apps that only publish to their own account, so its videos are
@@ -82,6 +88,7 @@ function isDue(scheduledPostTime: string, now: Date): boolean {
  */
 function isConnected(channel: Channel | null): channel is Channel {
   if (!channel) return false;
+  if (isPlatformPaused(channel.platform)) return false;
   if (channel.posting_paused_until && Date.now() < Date.parse(channel.posting_paused_until)) {
     return false;
   }
