@@ -126,6 +126,28 @@ export class YouTubeService {
     return videoId;
   }
 
+  /** Replaces a video's description, keeping the rest of its snippet as uploaded. */
+  async updateDescription(channel: Channel, videoId: string, description: string): Promise<void> {
+    const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
+    const response = await youtube.videos.list({ part: ['snippet'], id: [videoId] });
+    const snippet = response.data.items?.[0]?.snippet;
+    if (!snippet?.title || !snippet.categoryId) throw new Error(`YouTube video ${videoId} not found`);
+    await youtube.videos.update({
+      part: ['snippet'],
+      requestBody: {
+        id: videoId,
+        snippet: {
+          title: snippet.title,
+          description,
+          categoryId: snippet.categoryId,
+          tags: snippet.tags,
+          defaultLanguage: snippet.defaultLanguage,
+          defaultAudioLanguage: snippet.defaultAudioLanguage,
+        },
+      },
+    });
+  }
+
   /** Playlists are the only in-channel navigation Shorts support, so every upload joins one. */
   async addToPlaylist(channel: Channel, playlistId: string, videoId: string): Promise<void> {
     const youtube = google.youtube({ version: 'v3', auth: authorize(channel) });
