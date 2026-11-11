@@ -14,6 +14,8 @@ export interface YouTubeUploadParams {
   /** Sign the video reads, added to the tags viewers search by. */
   zodiacSign?: string;
   series?: SignThemeSeries;
+  /** ISO time YouTube makes the video public; the upload stays private until then. */
+  publishAt?: string;
 }
 
 /** Defaults to `private` so a misconfigured run never publishes to a live channel. */
@@ -105,7 +107,8 @@ export class YouTubeService {
           defaultAudioLanguage: params.lang,
         },
         status: {
-          privacyStatus: privacyStatus(),
+          privacyStatus: params.publishAt ? 'private' : privacyStatus(),
+          ...(params.publishAt ? { publishAt: params.publishAt } : {}),
           selfDeclaredMadeForKids: false,
           embeddable: true,
           publicStatsViewable: true,
