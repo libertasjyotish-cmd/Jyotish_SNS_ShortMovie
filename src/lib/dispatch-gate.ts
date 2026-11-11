@@ -25,12 +25,17 @@ export function isDispatchEnabledFor(lang: string): boolean {
 }
 
 /**
- * `PAUSED_PLATFORMS` (comma-separated, e.g. `YouTube`) stops uploads to a platform in every
- * language while the others keep posting, so a row completes without it instead of failing.
+ * YouTube stays off while the terminated channels are under appeal (2026-11, spam policy), and
+ * the Japanese channel is held back so it is not judged the same way.
+ */
+const DEFAULT_PAUSED_PLATFORMS = 'YouTube';
+
+/**
+ * `PAUSED_PLATFORMS` (comma-separated, e.g. `YouTube`; `none` resumes all) stops uploads to a
+ * platform in every language while the others keep posting, so a row completes without it.
  */
 export function isPlatformPaused(platform: Platform): boolean {
-  const configured = optionalEnv('PAUSED_PLATFORMS');
-  if (!configured) return false;
+  const configured = optionalEnv('PAUSED_PLATFORMS') ?? DEFAULT_PAUSED_PLATFORMS;
   return configured
     .split(',')
     .map((name) => name.trim().toLowerCase())
