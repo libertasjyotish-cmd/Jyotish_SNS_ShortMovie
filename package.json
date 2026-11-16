@@ -29,6 +29,7 @@
     "print:facebook-profiles": "tsx scripts/print-facebook-profiles.ts",
     "sync:youtube-about": "tsx scripts/sync-youtube-about.ts",
     "backfill:render-backgrounds": "tsx scripts/backfill-render-backgrounds.ts",
+    "rerender:sign-week": "tsx scripts/rerender-sign-week.ts",
     "audit:scripts": "tsx scripts/audit-stored-scripts.ts",
     "reschedule:overdue": "tsx scripts/reschedule-overdue.ts",
     "repin:slots": "tsx scripts/repin-slots.ts",
