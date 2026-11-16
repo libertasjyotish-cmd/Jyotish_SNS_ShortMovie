@@ -186,7 +186,7 @@ const SUN_TRAIT: Record<Sign, string> = {
 };
 
 const VA = 'في علم التنجيم الفيدي،';
-const hk = (m: Sign, h: string) => `قمرك في ${sign(m)}، ${h}`;
+const hk = (m: Sign, h: string) => `${sign(m)} في قمرك، ${h}`;
 const house = (s: Sign, n: number, what: string) => {
   const p = RULER[s];
   return `${VA} ${FEMININE.has(p) ? 'ترتبط' : 'يرتبط'} ${PLANET[p]} ببيتك ${HOUSE[n]}، ${what}.`;
@@ -216,7 +216,7 @@ const SERIES: Record<SignThemeSeries, (m: Sign) => EvergreenTemplate> = {
   nature: (m) => { const s = signFrom(m, 9); const [h, a, b] = NATURE[s];
     return { hook: hk(m, h), body: `${house(s, 9, 'محور حياتك')} ما تقدّره حقا هو ${a}. حين ${b}، تكون أكثر ما تكون على طبيعتك.` }; },
   sidereal: (sun) => ({
-    hook: `يا ${sign(sun)}، تصفك الأبراج بأنك ${SUN_TRAIT[sun]}. هل تشعر أن هذا ليس أنت؟`,
+    hook: `${sign(sun)}، تصفك الأبراج بأنك ${SUN_TRAIT[sun]}. هل تشعر أن هذا ليس أنت؟`,
     body: 'يقرأ علم التنجيم الفيدي شخصيتك من القمر لا من الشمس، ويعتمد الموقع الحقيقي للنجوم. كثيرون تقع شمسهم وقمرهم في برجين مختلفين، وربما لهذا لا تصيب الأبراج أبدا.',
   }),
 };

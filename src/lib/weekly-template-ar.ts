@@ -162,7 +162,7 @@ export const AR: LanguagePack = {
             : `${v('يؤثر', 'تؤثر')} بقوة في ${field}`;
     }
     return {
-      hook: `قمرك في ${sign(moon)}، ${hook}`,
+      hook: `${sign(moon)} في قمرك، ${hook}`,
       body: `${opening} إذا كنت ${reason}، فذلك لأن ${NATURE[chosen.planet]} ${cause}. هذا وقت مناسب ${lam(use)}`,
     };
   },
