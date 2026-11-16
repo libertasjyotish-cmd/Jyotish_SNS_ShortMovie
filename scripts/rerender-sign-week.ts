@@ -7,7 +7,10 @@
  * that could still be served the old file. Each row is rendered once more by the normal
  * render-batch chain; nothing is posted here. Dry-run unless `--apply` is given.
  *
- *   npm run rerender:sign-week -- --week=2026-W47 [--hours=3] [--apply]
+ * `--rescript=ja,en` also rebuilds the script of those languages from the current template first
+ * (weekly-generate writes it, then render-batch renders it), for when the template wording changed.
+ *
+ *   npm run rerender:sign-week -- --week=2026-W47 [--hours=3] [--rescript=ja] [--apply]
  */
 import { pickBackground } from '@/lib/render';
 import { parseSignThemeId } from '@/lib/sign-themes';
@@ -21,6 +24,7 @@ async function main() {
   const apply = process.argv.includes('--apply');
   const weekId = arg('week');
   if (!weekId) throw new Error('pass --week=<YYYY-Www>');
+  const rescript = (arg('rescript') ?? '').split(',').filter(Boolean);
   const from = Date.now() + Number(arg('hours') ?? 3) * 3_600_000;
 
   const sheets = new GoogleSheetsService();
@@ -48,7 +52,8 @@ async function main() {
     const next = pickBackground(task.task_id, assets, task.day_of_week);
     const name = (url?: string) => url?.split('/').pop() ?? '-';
     console.log(
-      `${task.task_id} ${task.scheduled_post_time} ${name(output?.background_url)} -> ${name(next)}`,
+      `${task.task_id} ${task.scheduled_post_time} ${name(output?.background_url)} -> ${name(next)}` +
+        (rescript.includes(task.lang_code) ? ' +script' : ''),
     );
   }
   console.log(`\n${tasks.length} row(s).`);
@@ -56,6 +61,11 @@ async function main() {
     console.log('Dry run. Re-run with --apply to send them back to the renderer.');
     return;
   }
+  await sheets.requeueScripts(
+    tasks
+      .filter((task) => rescript.includes(task.lang_code))
+      .map((task) => ({ taskId: task.task_id, attempts: 0 })),
+  );
   await sheets.resetRenders(tasks.map((task) => task.task_id));
   console.log('Reset. The next render-batch run renders them in post order.');
 }

@@ -153,7 +153,7 @@ const TEMPLATE_BOUNDS: Record<Language, { min: number; max: number }> = {
   de: { min: 68, max: 104 },
 };
 
-/** Room for the fixed "月星座が〇〇座のあなた、" opening the template puts before every hook. */
+/** Room for the fixed "〇〇座が月星座のあなた、" opening the template puts before every hook. */
 const TEMPLATE_MOON_PREFIX: Record<Language, number> = {
   ja: 10, en: 3, es: 3, pt: 3, id: 3, ar: 3, fr: 3, de: 3,
 };
