@@ -155,7 +155,7 @@ export const DE: LanguagePack = {
             : `stark auf ${area} wirkt`;
     }
     return {
-      hook: `Mondzeichen ${sign(moon)}, ${hook}`,
+      hook: `${sign(moon)}-Mond, ${hook}`,
       body: `${opening} Wenn du ${reason}, liegt das daran, dass ${NATURE[chosen.planet]} ${cause}. Jetzt ist eine gute Zeit, ${use}`,
     };
   },

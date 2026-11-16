@@ -173,7 +173,7 @@ const SUN_TRAIT: Record<Sign, string> = {
 
 const P = (s: Sign) => PLANET[RULER[s]];
 const VA = 'Na astrologia védica,';
-const hk = (m: Sign, h: string) => `Lua em ${sign(m)}, ${h}`;
+const hk = (m: Sign, h: string) => `${sign(m)} lunar, ${h}`;
 
 const SERIES: Record<SignThemeSeries, (m: Sign) => EvergreenTemplate> = {
   work: (m) => { const s = signFrom(m, 10); const [h, a, b] = WORK[s];

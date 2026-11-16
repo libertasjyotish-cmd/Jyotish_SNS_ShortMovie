@@ -151,7 +151,7 @@ export const ID: LanguagePack = {
             : `bekerja kuat pada ${field}`;
     }
     return {
-      hook: `Bulan di ${sign(moon)}, ${hook}`,
+      hook: `${sign(moon)} Bulan, ${hook}`,
       body: `${opening} Jika Anda ${reason}, itu karena ${NATURE[chosen.planet]} ${cause}. Saatnya ${use}`,
     };
   },

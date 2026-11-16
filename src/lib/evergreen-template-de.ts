@@ -190,7 +190,7 @@ const SUN_TRAIT: Record<Sign, string> = {
 
 const P = (s: Sign) => PLANET[RULER[s]][0];
 const VA = 'In der vedischen Astrologie';
-const hk = (m: Sign, h: string) => `Mondzeichen ${sign(m)}, ${h}`;
+const hk = (m: Sign, h: string) => `${sign(m)}-Mond, ${h}`;
 /** "In der vedischen Astrologie ist X mit deinem N. Haus verbunden, …" (verb second). */
 const house = (s: Sign, n: number, what: string) => `${VA} ist ${P(s)} mit deinem ${n}. Haus verbunden, ${what}.`;
 
