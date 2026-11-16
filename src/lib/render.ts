@@ -108,8 +108,9 @@ function stableHash(value: string): number {
   return hash;
 }
 
-/** Slots a week takes up: the four theme days plus the twelve sign readings. */
-const SLOTS_PER_WEEK = 16;
+/** Weekday slots (0-6), the weekly readings (4 + sign) and the sign-theme videos (16 + sign). */
+const SLOTS_PER_WEEK = 28;
+const SIGN_THEME_SLOT = 16;
 
 /** A task id ends in the script id it was planned from, so a promotion is told apart by it. */
 function isPromoTaskId(taskId: string): boolean {
@@ -197,15 +198,14 @@ export function pickBackground(
   const day = dayOfWeek ? DAY_OFFSET[dayOfWeek as DayOfWeek] : undefined;
   if (!week || day === undefined) return urls[stableHash(taskId) % urls.length];
 
-  // A sign-targeted evergreen ends in a sign too, but it takes the slot of its weekday: the
-  // three series of one sign go out on the Monday, Tuesday and Wednesday of the same week, and
-  // consecutive slots are what the balanced order keeps apart. Reading it as a sign instead
-  // would hand all three, and the sign's own weekly reading, the same background.
+  // A sign-themed video goes out on the same day as three other signs of its series, so it takes
+  // a slot of its own sign, apart from the slots of the weekly readings: otherwise the day's four
+  // videos would share one background and the feed would show the same picture four times.
   const isSignTheme = SIGN_THEME_SERIES.some((series) => taskId.includes(`-sign-${series}-`));
-  const sign = isSignTheme
-    ? -1
-    : ZODIAC_SIGNS.indexOf((taskId.split('-').pop() ?? '') as (typeof ZODIAC_SIGNS)[number]);
-  const slot = sign >= 0 ? 4 + sign : day;
+  const sign = ZODIAC_SIGNS.indexOf(
+    (taskId.split('-').pop() ?? '') as (typeof ZODIAC_SIGNS)[number],
+  );
+  const slot = sign < 0 ? day : (isSignTheme ? SIGN_THEME_SLOT : 4) + sign;
   const index = (Number(week[1]) * SLOTS_PER_WEEK + slot) % urls.length;
 
   // The promotions share their weekday with each other, so the slot of the weekday alone hands

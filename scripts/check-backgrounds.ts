@@ -6,6 +6,7 @@
  */
 import { pickBackground } from '@/lib/render';
 import { PROMO_SCRIPT_PREFIX, THEME_DAYS, ZODIAC_DAYS, type DayOfWeek } from '@/lib/schedule';
+import { SIGNS_BY_DAY } from '@/lib/sign-themes';
 import type { BackgroundAsset } from '@/services/sheets';
 
 /** A library the size of the real one, with the same kind of lopsided look/brightness stock. */
@@ -17,7 +18,7 @@ const ASSETS: BackgroundAsset[] = Array.from({ length: 40 }, (_, index) => ({
   enabled: true,
 }));
 
-const WEEKS = ['2026-W41', '2026-W42', '2026-W43', '2026-W44'];
+const WEEKS = ['2026-W41', '2026-W42', '2026-W43', '2026-W44', '2026-W47', '2026-W48'];
 const LANG = 'ja';
 
 /** Task ids a week puts out, by the day they go out on. */
@@ -25,6 +26,10 @@ function taskIdsByDay(week: string): Map<DayOfWeek, string[]> {
   const byDay = new Map<DayOfWeek, string[]>();
   for (const day of THEME_DAYS) {
     byDay.set(day, [`${week}-${LANG}-S-0${THEME_DAYS.indexOf(day) + 1}`]);
+  }
+  // The sign-series days carry four sign-themed videos instead of one theme.
+  for (const [day, signs] of Object.entries(SIGNS_BY_DAY) as [DayOfWeek, readonly string[]][]) {
+    byDay.set(day, signs.map((sign) => `${week}-${LANG}-sign-money-${sign.toLowerCase()}`));
   }
   // Thursday also carries the two promotions: an event one in the weeks an event falls in,
   // otherwise two product ones.
