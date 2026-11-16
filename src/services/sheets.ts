@@ -962,6 +962,48 @@ export class GoogleSheetsService {
     await this.patchRows(SHEET_NAMES.renderOutputs, patches);
   }
 
+  /**
+   * Sends rendered rows back to the renderer: status `Pending` with a fresh attempt count, and the
+   * stored cover dropped so it is drawn again on the background the new render picks.
+   */
+  async resetRenders(taskIds: string[], pattern: Pattern = '30s'): Promise<void> {
+    if (taskIds.length === 0) return;
+    const columns = RENDER_COLUMNS[pattern];
+    await this.ensureColumns(SHEET_NAMES.contentQueue, [columns.attempts]);
+    await this.ensureColumns(SHEET_NAMES.renderOutputs, [
+      COVER_URL_COLUMN,
+      COVER_WIDE_URL_COLUMN,
+      COVER_ATTEMPTS_COLUMN,
+    ]);
+    const queue = await this.loadTable(SHEET_NAMES.contentQueue);
+    const outputs = await this.loadTable(SHEET_NAMES.renderOutputs);
+    const queuePatches = taskIds.map((taskId) => {
+      const matches = queue.rows.filter((row) => row.values.task_id === taskId);
+      const row =
+        matches.find((candidate) => (candidate.values.post_status || 'Pending') !== 'Hold') ??
+        matches[0];
+      if (!row) throw new Error(`Task "${taskId}" not found in Content_Queue`);
+      return { rowNumber: row.rowNumber, patch: { [columns.status]: 'Pending', [columns.attempts]: '0' } };
+    });
+    const outputPatches = taskIds.flatMap((taskId) => {
+      const row = outputs.rows.find((candidate) => candidate.values.task_id === taskId);
+      return row
+        ? [
+            {
+              rowNumber: row.rowNumber,
+              patch: {
+                [COVER_URL_COLUMN]: '',
+                [COVER_WIDE_URL_COLUMN]: '',
+                [COVER_ATTEMPTS_COLUMN]: '0',
+              },
+            },
+          ]
+        : [];
+    });
+    await this.patchRows(SHEET_NAMES.contentQueue, queuePatches);
+    await this.patchRows(SHEET_NAMES.renderOutputs, outputPatches);
+  }
+
   async getRenderOutput(taskId: string): Promise<RenderOutput | null> {
     const { rows } = await this.loadTable(SHEET_NAMES.renderOutputs);
     const row = rows.find((candidate) => candidate.values.task_id === taskId);

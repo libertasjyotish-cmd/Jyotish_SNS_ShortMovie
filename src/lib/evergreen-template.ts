@@ -64,7 +64,7 @@ function workJa(moon: Sign): EvergreenTemplate {
   const tenth = signFrom(moon, 10);
   const line = JA_WORK[tenth];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body:
       `インド占星術では、仕事を表す10ハウスに${JA_RULER[RULER[tenth]]}が関わっています。${line.strength}力があるのは、そのためです。` +
       `${line.place}なら、自ずから力を発揮します。`,
@@ -99,7 +99,7 @@ const JA_COMPAT: Record<Sign, CompatLine> = {
 function compatJa(moon: Sign): EvergreenTemplate {
   const line = JA_COMPAT[moon];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body: `インド占星術では、相性を太陽ではなく月の星座同士で見ます。${JA_SIGN[moon]}の月は、${line.nature}心です。${line.place}となら、自然と心が通じます。`,
   };
 }
@@ -133,7 +133,7 @@ function loveJa(moon: Sign): EvergreenTemplate {
   const fifth = signFrom(moon, 5);
   const line = JA_LOVE[fifth];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body: `インド占星術では、恋を表す5ハウスに${JA_RULER[RULER[fifth]]}が関わっています。${line.strength}気持ちになるのは、そのためです。${line.place}となら、きっと報われます。`,
   };
 }
@@ -158,7 +158,7 @@ function moneyJa(moon: Sign): EvergreenTemplate {
   const second = signFrom(moon, 2);
   const line = JA_MONEY[second];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body: `インド占星術では、お金を表す2ハウスに${JA_RULER[RULER[second]]}が関わっています。${line.strength}力があるのは、そのためです。${line.place}なら、自ずからお金が巡ります。`,
   };
 }
@@ -183,7 +183,7 @@ function familyJa(moon: Sign): EvergreenTemplate {
   const fourth = signFrom(moon, 4);
   const line = JA_FAMILY[fourth];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body: `インド占星術では、家族を表す4ハウスに${JA_RULER[RULER[fourth]]}が関わっています。${line.strength}気持ちになるのは、そのためです。${line.place}なら、心から安らげます。`,
   };
 }
@@ -217,7 +217,7 @@ function restJa(moon: Sign): EvergreenTemplate {
   const twelfth = signFrom(moon, 12);
   const line = JA_REST[twelfth];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body: `インド占星術では、休息を表す12ハウスに${JA_RULER[RULER[twelfth]]}が関わっています。${line.why}のは、そのためです。${line.place}があれば、自ずと力が戻ります。`,
   };
 }
@@ -241,7 +241,7 @@ const JA_IMPRESSION: Record<Sign, RestLine> = {
 function impressionJa(moon: Sign): EvergreenTemplate {
   const line = JA_IMPRESSION[moon];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body: `インド占星術では、人に見せる顔を表す1ハウスに${JA_RULER[RULER[moon]]}が関わっています。${line.why}のは、そのためです。${line.place}なら、その印象が自ずと信頼に変わります。`,
   };
 }
@@ -266,7 +266,7 @@ function avoidJa(moon: Sign): EvergreenTemplate {
   const sixth = signFrom(moon, 6);
   const line = JA_AVOID[sixth];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body: `インド占星術では、心をすり減らすものを表す6ハウスに${JA_RULER[RULER[sixth]]}が関わっています。${line.why}のは、そのためです。${line.place}なら、あなたらしさを取り戻せます。`,
   };
 }
@@ -293,7 +293,7 @@ function turningJa(moon: Sign): EvergreenTemplate {
   const eighth = signFrom(moon, 8);
   const line = JA_TURNING[eighth];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body: `インド占星術では、人生の変わり目を表す8ハウスに${JA_RULER[RULER[eighth]]}が関わっています。転機は、${line.arrival}訪れます。${line.action}と、それが追い風になります。`,
   };
 }
@@ -319,7 +319,7 @@ const JA_HABIT: Record<Sign, HabitLine> = {
 function habitJa(moon: Sign): EvergreenTemplate {
   const line = JA_HABIT[moon];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body: `インド占星術では、心を表すあなたの月は、${JA_RULER[RULER[moon]]}の性質を帯びています。${line.why}のは、そのためです。${line.stop}と、${line.relief}。`,
   };
 }
@@ -346,7 +346,7 @@ function natureJa(moon: Sign): EvergreenTemplate {
   const ninth = signFrom(moon, 9);
   const line = JA_NATURE[ninth];
   return {
-    hook: `月星座が${JA_SIGN[moon]}のあなた、${line.hook}`,
+    hook: `${JA_SIGN[moon]}が月星座のあなた、${line.hook}`,
     body: `インド占星術では、生き方の軸を表す9ハウスに${JA_RULER[RULER[ninth]]}が関わっています。あなたが本当に大切にするのは、${line.core}です。${line.scene}とき、一番あなたらしくいられます。`,
   };
 }
