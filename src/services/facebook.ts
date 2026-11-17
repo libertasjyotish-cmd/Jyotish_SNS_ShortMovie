@@ -167,6 +167,41 @@ export class FacebookService {
     return session.video_id;
   }
 
+  /** Page stories take the same resumable upload as Reels, on the `video_stories` edge. */
+  async createStoryUpload(channel: Channel, videoUrl: string): Promise<string> {
+    const { pageId, accessToken } = credentials(channel);
+    const session = await graphRequest<{ video_id: string }>(
+      `${GRAPH_BASE}/${pageId}/video_stories`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ upload_phase: 'start', access_token: accessToken }),
+      },
+    );
+    await graphRequest<{ success?: boolean }>(`${RUPLOAD_BASE}/${session.video_id}`, {
+      method: 'POST',
+      headers: { Authorization: `OAuth ${accessToken}`, file_url: videoUrl },
+    });
+    return session.video_id;
+  }
+
+  async isStoryUploaded(channel: Channel, videoId: string): Promise<boolean> {
+    return this.isUploaded(videoId, credentials(channel).accessToken);
+  }
+
+  async publishStory(channel: Channel, videoId: string): Promise<string> {
+    const { pageId, accessToken } = credentials(channel);
+    const result = await graphRequest<{ success?: boolean; post_id?: string }>(
+      `${GRAPH_BASE}/${pageId}/video_stories?${new URLSearchParams({
+        upload_phase: 'finish',
+        video_id: videoId,
+        access_token: accessToken,
+      }).toString()}`,
+      { method: 'POST' },
+    );
+    return result.post_id ?? videoId;
+  }
+
   /** Publishing is what starts transcoding, so only the upload phase is awaited here. */
   async waitUntilUploaded(channel: Channel, videoId: string): Promise<boolean> {
     const { accessToken } = credentials(channel);
