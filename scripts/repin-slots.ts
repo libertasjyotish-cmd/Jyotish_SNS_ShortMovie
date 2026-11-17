@@ -12,6 +12,7 @@ import {
   DayOfWeek,
   isoWeekId,
   scheduledPostTime,
+  shuffledSlot,
   startOfIsoWeek,
 } from '@/lib/schedule';
 import { plannedLanguages } from '@/lib/plan-languages';
@@ -58,7 +59,7 @@ async function main() {
       );
 
     rows.forEach((task, slot) => {
-      const wanted = scheduledPostTime(weekStart, day, lang, slot);
+      const wanted = scheduledPostTime(weekStart, day, lang, shuffledSlot(task.week_id, day, slot));
       if (wanted === task.scheduled_post_time) return;
       updates.push({ taskId: task.task_id, scheduledPostTime: wanted });
       console.log(`${task.task_id}: ${task.scheduled_post_time} -> ${wanted}`);

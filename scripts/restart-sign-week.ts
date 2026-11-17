@@ -8,7 +8,13 @@
  *
  *   npm run restart:sign-week -- --week=2026-W43 [--langs=ja,en] [--apply]
  */
-import { DayOfWeek, scheduledPostTime, THEME_SLOTS, weekStartFromId } from '@/lib/schedule';
+import {
+  DayOfWeek,
+  scheduledPostTime,
+  shuffledSlot,
+  THEME_SLOTS,
+  weekStartFromId,
+} from '@/lib/schedule';
 import { plannedLanguages } from '@/lib/plan-languages';
 import { parseSignThemeId, SIGNS_BY_DAY, signThemeSlotScriptId } from '@/lib/sign-themes';
 import { ContentQueue, GoogleSheetsService, Language } from '@/services/sheets';
@@ -65,7 +71,7 @@ async function main() {
           render_attempts_30s: 0,
           render_attempts_65s: 0,
           post_status: 'Pending',
-          scheduled_post_time: scheduledPostTime(weekStart, day, lang, slot),
+          scheduled_post_time: scheduledPostTime(weekStart, day, lang, shuffledSlot(weekId, day, slot)),
         });
       }
     }
