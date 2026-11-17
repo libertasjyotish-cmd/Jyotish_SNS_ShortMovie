@@ -17,6 +17,7 @@ import {
   DayOfWeek,
   isoWeekId,
   scheduledPostTime,
+  shuffledSlot,
   startOfIsoWeek,
   THEME_DAYS,
   THEME_SLOTS,
@@ -157,7 +158,12 @@ async function main() {
             render_attempts_30s: 0,
             render_attempts_65s: 0,
             post_status: 'Pending',
-            scheduled_post_time: scheduledPostTime(weekStart, day, lang, slot),
+            scheduled_post_time: scheduledPostTime(
+              weekStart,
+              day,
+              lang,
+              slot < THEME_SLOTS ? shuffledSlot(resolvedWeek, day, slot) : slot,
+            ),
           },
         });
       }

@@ -15,6 +15,7 @@ import {
   scheduledPostTime,
   THEME_DAYS,
   THEME_SLOTS,
+  shuffledSlot,
   ZODIAC_DAYS,
   zodiacPostWeekStart,
 } from '@/lib/schedule';
@@ -180,7 +181,13 @@ export async function GET(request: Request) {
           // the caption read the same way they do for a weekly reading.
           const signTheme = parseSignThemeId(themeId);
           const task: ContentQueue = {
-            ...baseTask(weekId, day, weekStart, lang, slot),
+            ...baseTask(
+              weekId,
+              day,
+              weekStart,
+              lang,
+              slots === THEME_SLOTS ? shuffledSlot(weekId, day, slot) : slot,
+            ),
             task_id: `${weekId}-${lang}-${themeId}`,
             target_type: 'Theme',
             theme_id: themeId,
@@ -221,7 +228,7 @@ export async function GET(request: Request) {
         for (let slot = 0; slot < signs.length; slot += 1) {
           const sign = signs[slot];
           const task: ContentQueue = {
-            ...baseTask(weekId, day, zodiacPostWeekStart(weekStart), lang, slot),
+            ...baseTask(weekId, day, zodiacPostWeekStart(weekStart), lang, shuffledSlot(weekId, day, slot)),
             task_id: `${weekId}-${lang}-${sign.toLowerCase()}`,
             target_type: 'Zodiac_Sign',
             zodiac_sign: sign,

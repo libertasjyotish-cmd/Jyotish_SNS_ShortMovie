@@ -3,7 +3,13 @@ import { optionalEnv } from '@/lib/env';
 import { mp3DurationSeconds } from '@/lib/mp3';
 import { applyReadingHints } from '@/lib/reading';
 import { voiceForTask } from '@/lib/reuse-cycle';
-import { DAY_OFFSET, DayOfWeek, PROMO_SCRIPT_PREFIX } from '@/lib/schedule';
+import {
+  DAY_OFFSET,
+  DayOfWeek,
+  PROMO_SCRIPT_PREFIX,
+  shuffledSlot,
+  weekStartFromId,
+} from '@/lib/schedule';
 import { SIGN_THEME_SERIES } from '@/lib/sign-themes';
 import { ZODIAC_SIGNS } from '@/lib/zodiac-names';
 import { CreatomateService } from '@/services/creatomate';
@@ -179,6 +185,29 @@ export function balancedOrder(assets: BackgroundAsset[]): string[] {
   return order;
 }
 
+/** Times of day a background can show, in the order a day's four posting slots go out. */
+export const TIMES_OF_DAY = ['day', 'afternoon', 'evening', 'night'] as const;
+
+/** Time of day of the slot a task posts in: a day's four signs take one slot each. */
+function timeOfDayOf(
+  weekId: string,
+  day: DayOfWeek,
+  sign: number,
+): string | undefined {
+  if (sign < 0) return undefined;
+  return TIMES_OF_DAY[shuffledSlot(weekId, day, sign % TIMES_OF_DAY.length)];
+}
+
+/**
+ * Days since the epoch of the day a task posts on. The weekly readings of a week go out on the
+ * Friday to Sunday before it.
+ */
+function postingDayNumber(weekId: string, day: number, isReading: boolean): number | undefined {
+  const weekStart = weekStartFromId(weekId);
+  if (!weekStart) return undefined;
+  return Math.round(weekStart.getTime() / 86_400_000) + day - (isReading ? 7 : 0);
+}
+
 /**
  * Walks the background videos in the order the week's videos go out, one asset per slot, so the
  * whole library is cycled through evenly instead of being sampled at random: every asset comes
@@ -198,13 +227,26 @@ export function pickBackground(
   const day = dayOfWeek ? DAY_OFFSET[dayOfWeek as DayOfWeek] : undefined;
   if (!week || day === undefined) return urls[stableHash(taskId) % urls.length];
 
-  // A sign-themed video goes out on the same day as three other signs of its series, so it takes
-  // a slot of its own sign, apart from the slots of the weekly readings: otherwise the day's four
-  // videos would share one background and the feed would show the same picture four times.
   const isSignTheme = SIGN_THEME_SERIES.some((series) => taskId.includes(`-sign-${series}-`));
   const sign = ZODIAC_SIGNS.indexOf(
     (taskId.split('-').pop() ?? '') as (typeof ZODIAC_SIGNS)[number],
   );
+
+  // Every posting slot of a day shows its own time of day (noon, afternoon, evening, night), so
+  // two videos next to each other in the feed - the same day's or the last of one day and the
+  // first of the next - never look alike, and each time of day walks its own clips day by day.
+  const weekId = /^(\d{4}-W\d{2})/.exec(taskId)?.[1] ?? '';
+  const time = timeOfDayOf(weekId, dayOfWeek as DayOfWeek, sign);
+  const timed = assets.filter((asset) => time && asset.time_of_day === time);
+  const dayNumber = postingDayNumber(weekId, day, sign >= 0 && !isSignTheme);
+  if (timed.length > 0 && dayNumber !== undefined) {
+    const clips = balancedOrder(timed);
+    return clips[dayNumber % clips.length];
+  }
+
+  // A sign-themed video goes out on the same day as three other signs of its series, so it takes
+  // a slot of its own sign, apart from the slots of the weekly readings: otherwise the day's four
+  // videos would share one background and the feed would show the same picture four times.
   const slot = sign < 0 ? day : (isSignTheme ? SIGN_THEME_SLOT : 4) + sign;
   const index = (Number(week[1]) * SLOTS_PER_WEEK + slot) % urls.length;
 
@@ -213,8 +255,13 @@ export function pickBackground(
   // is stepped off the weekday slot by its place among the day's promotions, which is its place
   // among the day's task ids - stable once the week is planned, so the cover drawn after the
   // render lands on the same artwork as the video.
-  const promoStep = isPromoTaskId(taskId) ? 1 + promoOrdinal(taskId, daySiblings) : 0;
-  return urls[(index + promoStep) % urls.length];
+  if (isPromoTaskId(taskId)) {
+    // Other than the sign videos, a promotion takes a clip at random from the whole library,
+    // seeded by its day so its cover lands on the same clip; the day's promotions stay apart.
+    const start = stableHash(`${weekId}-${dayOfWeek}`) + promoOrdinal(taskId, daySiblings);
+    return urls[start % urls.length];
+  }
+  return urls[index];
 }
 
 /**

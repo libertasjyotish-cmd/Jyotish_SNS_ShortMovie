@@ -181,6 +181,8 @@ export interface BackgroundAsset {
   visual_group?: string;
   /** Mean luminance (0-255) of the clip, so the rotation can keep dark ones apart. */
   brightness?: number;
+  /** Time of day the clip shows (`TIMES_OF_DAY`); each posting slot of a day takes its own. */
+  time_of_day?: string;
   enabled: boolean;
 }
 
@@ -522,6 +524,7 @@ export class GoogleSheetsService {
         pattern: (row.values.pattern || undefined) as Pattern | undefined,
         visual_group: row.values.visual_group || undefined,
         brightness: toNumber(row.values.brightness),
+        time_of_day: row.values.time_of_day || undefined,
         enabled: (row.values.enabled || 'TRUE').toUpperCase() !== 'FALSE',
       }))
       .filter(
@@ -531,6 +534,18 @@ export class GoogleSheetsService {
           (!asset.pattern || asset.pattern === filter.pattern) &&
           (!asset.day_of_week || !filter.day_of_week || asset.day_of_week === filter.day_of_week),
       );
+  }
+
+  /** Tags background assets with the time of day they show, adding the column if needed. */
+  async setBackgroundTimesOfDay(times: Record<string, string>): Promise<void> {
+    await this.ensureColumns(SHEET_NAMES.backgroundAssets, ['time_of_day']);
+    const { rows } = await this.loadTable(SHEET_NAMES.backgroundAssets);
+    await this.patchRows(
+      SHEET_NAMES.backgroundAssets,
+      rows
+        .filter((row) => times[row.values.asset_id])
+        .map((row) => ({ rowNumber: row.rowNumber, patch: { time_of_day: times[row.values.asset_id] } })),
+    );
   }
 
   async getEvergreenScripts(lang_code: Language): Promise<EvergreenScript[]> {

@@ -7,10 +7,13 @@
  * that could still be served the old file. Each row is rendered once more by the normal
  * render-batch chain; nothing is posted here. Dry-run unless `--apply` is given.
  *
+ * `--all` takes every kind of video of the week (weekly readings, promotions), not only the
+ * sign-theme ones, for when the background pick itself changed.
+ *
  * `--rescript=ja,en` also rebuilds the script of those languages from the current template first
  * (weekly-generate writes it, then render-batch renders it), for when the template wording changed.
  *
- *   npm run rerender:sign-week -- --week=2026-W47 [--hours=3] [--rescript=ja] [--apply]
+ *   npm run rerender:sign-week -- --week=2026-W47 [--hours=3] [--all] [--rescript=ja] [--apply]
  */
 import { pickBackground } from '@/lib/render';
 import { parseSignThemeId } from '@/lib/sign-themes';
@@ -22,16 +25,18 @@ function arg(name: string): string | undefined {
 
 async function main() {
   const apply = process.argv.includes('--apply');
+  const all = process.argv.includes('--all');
   const weekId = arg('week');
   if (!weekId) throw new Error('pass --week=<YYYY-Www>');
   const rescript = (arg('rescript') ?? '').split(',').filter(Boolean);
   const from = Date.now() + Number(arg('hours') ?? 3) * 3_600_000;
 
   const sheets = new GoogleSheetsService();
-  const tasks = (await sheets.getQueueTasks(weekId))
+  const weekTasks = await sheets.getQueueTasks(weekId);
+  const tasks = weekTasks
     .filter(
       (task) =>
-        parseSignThemeId(task.theme_id ?? '') &&
+        (all || parseSignThemeId(task.theme_id ?? '')) &&
         task.post_status !== 'Posted' &&
         task.post_status !== 'Hold' &&
         (task.posted_refs?.length ?? 0) === 0 &&
@@ -49,7 +54,12 @@ async function main() {
         pattern: '30s',
       }),
     ]);
-    const next = pickBackground(task.task_id, assets, task.day_of_week);
+    const siblings = all
+      ? weekTasks
+          .filter((other) => other.lang_code === task.lang_code && other.day_of_week === task.day_of_week)
+          .map((other) => other.task_id)
+      : undefined;
+    const next = pickBackground(task.task_id, assets, task.day_of_week, siblings);
     const name = (url?: string) => url?.split('/').pop() ?? '-';
     console.log(
       `${task.task_id} ${task.scheduled_post_time} ${name(output?.background_url)} -> ${name(next)}` +
