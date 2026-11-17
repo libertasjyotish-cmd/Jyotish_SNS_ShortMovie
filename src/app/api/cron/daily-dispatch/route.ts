@@ -611,6 +611,12 @@ export async function GET(request: Request) {
                     publishContainer: (videoId) =>
                       facebookService.publishVideo(facebookChannel, videoId, description),
                     afterPublish: async (videoId) => {
+                      await addStoryShare({
+                        sheetsService,
+                        task: post,
+                        videoUrl,
+                        platform: 'Facebook',
+                      });
                       if (cover) {
                         await facebookService.setThumbnail(facebookChannel, videoId, cover.url);
                       }
@@ -619,12 +625,6 @@ export async function GET(request: Request) {
                         videoId,
                         followUpLink(post.lang_code, 'facebook', Boolean(signName), linkTag),
                       );
-                      await addStoryShare({
-                        sheetsService,
-                        task: post,
-                        videoUrl,
-                        platform: 'Facebook',
-                      });
                     },
                   },
                 }),
