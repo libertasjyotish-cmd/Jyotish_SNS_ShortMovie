@@ -193,6 +193,27 @@ function localTimeToUtc(day: Date, hour: number, minute: number, timeZone: strin
   return new Date(wallClock - zoneOffsetMinutes(timeZone, guess) * MS_PER_MINUTE);
 }
 
+/** First week whose four-video days post their signs in a shuffled order; earlier weeks keep sign order. */
+const SLOT_SHUFFLE_FROM = '2026-W49';
+
+/**
+ * Posting slot of the `slot`-th sign of a four-video day of `weekId`. The order is shuffled per
+ * week and day - seeded by both, so the plan and the background pick agree - and a sign does not
+ * go out at the same hour (and on the same time-of-day background) every week.
+ */
+export function shuffledSlot(weekId: string, day: DayOfWeek, slot: number): number {
+  if (weekId < SLOT_SHUFFLE_FROM) return slot;
+  let seed = 0;
+  for (const char of `${weekId}-${day}`) seed = (seed * 31 + char.charCodeAt(0)) % 2_147_483_647;
+  const order = Array.from({ length: THEME_SLOTS }, (_, index) => index);
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    seed = (seed * 48_271) % 2_147_483_647;
+    const other = seed % (index + 1);
+    [order[index], order[other]] = [order[other], order[index]];
+  }
+  return order[slot % THEME_SLOTS];
+}
+
 /**
  * Market and local hour of the `slot`-th video of a day. Every day carries four of them,
  * evergreen signs Monday to Wednesday and readings Friday to Sunday; a two-market language
