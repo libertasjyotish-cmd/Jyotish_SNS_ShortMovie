@@ -23,7 +23,7 @@ import {
 import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
 import { runWatchdog } from '@/lib/watchdog-run';
-import { queueReelStory, runStorySweep, StorySweepResult } from '@/lib/stories';
+import { queueReelStory, runStorySweep, StoryPlatform, StorySweepResult } from '@/lib/stories';
 import { ensureCover } from '@/lib/cover';
 import {
   buildCaptionLead,
@@ -199,10 +199,11 @@ async function addStoryShare(args: {
   sheetsService: GoogleSheetsService;
   task: ContentQueue;
   videoUrl: string;
+  platform: StoryPlatform;
 }): Promise<void> {
-  const { sheetsService, task, videoUrl } = args;
+  const { sheetsService, task, videoUrl, platform } = args;
   try {
-    await queueReelStory(sheetsService, task.task_id, task.lang_code, videoUrl);
+    await queueReelStory(sheetsService, task.task_id, task.lang_code, videoUrl, platform);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error(`${task.task_id} story queue failed:`, message);
@@ -528,6 +529,7 @@ export async function GET(request: Request) {
                   sheetsService,
                   task: post,
                   videoUrl,
+                  platform: 'Instagram',
                 });
                 return mediaId;
               },
@@ -609,6 +611,12 @@ export async function GET(request: Request) {
                     publishContainer: (videoId) =>
                       facebookService.publishVideo(facebookChannel, videoId, description),
                     afterPublish: async (videoId) => {
+                      await addStoryShare({
+                        sheetsService,
+                        task: post,
+                        videoUrl,
+                        platform: 'Facebook',
+                      });
                       if (cover) {
                         await facebookService.setThumbnail(facebookChannel, videoId, cover.url);
                       }
