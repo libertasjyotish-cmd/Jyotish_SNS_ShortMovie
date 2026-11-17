@@ -23,6 +23,7 @@ import {
 import { parseSignThemeId, SignThemeSeries } from '@/lib/sign-themes';
 import { zodiacName } from '@/lib/zodiac-names';
 import { runWatchdog } from '@/lib/watchdog-run';
+import { queueReelStory, runStorySweep, StorySweepResult } from '@/lib/stories';
 import { ensureCover } from '@/lib/cover';
 import {
   buildCaptionLead,
@@ -191,24 +192,20 @@ async function addChannelSurfaces(args: {
 }
 
 /**
- * Instagram only shows a tappable link in a story, so every published Reel is shared as one as
- * well. Stories pile up next to each other and expire after 24 hours, so a failed or skipped
- * share is never retried and never costs the Reel.
+ * Every published Reel also goes out as an Instagram and Facebook story. It is only queued here;
+ * the follow-up passes publish it once transcoded, and a failed story never costs the Reel.
  */
 async function addStoryShare(args: {
-  instagramService: InstagramService;
-  channel: Channel;
+  sheetsService: GoogleSheetsService;
   task: ContentQueue;
   videoUrl: string;
 }): Promise<void> {
-  if ((optionalEnv('INSTAGRAM_SHARE_TO_STORY') ?? 'true') !== 'true') return;
-
-  const { instagramService, channel, task, videoUrl } = args;
+  const { sheetsService, task, videoUrl } = args;
   try {
-    await instagramService.shareToStory(channel, videoUrl);
+    await queueReelStory(sheetsService, task.task_id, task.lang_code, videoUrl);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`${task.task_id} instagram story failed:`, message);
+    console.error(`${task.task_id} story queue failed:`, message);
   }
 }
 
@@ -528,8 +525,7 @@ export async function GET(request: Request) {
                   },
                 });
                 await addStoryShare({
-                  instagramService,
-                  channel: instagramChannel,
+                  sheetsService,
                   task: post,
                   videoUrl,
                 });
@@ -781,6 +777,13 @@ export async function GET(request: Request) {
       );
     }
 
+    let stories: StorySweepResult | { error: string } | undefined;
+    if (followUp) {
+      stories = await runStorySweep(sheetsService, instagramService, facebookService, now).catch(
+        (error: unknown) => ({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      );
+    }
+
     return NextResponse.json({
       status: 'Dispatch completed',
       dispatch_enabled: isDispatchEnabled(),
@@ -793,6 +796,7 @@ export async function GET(request: Request) {
       given_up: givenUp,
       held: held.length,
       watchdog,
+      stories,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

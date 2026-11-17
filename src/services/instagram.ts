@@ -117,9 +117,9 @@ export class InstagramService {
    * the existing ones rather than replacing them. The Graph API publishes no stickers, so the
    * link has to stay in the profile.
    */
-  async shareToStory(channel: Channel, videoUrl: string): Promise<string> {
+  /** Hands the video to Instagram as a story; publish it once {@link containerStatus} is FINISHED. */
+  async createStoryContainer(channel: Channel, videoUrl: string): Promise<string> {
     const { accessToken, igUserId } = credentials(channel);
-
     const container = await graphRequest<{ id: string }>(`${GRAPH_BASE}/${igUserId}/media`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -129,11 +129,7 @@ export class InstagramService {
         access_token: accessToken,
       }),
     });
-
-    if (!(await this.waitUntilFinished(channel, container.id))) {
-      throw new Error(`Instagram story container ${container.id} is still transcoding`);
-    }
-    return this.publishContainer(channel, container.id);
+    return container.id;
   }
 
   /** Throws when Instagram gave up on the container, so the caller creates a new one. */

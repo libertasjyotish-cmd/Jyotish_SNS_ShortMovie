@@ -170,6 +170,35 @@ export interface RenderOutput {
   cover_attempts?: number;
 }
 
+/** One video waiting to go out, or gone out, as an Instagram or Facebook Story. */
+export interface StoryItem {
+  story_id: string;
+  lang_code: Language;
+  platform: 'Instagram' | 'Facebook';
+  video_url: string;
+  post_after: string;
+  /** Instagram container or Facebook video handed the video, published once it is ready. */
+  container_id?: string;
+  status: 'Pending' | 'Posted' | 'Failed';
+  media_id?: string;
+  attempts: number;
+  note?: string;
+}
+
+const STORY_COLUMNS = [
+  'story_id',
+  'lang_code',
+  'platform',
+  'video_url',
+  'post_after',
+  'container_id',
+  'status',
+  'media_id',
+  'attempts',
+  'note',
+  'updated_at',
+];
+
 export interface BackgroundAsset {
   asset_id: string;
   video_url: string;
@@ -219,6 +248,7 @@ export const SHEET_NAMES = {
   weeklyTransits: 'Weekly_Transits',
   backgroundAssets: 'Background_Assets',
   evergreenScripts: 'Evergreen_Scripts',
+  stories: 'Stories',
 } as const;
 
 type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
@@ -284,6 +314,7 @@ export class GoogleSheetsService {
   private sheets: sheets_v4.Sheets;
   private spreadsheetId: string;
   private tableCache = new Map<SheetName, SheetTable>();
+  private storiesSheetReady = false;
 
   constructor() {
     const auth = new google.auth.GoogleAuth({
@@ -1286,6 +1317,88 @@ export class GoogleSheetsService {
   }
 
   /** Channel rows are hand-written, so the platform is matched without regard to case. */
+  /** Creates the `Stories` sheet the first time a story is queued. */
+  private async ensureStoriesSheet(): Promise<void> {
+    if (this.storiesSheetReady) return;
+    const metadata = await this.sheets.spreadsheets.get({
+      spreadsheetId: this.spreadsheetId,
+      fields: 'sheets(properties(title))',
+    });
+    const exists = metadata.data.sheets?.some(
+      (sheet) => sheet.properties?.title === SHEET_NAMES.stories,
+    );
+    if (!exists) {
+      await withWriteRetry(() =>
+        this.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: this.spreadsheetId,
+          requestBody: { requests: [{ addSheet: { properties: { title: SHEET_NAMES.stories } } }] },
+        }),
+      );
+      await withWriteRetry(() =>
+        this.sheets.spreadsheets.values.update({
+          spreadsheetId: this.spreadsheetId,
+          range: `${SHEET_NAMES.stories}!A1`,
+          valueInputOption: 'RAW',
+          requestBody: { values: [STORY_COLUMNS] },
+        }),
+      );
+      this.invalidate(SHEET_NAMES.stories);
+    }
+    this.storiesSheetReady = true;
+  }
+
+  async getStories(): Promise<StoryItem[]> {
+    await this.ensureStoriesSheet();
+    const { rows } = await this.loadTable(SHEET_NAMES.stories);
+    return rows
+      .filter((row) => row.values.story_id)
+      .map((row) => ({
+        story_id: row.values.story_id,
+        lang_code: row.values.lang_code as Language,
+        platform: row.values.platform as StoryItem['platform'],
+        video_url: row.values.video_url,
+        post_after: row.values.post_after,
+        container_id: row.values.container_id || undefined,
+        status: (row.values.status || 'Pending') as StoryItem['status'],
+        media_id: row.values.media_id || undefined,
+        attempts: toNumber(row.values.attempts) ?? 0,
+        note: row.values.note || undefined,
+      }));
+  }
+
+  /** Queues stories, skipping any `story_id` + platform already queued. */
+  async addStories(items: StoryItem[]): Promise<number> {
+    const existing = new Set((await this.getStories()).map((s) => `${s.story_id}/${s.platform}`));
+    const fresh = items.filter((item) => !existing.has(`${item.story_id}/${item.platform}`));
+    const now = new Date().toISOString();
+    await this.appendRows(
+      SHEET_NAMES.stories,
+      fresh.map((item) => ({
+        ...Object.fromEntries(Object.entries(item).map(([key, value]) => [key, String(value ?? '')])),
+        updated_at: now,
+      })),
+    );
+    return fresh.length;
+  }
+
+  async updateStory(
+    storyId: string,
+    platform: StoryItem['platform'],
+    patch: Partial<Record<'container_id' | 'status' | 'media_id' | 'attempts' | 'note', string>>,
+  ): Promise<void> {
+    await this.ensureStoriesSheet();
+    const { rows } = await this.loadTable(SHEET_NAMES.stories);
+    const row = rows.find(
+      (candidate) =>
+        candidate.values.story_id === storyId && candidate.values.platform === platform,
+    );
+    if (!row) throw new Error(`Story ${storyId}/${platform} not found`);
+    await this.patchRow(SHEET_NAMES.stories, row.rowNumber, {
+      ...patch,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
   async getChannelConfig(lang_code: Language, platform: Platform): Promise<Channel | null> {
     const { rows } = await this.loadTable(SHEET_NAMES.channels);
     const row = rows.find(
