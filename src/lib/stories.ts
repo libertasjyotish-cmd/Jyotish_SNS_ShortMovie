@@ -34,14 +34,22 @@ const MAX_ATTEMPTS = 3;
 /** The report videos start going out as stories on this JST date. */
 const AD_STORIES_FROM = "2026-11-18";
 
-const STORY_PLATFORMS: StoryItem["platform"][] = ["Instagram", "Facebook"];
+export type StoryPlatform = StoryItem["platform"];
 
-function storyPlatforms(): StoryItem["platform"][] {
-  return STORY_PLATFORMS.filter(
-    (platform) =>
-      !isPlatformPaused(platform) &&
-      (optionalEnv(`${platform.toUpperCase()}_SHARE_TO_STORY`) ?? "true") ===
-        "true",
+const STORY_PLATFORMS: StoryPlatform[] = ["Instagram", "Facebook"];
+
+function storiesEnabled(platform: StoryPlatform): boolean {
+  return (
+    !isPlatformPaused(platform) &&
+    (optionalEnv(`${platform.toUpperCase()}_SHARE_TO_STORY`) ?? "true") ===
+      "true"
+  );
+}
+
+function channelPaused(channel: Channel, now: Date): boolean {
+  return Boolean(
+    channel.posting_paused_until &&
+    now.getTime() < Date.parse(channel.posting_paused_until),
   );
 }
 
@@ -55,16 +63,18 @@ export function adStoryFor(
   return `${AD_BASE}/${ads[dayNumber % ads.length]}.mp4`;
 }
 
-/** Queues a posted Reel's video as a story on each story platform. */
+/** Queues a Reel's video as a story on the platform that just published the Reel. */
 export async function queueReelStory(
   sheets: GoogleSheetsService,
   taskId: string,
   lang: Language,
   videoUrl: string,
+  platform: StoryPlatform,
   now = new Date(),
 ): Promise<void> {
-  await sheets.addStories(
-    storyPlatforms().map((platform) => ({
+  if (!storiesEnabled(platform)) return;
+  await sheets.addStories([
+    {
       story_id: `${taskId}-story`,
       lang_code: lang,
       platform,
@@ -72,8 +82,8 @@ export async function queueReelStory(
       post_after: now.toISOString(),
       status: "Pending",
       attempts: 0,
-    })),
-  );
+    },
+  ]);
 }
 
 async function queueAdStories(
@@ -92,7 +102,7 @@ async function queueAdStories(
     const videoUrl = adStoryFor(lang, jstDate);
     if (!videoUrl || !isDispatchEnabledFor(lang)) continue;
     await sheets.addStories(
-      storyPlatforms().map((platform) => ({
+      STORY_PLATFORMS.filter(storiesEnabled).map((platform) => ({
         story_id: `${jstDate}-${lang}-ad`,
         lang_code: lang,
         platform,
@@ -156,6 +166,10 @@ export async function runStorySweep(
     const channel = channels.get(key);
     if (!channel) {
       await fail(`no ${story.platform} channel for ${story.lang_code}`);
+      continue;
+    }
+    if (!storiesEnabled(story.platform) || channelPaused(channel, now)) {
+      result.waiting += 1;
       continue;
     }
 

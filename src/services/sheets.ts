@@ -314,7 +314,7 @@ export class GoogleSheetsService {
   private sheets: sheets_v4.Sheets;
   private spreadsheetId: string;
   private tableCache = new Map<SheetName, SheetTable>();
-  private storiesSheetReady = false;
+  private storiesSheetReady?: Promise<void>;
 
   constructor() {
     const auth = new google.auth.GoogleAuth({
@@ -1318,22 +1318,45 @@ export class GoogleSheetsService {
 
   /** Channel rows are hand-written, so the platform is matched without regard to case. */
   /** Creates the `Stories` sheet the first time a story is queued. */
-  private async ensureStoriesSheet(): Promise<void> {
-    if (this.storiesSheetReady) return;
+  private ensureStoriesSheet(): Promise<void> {
+    this.storiesSheetReady ??= this.createStoriesSheet().catch((error: unknown) => {
+      this.storiesSheetReady = undefined;
+      throw error;
+    });
+    return this.storiesSheetReady;
+  }
+
+  private async storiesSheetExists(): Promise<boolean> {
     const metadata = await this.sheets.spreadsheets.get({
       spreadsheetId: this.spreadsheetId,
       fields: 'sheets(properties(title))',
     });
-    const exists = metadata.data.sheets?.some(
-      (sheet) => sheet.properties?.title === SHEET_NAMES.stories,
+    return Boolean(
+      metadata.data.sheets?.some((sheet) => sheet.properties?.title === SHEET_NAMES.stories),
     );
-    if (!exists) {
-      await withWriteRetry(() =>
-        this.sheets.spreadsheets.batchUpdate({
-          spreadsheetId: this.spreadsheetId,
-          requestBody: { requests: [{ addSheet: { properties: { title: SHEET_NAMES.stories } } }] },
-        }),
-      );
+  }
+
+  private async createStoriesSheet(): Promise<void> {
+    if (!(await this.storiesSheetExists())) {
+      try {
+        await withWriteRetry(() =>
+          this.sheets.spreadsheets.batchUpdate({
+            spreadsheetId: this.spreadsheetId,
+            requestBody: {
+              requests: [{ addSheet: { properties: { title: SHEET_NAMES.stories } } }],
+            },
+          }),
+        );
+      } catch (error) {
+        // Another run may have created it in the meantime.
+        if (!(await this.storiesSheetExists())) throw error;
+      }
+    }
+    const header = await this.sheets.spreadsheets.values.get({
+      spreadsheetId: this.spreadsheetId,
+      range: `${SHEET_NAMES.stories}!1:1`,
+    });
+    if (!header.data.values?.[0]?.length) {
       await withWriteRetry(() =>
         this.sheets.spreadsheets.values.update({
           spreadsheetId: this.spreadsheetId,
@@ -1344,7 +1367,6 @@ export class GoogleSheetsService {
       );
       this.invalidate(SHEET_NAMES.stories);
     }
-    this.storiesSheetReady = true;
   }
 
   async getStories(): Promise<StoryItem[]> {
