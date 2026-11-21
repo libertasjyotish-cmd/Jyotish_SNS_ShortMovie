@@ -22,6 +22,7 @@ jobs:
       - run: npm run check:sign-order
       - run: npm run check:posting-hours
       - run: npm run check:pipeline
+      - run: npm run check:archive
 
   layout:
     runs-on: ubuntu-latest

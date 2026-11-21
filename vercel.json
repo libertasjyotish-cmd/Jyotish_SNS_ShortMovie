@@ -12,6 +12,7 @@
     { "path": "/api/cron/publish-containers", "schedule": "10,20,40,50 * * * *" },
     { "path": "/api/cron/watchdog", "schedule": "20 3 * * *" },
     { "path": "/api/cron/health-check", "schedule": "40 3 * * *" },
-    { "path": "/api/cron/expire-weekly", "schedule": "0 16 * * *" }
+    { "path": "/api/cron/expire-weekly", "schedule": "0 16 * * *" },
+    { "path": "/api/cron/archive-sheets", "schedule": "35 18 * * *" }
   ]
 }

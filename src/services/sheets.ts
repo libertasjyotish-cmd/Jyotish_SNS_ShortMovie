@@ -1,4 +1,5 @@
 import { google, sheets_v4 } from 'googleapis';
+import { relocateRows } from '@/lib/archive';
 import { requireEnv } from '@/lib/env';
 import { getGoogleCredentials } from '@/lib/google-credentials';
 import { Language } from '@/lib/languages';
@@ -251,7 +252,21 @@ export const SHEET_NAMES = {
   stories: 'Stories',
 } as const;
 
-type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
+export type SheetName = (typeof SHEET_NAMES)[keyof typeof SHEET_NAMES];
+
+/** Columns that identify a row in the sheets whose old rows are archived (deleted). */
+const ROW_KEYS: Partial<Record<SheetName, string[]>> = {
+  [SHEET_NAMES.contentQueue]: ['task_id'],
+  [SHEET_NAMES.scriptOutputs]: ['task_id'],
+  [SHEET_NAMES.renderOutputs]: ['task_id'],
+  [SHEET_NAMES.stories]: ['story_id', 'platform'],
+};
+
+function rowKey(sheet: SheetName, values: Record<string, string>): string {
+  const columns = ROW_KEYS[sheet] ?? [];
+  if (!columns.some((column) => values[column])) return '';
+  return columns.map((column) => values[column] ?? '').join('/');
+}
 
 export const THREADS_OAUTH_STATE_COLUMN = 'threads_oauth_state';
 export const FACEBOOK_OAUTH_STATE_COLUMN = 'fb_oauth_state';
@@ -453,15 +468,23 @@ export class GoogleSheetsService {
     sheet: SheetName,
     patches: { rowNumber: number; patch: Record<string, string> }[],
   ): Promise<void> {
-    const { headers } = await this.loadTable(sheet);
-    const data = patches.flatMap(({ rowNumber, patch }) =>
+    const table = await this.loadTable(sheet);
+    const { headers } = table;
+    const rowNumbers = ROW_KEYS[sheet]
+      ? relocateRows(
+          table.rows.map((row) => ({ rowNumber: row.rowNumber, key: rowKey(sheet, row.values) })),
+          await this.readRowKeys(sheet, headers),
+          patches.map(({ rowNumber }) => rowNumber),
+        )
+      : patches.map(({ rowNumber }) => rowNumber);
+    const data = patches.flatMap(({ patch }, index) =>
       Object.entries(patch).map(([header, value]) => {
         const columnIndex = headers.indexOf(header);
         if (columnIndex === -1) {
           throw new Error(`Column "${header}" not found in sheet "${sheet}"`);
         }
         return {
-          range: `${sheet}!${columnLetter(columnIndex)}${rowNumber}`,
+          range: `${sheet}!${columnLetter(columnIndex)}${rowNumbers[index]}`,
           values: [[value]],
         };
       }),
@@ -476,6 +499,84 @@ export class GoogleSheetsService {
       }),
     );
     this.invalidate(sheet);
+  }
+
+  /** The key of every row as it is in the sheet now, indexed by row number - 1. */
+  private async readRowKeys(sheet: SheetName, headers: string[]): Promise<string[]> {
+    const columns = ROW_KEYS[sheet] ?? [];
+    const ranges = columns.map((column) => {
+      const index = headers.indexOf(column);
+      if (index === -1) throw new Error(`Column "${column}" not found in sheet "${sheet}"`);
+      return `${sheet}!${columnLetter(index)}:${columnLetter(index)}`;
+    });
+    const response = await withWriteRetry(() =>
+      this.sheets.spreadsheets.values.batchGet({
+        spreadsheetId: this.spreadsheetId,
+        ranges,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      }),
+    );
+    const cells = (response.data.valueRanges ?? []).map((range) =>
+      (range.values ?? []).map((row) => String(row?.[0] ?? '')),
+    );
+    const length = Math.max(0, ...cells.map((column) => column.length));
+    return Array.from({ length }, (_, index) => {
+      const values = Object.fromEntries(columns.map((column, i) => [column, cells[i][index] ?? '']));
+      return rowKey(sheet, values);
+    });
+  }
+
+  /** Every row of a sheet whose old rows are archived, read fresh. */
+  async getArchivableRows(
+    sheet: SheetName,
+  ): Promise<{ headers: string[]; rows: Record<string, string>[] }> {
+    if (!ROW_KEYS[sheet]) throw new Error(`Sheet "${sheet}" is not archivable`);
+    if (sheet === SHEET_NAMES.stories) await this.ensureStoriesSheet();
+    this.invalidate(sheet);
+    const { headers, rows } = await this.loadTable(sheet);
+    return { headers, rows: rows.map((row) => row.values) };
+  }
+
+  /** Deletes every row whose key is in `keys` and returns how many went. */
+  async deleteRowsByKey(sheet: SheetName, keys: Set<string>): Promise<number> {
+    if (keys.size === 0) return 0;
+    const { headers } = await this.loadTable(sheet);
+    const metadata = await this.sheets.spreadsheets.get({
+      spreadsheetId: this.spreadsheetId,
+      fields: 'sheets(properties(sheetId,title))',
+    });
+    const sheetId = metadata.data.sheets?.find((c) => c.properties?.title === sheet)?.properties
+      ?.sheetId;
+    if (sheetId === undefined || sheetId === null) throw new Error(`Sheet "${sheet}" not found`);
+
+    // Row numbers are taken right before the delete, so rows appended meanwhile are not hit.
+    const freshKeys = await this.readRowKeys(sheet, headers);
+    const rowNumbers: number[] = [];
+    freshKeys.forEach((key, index) => {
+      if (index > 0 && key && keys.has(key)) rowNumbers.push(index + 1);
+    });
+    if (rowNumbers.length === 0) return 0;
+
+    const spans: { start: number; end: number }[] = [];
+    for (const rowNumber of rowNumbers) {
+      const last = spans[spans.length - 1];
+      if (last && last.end + 1 === rowNumber) last.end = rowNumber;
+      else spans.push({ start: rowNumber, end: rowNumber });
+    }
+    // Bottom first, so deleting one span does not move the ones still to go.
+    const requests = spans.reverse().map(({ start, end }) => ({
+      deleteDimension: {
+        range: { sheetId, dimension: 'ROWS', startIndex: start - 1, endIndex: end },
+      },
+    }));
+    await withWriteRetry(() =>
+      this.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: this.spreadsheetId,
+        requestBody: { requests },
+      }),
+    );
+    this.invalidate(sheet);
+    return rowNumbers.length;
   }
 
   /** Updates the row whose `task_id` matches, or appends a new one. */
