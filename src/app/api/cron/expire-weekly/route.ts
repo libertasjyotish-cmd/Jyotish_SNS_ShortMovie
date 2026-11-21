@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { sendAlert } from '@/lib/alert';
+import { isRetirable } from '@/lib/archive';
 import { isCronAuthorized } from '@/lib/auth';
 import { weekStartFromId } from '@/lib/schedule';
 import { FacebookService } from '@/services/facebook';
 import { InstagramService } from '@/services/instagram';
-import { ExpirablePost, GoogleSheetsService, Platform, PostedRef } from '@/services/sheets';
+import { ExpirablePost, GoogleSheetsService, PostedRef } from '@/services/sheets';
 import { ThreadsService } from '@/services/threads';
 import { YouTubeService } from '@/services/youtube';
 
@@ -28,15 +29,6 @@ function lastFailure(post: ExpirablePost): string {
 
 function retryOrder(posts: ExpirablePost[]): ExpirablePost[] {
   return [...posts].sort((a, b) => lastFailure(a).localeCompare(lastFailure(b)));
-}
-
-function isRetirable(platform: Platform): boolean {
-  return (
-    platform === 'YouTube' ||
-    platform === 'Threads' ||
-    platform === 'Facebook' ||
-    platform === 'Instagram'
-  );
 }
 
 /**

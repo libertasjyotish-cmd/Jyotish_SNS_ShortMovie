@@ -31,3 +31,14 @@ export async function uploadAsset(
   });
   return blob.url;
 }
+
+/** Stores rows moved out of the sheet; the random suffix keeps the public URL unguessable. */
+export async function uploadArchive(pathname: string, json: string): Promise<string> {
+  const blob = await put(pathname, json, {
+    access: 'public',
+    contentType: 'application/json',
+    token: requireEnv('BLOB_READ_WRITE_TOKEN'),
+    addRandomSuffix: true,
+  });
+  return blob.url;
+}
