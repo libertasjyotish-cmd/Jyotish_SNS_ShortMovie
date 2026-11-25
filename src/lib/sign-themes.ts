@@ -12,7 +12,7 @@ import { DayOfWeek } from '@/lib/schedule';
 import { ZODIAC_SIGNS, ZodiacSign } from '@/lib/zodiac-names';
 
 /**
- * Twelve series, one per week, so a sign does not meet the same script again for twelve weeks.
+ * One series per week, so a sign does not meet the same script again until the rotation is through.
  * The order is the rotation order.
  */
 export const SIGN_THEME_SERIES = [
@@ -23,6 +23,7 @@ export const SIGN_THEME_SERIES = [
   'money',
   'love',
   'family',
+  'nakshatra',
   'rest',
   'impression',
   'avoid',
@@ -48,10 +49,13 @@ export const SIGNS_BY_DAY: Partial<Record<DayOfWeek, readonly ZodiacSign[]>> = {
  * The series a week runs. One series covers all twelve signs of the week and the next week moves
  * on to the next series, so a viewer never meets a different kind of video four signs later.
  */
+const ROTATION_START = 2026 * 53 + 43;
+
 export function seriesForWeek(weekId: string): SignThemeSeries {
   const [year, week] = weekId.split('-W').map(Number);
-  // The offset puts 2026-W43 on the first series: the code-built scripts start their rotation there.
-  const index = (year * 53 + week + 3) % SIGN_THEME_SERIES.length;
+  // Counted from 2026-W43, which ran the first series: the code-built scripts start there.
+  const n = SIGN_THEME_SERIES.length;
+  const index = (((year * 53 + week - ROTATION_START) % n) + n) % n;
   return SIGN_THEME_SERIES[index];
 }
 

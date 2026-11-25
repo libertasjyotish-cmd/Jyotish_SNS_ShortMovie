@@ -55,7 +55,7 @@ if (covered.length !== ZODIAC_SIGNS.length) {
   failures.push(`a week covers ${covered.length} signs, want ${ZODIAC_SIGNS.length}`);
 }
 
-// Consecutive weeks move on, so a sign does not meet the same script again for twelve weeks.
+// Consecutive weeks move on, so a sign does not meet the same script again until the rotation is through.
 const weeks = Array.from({ length: SIGN_THEME_SERIES.length }, (_, offset) =>
   seriesForWeek(`2026-W${31 + offset}`),
 );

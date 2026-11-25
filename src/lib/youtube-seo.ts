@@ -34,6 +34,7 @@ export const SERIES_KEYWORDS: Record<Language, Record<SignThemeSeries, string>> 
     avoid: '向いていない環境・避けたい選択',
     turning: '人生の転機の出方',
     habit: 'やめると楽になる癖',
+    nakshatra: '3つのナクシャトラ',
   },
   en: {
     compat: 'Compatibility',
@@ -48,6 +49,7 @@ export const SERIES_KEYWORDS: Record<Language, Record<SignThemeSeries, string>> 
     avoid: 'What Does Not Suit You',
     turning: 'How Turning Points Arrive',
     habit: 'The Habit to Let Go Of',
+    nakshatra: 'Its 3 Nakshatras',
   },
   es: {
     compat: 'Compatibilidad',
@@ -62,6 +64,7 @@ export const SERIES_KEYWORDS: Record<Language, Record<SignThemeSeries, string>> 
     avoid: 'Lo que no te conviene',
     turning: 'Cómo llegan los cambios de rumbo',
     habit: 'El hábito que conviene dejar',
+    nakshatra: 'Sus 3 nakshatras',
   },
   pt: {
     compat: 'Compatibilidade',
@@ -76,6 +79,7 @@ export const SERIES_KEYWORDS: Record<Language, Record<SignThemeSeries, string>> 
     avoid: 'O que não combina com você',
     turning: 'Como chegam as viradas de vida',
     habit: 'O hábito que vale abandonar',
+    nakshatra: 'Suas 3 nakshatras',
   },
   id: {
     compat: 'Kecocokan',
@@ -90,6 +94,7 @@ export const SERIES_KEYWORDS: Record<Language, Record<SignThemeSeries, string>> 
     avoid: 'Hal yang tidak cocok untukmu',
     turning: 'Cara titik balik datang',
     habit: 'Kebiasaan yang sebaiknya dilepas',
+    nakshatra: '3 Nakshatra-nya',
   },
   ar: {
     compat: 'التوافق',
@@ -104,6 +109,7 @@ export const SERIES_KEYWORDS: Record<Language, Record<SignThemeSeries, string>> 
     avoid: 'ما لا يناسبك',
     turning: 'كيف تأتي نقاط التحول',
     habit: 'العادة التي يحسن تركها',
+    nakshatra: 'نكشتراته الثلاث',
   },
   fr: {
     compat: 'Compatibilité',
@@ -118,6 +124,7 @@ export const SERIES_KEYWORDS: Record<Language, Record<SignThemeSeries, string>> 
     avoid: 'Ce qui ne vous convient pas',
     turning: 'Comment arrivent les tournants',
     habit: 'L’habitude à laisser tomber',
+    nakshatra: 'Ses 3 nakshatras',
   },
   de: {
     compat: 'Kompatibilität',
@@ -132,6 +139,7 @@ export const SERIES_KEYWORDS: Record<Language, Record<SignThemeSeries, string>> 
     avoid: 'Was nicht zu dir passt',
     turning: 'Wie Wendepunkte kommen',
     habit: 'Die Gewohnheit, die du loslassen darfst',
+    nakshatra: 'Seine 3 Nakshatras',
   },
 };
 

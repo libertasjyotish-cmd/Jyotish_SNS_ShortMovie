@@ -375,6 +375,64 @@ function siderealJa(sun: Sign): EvergreenTemplate {
   };
 }
 
+/** The 27 nakshatras in zodiac order, from 0° Aries; each spans 13°20′. */
+export const NAKSHATRAS = [
+  'Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu', 'Pushya', 'Ashlesha',
+  'Magha', 'Purva Phalguni', 'Uttara Phalguni', 'Hasta', 'Chitra', 'Swati', 'Vishakha', 'Anuradha', 'Jyeshtha',
+  'Mula', 'Purva Ashadha', 'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha', 'Purva Bhadrapada',
+  'Uttara Bhadrapada', 'Revati',
+] as const;
+
+export type Nakshatra = (typeof NAKSHATRAS)[number];
+
+/** The three nakshatras a sign's 30° touch: 2¼ nakshatras per sign, so always three. */
+export function signNakshatras(sign: Sign): [Nakshatra, Nakshatra, Nakshatra] {
+  const first = Math.floor((SIGNS.indexOf(sign) * 9) / 4);
+  return [NAKSHATRAS[first], NAKSHATRAS[first + 1], NAKSHATRAS[first + 2]];
+}
+
+/** [spoken name, the classical image of the nakshatra as a person; precedes 「です」]. */
+const JA_NAKSHATRA: Record<Nakshatra, [string, string]> = {
+  Ashwini: ['アシュヴィニー', 'すぐに動いて、人を助ける人'],
+  Bharani: ['バラニー', '重いものを引き受けて、やり抜く人'],
+  Krittika: ['クリッティカー', '物事を、はっきり切り分ける人'],
+  Rohini: ['ローヒニー', '美しいものを、豊かに育てる人'],
+  Mrigashira: ['ムリガシラー', '好奇心のままに、探し続ける人'],
+  Ardra: ['アールドラー', '嵐のような経験から、生まれ変わる人'],
+  Punarvasu: ['プナルヴァス', '何度でも、明るく立ち直る人'],
+  Pushya: ['プシャ', '人を、温かく育てる人'],
+  Ashlesha: ['アーシュレーシャー', '人の心を、鋭く見抜く人'],
+  Magha: ['マガー', '家や伝統の誇りを、受け継ぐ人'],
+  'Purva Phalguni': ['プールヴァ・パールグニー', '人生を楽しみ、人を和ませる人'],
+  'Uttara Phalguni': ['ウッタラ・パールグニー', '約束を守り、人を支える人'],
+  Hasta: ['ハスタ', '器用な手で、形にする人'],
+  Chitra: ['チトラー', '美しく、作り上げる人'],
+  Swati: ['スヴァーティー', '風のように、自由に自分の道を行く人'],
+  Vishakha: ['ヴィシャーカー', '目標に向かって、粘り強く進む人'],
+  Anuradha: ['アヌラーダー', '友情を大切にして、人をつなぐ人'],
+  Jyeshtha: ['ジェーシュター', '責任を背負って、人を守る人'],
+  Mula: ['ムーラ', '物事の根っこまで、掘り下げる人'],
+  'Purva Ashadha': ['プールヴァ・アーシャーダー', '信じたことを、譲らない人'],
+  'Uttara Ashadha': ['ウッタラ・アーシャーダー', '最後までやり抜いて、勝ち取る人'],
+  Shravana: ['シュラヴァナ', '人の話をよく聞いて、学ぶ人'],
+  Dhanishta: ['ダニシュター', 'リズム感と豊かさに、恵まれる人'],
+  Shatabhisha: ['シャタビシャー', '一人で深く探り、人を癒やす人'],
+  'Purva Bhadrapada': ['プールヴァ・バードラパダー', '理想のために、情熱を燃やす人'],
+  'Uttara Bhadrapada': ['ウッタラ・バードラパダー', '静かに、深く考える人'],
+  Revati: ['レーヴァティー', '人を、優しく見守る人'],
+};
+
+/** Keyed by the Moon sign itself: every sign spans parts of three of the 27 nakshatras. */
+function nakshatraJa(moon: Sign): EvergreenTemplate {
+  const [a, b, c] = signNakshatras(moon).map((n) => JA_NAKSHATRA[n]);
+  return {
+    hook: `${JA_SIGN[moon]}は3つに分かれると知っていましたか。`,
+    body:
+      `インド占星術の月星座は同じ${JA_SIGN[moon]}の中でも3つのナクシャトラにまたがります。` +
+      `${a[0]}なら${a[1]}、${b[0]}なら${b[1]}、${c[0]}なら${c[1]}です。`,
+  };
+}
+
 const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate>> = {
   work: workJa,
   compat: compatJa,
@@ -388,6 +446,7 @@ const JA_SERIES: Partial<Record<SignThemeSeries, (moon: Sign) => EvergreenTempla
   habit: habitJa,
   nature: natureJa,
   sidereal: siderealJa,
+  nakshatra: nakshatraJa,
 };
 
 /** The fixed script of one sign in one series, or null while that series has no template. */
