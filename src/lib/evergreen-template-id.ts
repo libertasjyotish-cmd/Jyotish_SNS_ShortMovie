@@ -1,7 +1,7 @@
 /** Indonesian Mon–Wed per-sign evergreen scripts (Anda): same structure and chart reasoning as the ja/en sets. */
 import { SIGNS, Sign, asSign } from '@/lib/placements';
 import type { SignThemeSeries } from '@/lib/sign-themes';
-import { EvergreenTemplate, RULER, signFrom } from '@/lib/evergreen-template';
+import { EvergreenTemplate, Nakshatra, RULER, signFrom, signNakshatras } from '@/lib/evergreen-template';
 import { zodiacName } from '@/lib/zodiac-names';
 
 const sign = (s: Sign) => zodiacName(s.toLowerCase(), 'id') ?? s;
@@ -175,6 +175,37 @@ const P = (s: Sign) => PLANET[RULER[s]];
 const VA = 'Dalam astrologi Weda,';
 const hk = (m: Sign, h: string) => `${sign(m)} Bulan, ${h}`;
 
+/** Keyed by nakshatra: what that nakshatra's person does, in the 2nd person. */
+const NAKSHATRA: Record<Nakshatra, string> = {
+  Ashwini: 'bergerak cepat untuk menolong orang',
+  Bharani: 'memikul beban berat sampai tuntas',
+  Krittika: 'memilah segala hal dengan jernih',
+  Rohini: 'menumbuhkan hal-hal yang indah',
+  Mrigashira: 'terus mencari karena rasa ingin tahu',
+  Ardra: 'terlahir kembali setelah badai',
+  Punarvasu: 'bangkit lagi dengan ceria, berulang kali',
+  Pushya: 'merawat orang dengan hangat',
+  Ashlesha: 'melihat isi hati orang dengan tajam',
+  Magha: 'membawa kebanggaan akan akar Anda',
+  'Purva Phalguni': 'menikmati hidup dan membuat orang nyaman',
+  'Uttara Phalguni': 'menepati janji dan mendukung orang lain',
+  Hasta: 'membentuk sesuatu dengan tangan yang terampil',
+  Chitra: 'menciptakan hal-hal yang indah',
+  Swati: 'menempuh jalan sendiri, bebas seperti angin',
+  Vishakha: 'melangkah tekun menuju tujuan',
+  Anuradha: 'menghargai persahabatan dan menyatukan orang',
+  Jyeshtha: 'memikul tanggung jawab dan melindungi orang',
+  Mula: 'menggali sampai ke akar masalah',
+  'Purva Ashadha': 'tidak melepaskan apa yang Anda yakini',
+  'Uttara Ashadha': 'menuntaskan sampai akhir dan menang',
+  Shravana: 'mendengarkan dengan saksama dan belajar',
+  Dhanishta: 'diberkahi irama dan kelimpahan',
+  Shatabhisha: 'menyelidiki dalam kesendirian dan menyembuhkan orang',
+  'Purva Bhadrapada': 'berkobar demi sebuah cita-cita',
+  'Uttara Bhadrapada': 'berpikir dengan tenang dan mendalam',
+  Revati: 'menjaga orang lain dengan lembut',
+};
+
 const SERIES: Record<SignThemeSeries, (m: Sign) => EvergreenTemplate> = {
   work: (m) => { const s = signFrom(m, 10); const [h, a, b] = WORK[s];
     return { hook: hk(m, h), body: `${VA} ${P(s)} berkaitan dengan rumah ke-10 Anda, rumah pekerjaan. Itulah sebabnya Anda mampu ${a}. Dalam ${b}, kekuatan Anda muncul dengan sendirinya.` }; },
@@ -198,6 +229,8 @@ const SERIES: Record<SignThemeSeries, (m: Sign) => EvergreenTemplate> = {
     return { hook: hk(m, h), body: `${VA} Bulan Anda, yang menunjukkan hati, membawa sifat ${P(m)}. Itulah sebabnya ${a}. ${b}, dan ${c}.` }; },
   nature: (m) => { const s = signFrom(m, 9); const [h, a, b] = NATURE[s];
     return { hook: hk(m, h), body: `${VA} ${P(s)} berkaitan dengan rumah ke-9 Anda, poros hidup Anda. Yang benar-benar Anda hargai adalah ${a}. Saat ${b}, Anda paling menjadi diri sendiri.` }; },
+  nakshatra: (m) => { const [a, b, c] = signNakshatras(m);
+    return { hook: `Tahukah Anda, ${sign(m)} terbagi menjadi tiga?`, body: `${VA} zodiak Bulan ${sign(m)} mencakup tiga nakshatra. Di ${a}, Anda ${NAKSHATRA[a]}. Di ${b}, Anda ${NAKSHATRA[b]}. Di ${c}, Anda ${NAKSHATRA[c]}.` }; },
   sidereal: (sun) => ({
     hook: `${sign(sun)}, ramalan bilang Anda ${SUN_TRAIT[sun]}. Terasa bukan Anda?`,
     body: 'Astrologi Weda membaca watak dari Bulan, bukan Matahari, dan memakai posisi bintang yang sebenarnya. Banyak orang punya Matahari dan Bulan di zodiak berbeda; mungkin itu sebabnya ramalan tak pernah pas.',

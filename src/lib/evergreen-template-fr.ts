@@ -1,7 +1,7 @@
 /** French Mon–Wed per-sign evergreen scripts (vous): same structure and chart reasoning as the ja/en sets. */
 import { SIGNS, Sign, asSign } from '@/lib/placements';
 import type { SignThemeSeries } from '@/lib/sign-themes';
-import { EvergreenTemplate, RULER, signFrom } from '@/lib/evergreen-template';
+import { EvergreenTemplate, Nakshatra, RULER, signFrom, signNakshatras } from '@/lib/evergreen-template';
 import { zodiacName } from '@/lib/zodiac-names';
 
 const sign = (s: Sign) => zodiacName(s.toLowerCase(), 'fr') ?? s;
@@ -176,6 +176,37 @@ const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const VA = 'En astrologie védique,';
 const hk = (m: Sign, h: string) => `${sign(m)} lunaire, ${h}`;
 
+/** Keyed by nakshatra: what that nakshatra's person does, in the 2nd person. */
+const NAKSHATRA: Record<Nakshatra, string> = {
+  Ashwini: 'agissez vite pour aider les autres',
+  Bharani: 'portez les charges lourdes jusqu’au bout',
+  Krittika: 'tranchez les choses avec clarté',
+  Rohini: 'faites grandir ce qui est beau',
+  Mrigashira: 'cherchez sans cesse, par curiosité',
+  Ardra: 'renaissez après les tempêtes',
+  Punarvasu: 'vous relevez avec entrain, encore et encore',
+  Pushya: 'prenez soin des autres avec chaleur',
+  Ashlesha: 'lisez au fond des cœurs',
+  Magha: 'portez avec fierté vos racines',
+  'Purva Phalguni': 'savourez la vie et mettez les autres à l’aise',
+  'Uttara Phalguni': 'tenez parole et soutenez les autres',
+  Hasta: 'donnez forme aux choses de vos mains habiles',
+  Chitra: 'créez de belles choses',
+  Swati: 'suivez votre propre chemin, libre comme le vent',
+  Vishakha: 'avancez avec constance vers votre but',
+  Anuradha: 'chérissez l’amitié et rapprochez les gens',
+  Jyeshtha: 'assumez vos responsabilités et protégez les autres',
+  Mula: 'allez jusqu’à la racine des choses',
+  'Purva Ashadha': 'ne renoncez jamais à ce que vous croyez',
+  'Uttara Ashadha': 'allez au bout et vous l’emportez',
+  Shravana: 'écoutez attentivement et apprenez',
+  Dhanishta: 'avez le sens du rythme et attirez l’abondance',
+  Shatabhisha: 'cherchez en profondeur, seul, et soignez les autres',
+  'Purva Bhadrapada': 'brûlez de passion pour un idéal',
+  'Uttara Bhadrapada': 'réfléchissez dans le calme et en profondeur',
+  Revati: 'veillez sur les autres avec douceur',
+};
+
 const SERIES: Record<SignThemeSeries, (m: Sign) => EvergreenTemplate> = {
   work: (m) => { const s = signFrom(m, 10); const [h, a, b] = WORK[s];
     return { hook: hk(m, h), body: `${VA} ${P(s)} est lié à votre maison 10, celle du travail. C’est pourquoi vous savez ${a}. Dans ${b}, votre force se révèle d’elle-même.` }; },
@@ -199,6 +230,8 @@ const SERIES: Record<SignThemeSeries, (m: Sign) => EvergreenTemplate> = {
     return { hook: hk(m, h), body: `${VA} votre Lune, qui montre votre cœur, prend la nature de ${P(m)}. C’est justement pour cela que ${a}. ${b} et ${c}.` }; },
   nature: (m) => { const s = signFrom(m, 9); const [h, a, b] = NATURE[s];
     return { hook: hk(m, h), body: `${VA} ${P(s)} est lié à votre maison 9, l’axe de votre vie. Ce qui compte vraiment pour vous, c’est ${a}. ${cap(b)} : c’est là que vous êtes le plus vous-même.` }; },
+  nakshatra: (m) => { const [a, b, c] = signNakshatras(m);
+    return { hook: `Saviez-vous que le signe lunaire ${sign(m)} se divise en trois ?`, body: `${VA} ce signe couvre trois nakshatras. En ${a}, vous ${NAKSHATRA[a]}. En ${b}, vous ${NAKSHATRA[b]}. En ${c}, vous ${NAKSHATRA[c]}.` }; },
   sidereal: (sun) => ({
     hook: `${sign(sun)}, les horoscopes vous disent ${SUN_TRAIT[sun]}. Vous ne vous y reconnaissez pas ?`,
     body: 'L’astrologie védique lit votre caractère par la Lune, pas par le Soleil, et utilise la vraie position des étoiles. Beaucoup ont le Soleil et la Lune dans des signes différents ; c’est peut-être pour cela que les horoscopes tombent à côté.',

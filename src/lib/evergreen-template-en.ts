@@ -4,7 +4,7 @@
  */
 import { SIGNS, Sign, asSign } from '@/lib/placements';
 import type { SignThemeSeries } from '@/lib/sign-themes';
-import { EvergreenTemplate, RULER, signFrom } from '@/lib/evergreen-template';
+import { EvergreenTemplate, Nakshatra, RULER, signFrom, signNakshatras } from '@/lib/evergreen-template';
 
 const EN_PLANET: Record<string, string> = {
   Sun: 'the Sun', Moon: 'the Moon', Mars: 'Mars', Mercury: 'Mercury', Jupiter: 'Jupiter',
@@ -190,6 +190,37 @@ const EN_SUN_TRAIT: Record<Sign, string> = {
 const ruler = (sign: Sign) => EN_PLANET[RULER[sign]];
 const moonHook = (moon: Sign, hook: string) => `${moon} Moon, ${hook}`;
 
+/** Keyed by nakshatra: what that nakshatra's person does, in the 2nd person. */
+const EN_NAKSHATRA: Record<Nakshatra, string> = {
+  Ashwini: 'act fast to help others',
+  Bharani: 'carry heavy loads to the end',
+  Krittika: 'cut clearly to what matters',
+  Rohini: 'make beautiful things grow',
+  Mrigashira: 'keep searching with curiosity',
+  Ardra: 'are reborn through storms',
+  Punarvasu: 'bounce back brightly, again and again',
+  Pushya: 'nurture people warmly',
+  Ashlesha: 'see straight into people’s hearts',
+  Magha: 'carry the pride of your roots',
+  'Purva Phalguni': 'enjoy life and put people at ease',
+  'Uttara Phalguni': 'keep your word and support others',
+  Hasta: 'shape things with skilled hands',
+  Chitra: 'create things of beauty',
+  Swati: 'go your own way, free as the wind',
+  Vishakha: 'push steadily toward your goal',
+  Anuradha: 'treasure friendship and connect people',
+  Jyeshtha: 'shoulder responsibility and protect others',
+  Mula: 'dig down to the root of things',
+  'Purva Ashadha': 'never give up what you believe in',
+  'Uttara Ashadha': 'see things through and win',
+  Shravana: 'listen closely and learn',
+  Dhanishta: 'are blessed with rhythm and abundance',
+  Shatabhisha: 'search deeply alone and heal others',
+  'Purva Bhadrapada': 'burn with passion for an ideal',
+  'Uttara Bhadrapada': 'think quietly and deeply',
+  Revati: 'watch over others gently',
+};
+
 const EN_SERIES: Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate> = {
   work: (moon) => {
     const s = signFrom(moon, 10); const [hook, strength, place] = EN_WORK[s];
@@ -234,6 +265,10 @@ const EN_SERIES: Record<SignThemeSeries, (moon: Sign) => EvergreenTemplate> = {
   nature: (moon) => {
     const s = signFrom(moon, 9); const [hook, core, scene] = EN_NATURE[s];
     return { hook: moonHook(moon, hook), body: `In Vedic astrology, ${ruler(s)} is linked to your 9th house, the core of how you live. What you truly value is ${core}. When you are ${scene}, you are most yourself.` };
+  },
+  nakshatra: (moon) => {
+    const [a, b, c] = signNakshatras(moon);
+    return { hook: `Did you know ${moon} splits into three?`, body: `In Vedic astrology, the Moon sign ${moon} spans three nakshatras. In ${a}, you ${EN_NAKSHATRA[a]}. In ${b}, you ${EN_NAKSHATRA[b]}. In ${c}, you ${EN_NAKSHATRA[c]}.` };
   },
   sidereal: (sun) => ({
     hook: `${sun}, horoscopes call you ${EN_SUN_TRAIT[sun]}. Does that feel like someone else?`,

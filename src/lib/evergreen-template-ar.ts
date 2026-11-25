@@ -1,7 +1,7 @@
 /** Arabic Mon–Wed per-sign evergreen scripts (2nd person masculine, as in the fixed CTA). */
 import { SIGNS, Sign, asSign } from '@/lib/placements';
 import type { SignThemeSeries } from '@/lib/sign-themes';
-import { EvergreenTemplate, RULER, signFrom } from '@/lib/evergreen-template';
+import { EvergreenTemplate, Nakshatra, RULER, signFrom, signNakshatras } from '@/lib/evergreen-template';
 import { zodiacName } from '@/lib/zodiac-names';
 
 const sign = (s: Sign) => zodiacName(s.toLowerCase(), 'ar') ?? s;
@@ -192,6 +192,37 @@ const house = (s: Sign, n: number, what: string) => {
   return `${VA} ${FEMININE.has(p) ? 'ترتبط' : 'يرتبط'} ${PLANET[p]} ببيتك ${HOUSE[n]}، ${what}.`;
 };
 
+/** [spoken name, what that nakshatra's person does, in the 2nd person]. */
+const NAKSHATRA: Record<Nakshatra, [string, string]> = {
+  Ashwini: ['أشويني', 'تتحرك بسرعة لمساعدة الآخرين'],
+  Bharani: ['بهاراني', 'تحمل الأعباء الثقيلة حتى النهاية'],
+  Krittika: ['كريتيكا', 'تفصل الأمور بوضوح'],
+  Rohini: ['روهيني', 'تنمّي كل ما هو جميل'],
+  Mrigashira: ['مريغاشيرا', 'تبحث بلا توقف بدافع الفضول'],
+  Ardra: ['آردرا', 'تولد من جديد بعد العواصف'],
+  Punarvasu: ['بونارفاسو', 'تنهض بتفاؤل مرة بعد مرة'],
+  Pushya: ['بوشيا', 'ترعى الناس بدفء'],
+  Ashlesha: ['أشليشا', 'ترى ما في قلوب الناس بعمق'],
+  Magha: ['ماغا', 'تحمل بفخر جذورك'],
+  'Purva Phalguni': ['بورفا فالغوني', 'تستمتع بالحياة وتريح من حولك'],
+  'Uttara Phalguni': ['أوتارا فالغوني', 'تفي بوعدك وتساند الآخرين'],
+  Hasta: ['هاستا', 'تصنع الأشياء بيدين ماهرتين'],
+  Chitra: ['تشيترا', 'تبدع أشياء جميلة'],
+  Swati: ['سواتي', 'تمضي في طريقك حرا كالريح'],
+  Vishakha: ['فيشاكا', 'تتقدم بثبات نحو هدفك'],
+  Anuradha: ['أنورادها', 'تقدّر الصداقة وتجمع بين الناس'],
+  Jyeshtha: ['جييشتا', 'تتحمل المسؤولية وتحمي الآخرين'],
+  Mula: ['مولا', 'تصل إلى جذور الأمور'],
+  'Purva Ashadha': ['بورفا أشادها', 'لا تتخلى عما تؤمن به'],
+  'Uttara Ashadha': ['أوتارا أشادها', 'تكمل ما تبدأ وتنتصر'],
+  Shravana: ['شرافانا', 'تصغي جيدا وتتعلم'],
+  Dhanishta: ['دانيشتا', 'تملك الإيقاع وتجذب الوفرة'],
+  Shatabhisha: ['شاتابيشا', 'تبحث بعمق وحدك وتشفي الآخرين'],
+  'Purva Bhadrapada': ['بورفا بهادرابادا', 'تشتعل شغفا من أجل مثال أعلى'],
+  'Uttara Bhadrapada': ['أوتارا بهادرابادا', 'تفكر بهدوء وعمق'],
+  Revati: ['ريفاتي', 'ترعى الآخرين بلطف'],
+};
+
 const SERIES: Record<SignThemeSeries, (m: Sign) => EvergreenTemplate> = {
   work: (m) => { const s = signFrom(m, 10); const [h, a, b] = WORK[s];
     return { hook: hk(m, h), body: `${house(s, 10, 'بيت العمل')} لهذا تستطيع أن ${a}. في ${b}، تظهر قوتك من تلقاء نفسها.` }; },
@@ -215,6 +246,8 @@ const SERIES: Record<SignThemeSeries, (m: Sign) => EvergreenTemplate> = {
     return { hook: hk(m, h), body: `${VA} يحمل قمرك، الذي يدل على قلبك، طبيعة ${PLANET[RULER[m]]}. لهذا ${a}. ${b}، و${c}.` }; },
   nature: (m) => { const s = signFrom(m, 9); const [h, a, b] = NATURE[s];
     return { hook: hk(m, h), body: `${house(s, 9, 'محور حياتك')} ما تقدّره حقا هو ${a}. حين ${b}، تكون أكثر ما تكون على طبيعتك.` }; },
+  nakshatra: (m) => { const [a, b, c] = signNakshatras(m);
+    return { hook: `هل تعلم أن برج ${sign(m)} ينقسم إلى ثلاثة؟`, body: `${VA} يمتد برج القمر ${sign(m)} على ثلاث نكشترات. في ${NAKSHATRA[a][0]}، ${NAKSHATRA[a][1]}. في ${NAKSHATRA[b][0]}، ${NAKSHATRA[b][1]}. في ${NAKSHATRA[c][0]}، ${NAKSHATRA[c][1]}.` }; },
   sidereal: (sun) => ({
     hook: `${sign(sun)}، تصفك الأبراج بأنك ${SUN_TRAIT[sun]}. هل تشعر أن هذا ليس أنت؟`,
     body: 'يقرأ علم التنجيم الفيدي شخصيتك من القمر لا من الشمس، ويعتمد الموقع الحقيقي للنجوم. كثيرون تقع شمسهم وقمرهم في برجين مختلفين، وربما لهذا لا تصيب الأبراج أبدا.',

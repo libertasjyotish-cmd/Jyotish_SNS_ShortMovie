@@ -1,6 +1,6 @@
 /**
- * The twelve sign-theme series run one per week, so a script comes back around every twelve
- * weeks. Re-posting the stored file would hand the platforms the same video twice, which costs
+ * The sign-theme series run one per week, so a script comes back around once the rotation is
+ * through. Re-posting the stored file would hand the platforms the same video twice, which costs
  * the second run its recommendation reach, so a returning script is rendered again on a
  * different background, with a different cover and - the part a new background does not change -
  * a different narration voice.
@@ -29,8 +29,8 @@ function rotationIndex(weekId: string): number | undefined {
 }
 
 /**
- * How many times the twelve series have been through. The first pass is 0, so nothing changes
- * for a script the audience has not seen yet; the repeat that starts in week thirteen is 1.
+ * How many times the series have been through. The first pass is 0, so nothing changes
+ * for a script the audience has not seen yet; the first repeat is 1.
  */
 export function reuseCycle(weekId: string): number {
   const index = rotationIndex(weekId);
